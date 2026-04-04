@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>dealsco — Refined Design</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #f2f5f0;
+    color: #3d4a3e;
+    min-height: 100vh;
+  }
+
+  /* ── Nav ── */
+  .nav {
+    background: white;
+    padding: 0 28px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 1px 0 #e6ede4;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .logo {
+    font-size: 17px;
+    font-weight: 800;
+    color: #2e4a30;
+    letter-spacing: -0.5px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .logo-dot { color: #5a8a5e; }
+  .nav-right {
+    font-size: 12px;
+    color: #9aad9b;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .nav-badge {
+    background: #eef3ec;
+    color: #4a7a4e;
+    border-radius: 20px;
+    padding: 2px 9px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  /* ── Toolbar ── */
+  .toolbar {
+    background: white;
+    border-bottom: 1px solid #e6ede4;
+    padding: 10px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .filters {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .pill {
+    background: white;
+    color: #4a6e4d;
+    border: 1.5px solid #c8d8c8;
+    border-radius: 20px;
+    padding: 4px 13px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.12s;
+    user-select: none;
+    white-space: nowrap;
+  }
+  .pill:hover { border-color: #5a8a5e; background: #f4f8f2; }
+  .pill.active { background: #3d5e40; color: white; border-color: #3d5e40; }
+
+  .divider { width: 1px; height: 20px; background: #dde8dc; margin: 0 2px; }
+
+  .sort-pill {
+    background: white;
+    color: #4a6e4d;
+    border: 1.5px solid #c8d8c8;
+    border-radius: 20px;
+    padding: 4px 13px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.12s;
+    white-space: nowrap;
+  }
+  .sort-pill:hover { border-color: #5a8a5e; background: #f4f8f2; }
+  .sort-arrow { font-size: 10px; color: #7a9a7c; }
+
+  /* sort dropdown */
+  .sort-wrapper { position: relative; }
+  .sort-dropdown {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    background: white;
+    border: 1.5px solid #d0ddd0;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.10);
+    padding: 6px;
+    min-width: 180px;
+    z-index: 20;
+    display: none;
+  }
+  .sort-dropdown.open { display: block; }
+  .sort-option {
+    padding: 8px 12px;
+    font-size: 13px;
+    border-radius: 8px;
+    cursor: pointer;
+    color: #3d4a3e;
+    transition: background 0.1s;
+  }
+  .sort-option:hover { background: #f0f5ee; }
+  .sort-option.selected { background: #eef3ec; color: #2e4a30; font-weight: 600; }
+
+  /* ── Main layout ── */
+  .main {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 24px 28px;
+  }
+
+  .results-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .results-count { font-size: 13px; color: #8a9e8c; }
+  .refresh-note {
+    font-size: 11px;
+    color: #a0b4a2;
+    background: #f5f8f4;
+    border: 1px solid #dde8dc;
+    border-radius: 8px;
+    padding: 4px 10px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .refresh-dot { width: 6px; height: 6px; border-radius: 50%; background: #7ab87e; display: inline-block; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* ── Product grid ── */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 14px;
+  }
+
+  .tile {
+    background: white;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    border: 1px solid #edf2ec;
+    cursor: pointer;
+    transition: transform 0.12s, box-shadow 0.12s;
+    text-decoration: none;
+    color: inherit;
+    display: block;
+  }
+  .tile:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.10); border-color: #d0ddd0; }
+
+  .tile-img {
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: cover;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 44px;
+    background: #f6f8f5;
+  }
+
+  .tile-body { padding: 10px 12px 12px; }
+
+  .tile-store {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: #9aad9b;
+    margin-bottom: 3px;
+  }
+
+  .tile-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: #2d3a2e;
+    margin-bottom: 6px;
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .tile-tags {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+  }
+  .tag {
+    background: #eef3ec;
+    color: #4a6e4d;
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 10px;
+    font-weight: 500;
+  }
+
+  .tile-price-row {
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
+  }
+  .price-now { font-size: 15px; font-weight: 800; color: #2d3a2e; }
+  .price-orig { font-size: 11px; color: #b0bdb0; text-decoration: line-through; }
+  .discount-badge {
+    margin-left: auto;
+    background: #e8f3e8;
+    color: #2e6630;
+    border-radius: 6px;
+    padding: 2px 7px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  /* cached disclaimer */
+  .cached-bar {
+    background: #fffbe6;
+    border: 1px solid #f0e080;
+    border-radius: 8px;
+    padding: 7px 14px;
+    font-size: 12px;
+    color: #7a6a20;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* label above mock */
+  .label-strip {
+    text-align: center;
+    font-size: 12px;
+    color: #8a9e8c;
+    padding: 16px 0 4px;
+    font-weight: 500;
+    letter-spacing: 0.2px;
+  }
+</style>
+</head>
+<body>
+
+<div class="label-strip">Refined mockup — Sage Frost + C's outlined pills + sort control</div>
+
+<!-- Nav -->
+<div class="nav">
+  <div class="logo">🌿 dealsco<span class="logo-dot">.</span></div>
+  <div class="nav-right">
+    <span class="nav-badge">3 stores active</span>
+  </div>
+</div>
+
+<!-- Toolbar -->
+<div class="toolbar">
+  <div class="filters">
+    <span class="pill active">All</span>
+    <span class="pill">Men</span>
+    <span class="pill">Women</span>
+    <span class="divider"></span>
+    <span class="pill">Tops</span>
+    <span class="pill">Bottoms</span>
+    <span class="pill">Outerwear</span>
+    <span class="pill">Footwear</span>
+    <span class="pill">Accessories</span>
+  </div>
+  <div class="sort-wrapper">
+    <div class="sort-pill" onclick="toggleSort()">
+      <span>↓ Sort:</span>
+      <span id="sort-label" style="font-weight:600;color:#2e4a30;">% Off</span>
+    </div>
+    <div class="sort-dropdown" id="sort-dropdown">
+      <div class="sort-option selected" onclick="setSort(this,'% Off')">% Off (highest first)</div>
+      <div class="sort-option" onclick="setSort(this,'Price ↑')">Price (low to high)</div>
+      <div class="sort-option" onclick="setSort(this,'Price ↓')">Price (high to low)</div>
+      <div class="sort-option" onclick="setSort(this,'Newest')">Newest</div>
+    </div>
+  </div>
+</div>
+
+<!-- Main -->
+<div class="main">
+
+  <!-- Cached disclaimer -->
+  <div class="cached-bar">
+    ⏱ Showing results from last refresh (2 min ago). Refreshing now…
+  </div>
+
+  <div class="results-header">
+    <span class="results-count">42 deals found</span>
+    <span class="refresh-note"><span class="refresh-dot"></span> Refreshing…</span>
+  </div>
+
+  <!-- Grid -->
+  <div class="grid">
+    <a class="tile" href="#">
+      <div class="tile-img" style="background:#eef4ee;">👟</div>
+      <div class="tile-body">
+        <div class="tile-store">Under Armour</div>
+        <div class="tile-name">HOVR Phantom 3</div>
+        <div class="tile-tags"><span class="tag">Men</span><span class="tag">Footwear</span></div>
+        <div class="tile-price-row">
+          <span class="price-now">$62</span>
+          <span class="price-orig">$89</span>
+          <span class="discount-badge">-30%</span>
+        </div>
+      </div>
+    </a>
+    <a class="tile" href="#">
+      <div class="tile-img" style="background:#f5f0ee;">👗</div>
+      <div class="tile-body">
+        <div class="tile-store">Zara</div>
+        <div class="tile-name">Linen Blend Midi Dress</div>
+        <div class="tile-tags"><span class="tag">Women</span><span class="tag">Dresses</span></div>
+        <div class="tile-price-row">
+          <span class="price-now">$45</span>
+          <span class="price-orig">$79</span>
+          <span class="discount-badge">-43%</span>
+        </div>
+      </div>
+    </a>
+    <a class="tile" href="#">
+      <div class="tile-img" style="background:#f0f4f8;">👕</div>
+      <div class="tile-body">
+        <div class="tile-store">Uniqlo</div>
+        <div class="tile-name">AIRism Cotton T-Shirt</div>
+        <div class="tile-tags"><span class="tag">Men</span><span class="tag">Tops</span></div>
+        <div class="tile-price-row">
+          <span class="price-now">$19</span>
+          <span class="price-orig">$29</span>
+          <span class="discount-badge">-34%</span>
+        </div>
+      </div>
+    </a>
+    <a class="tile" href="#">
+      <div class="tile-img" style="background:#f0eef8;">🧥</div>
+      <div class="tile-body">
+        <div class="tile-store">Under Armour</div>
+        <div class="tile-name">Storm Fleece Jacket</div>
+        <div class="tile-tags"><span class="tag">Men</span><span class="tag">Outerwear</span></div>
+        <div class="tile-price-row">
+          <span class="price-now">$98</span>
+          <span class="price-orig">$149</span>
+          <span class="discount-badge">-34%</span>
+        </div>
+      </div>
+    </a>
+    <a class="tile" href="#">
+      <div class="tile-img" style="background:#f5f5ee;">🩳</div>
+      <div class="tile-body">
+        <div class="tile-store">Uniqlo</div>
+        <div class="tile-name">Ultra Stretch Shorts</div>
+        <div class="tile-tags"><span class="tag">Women</span><span class="tag">Bottoms</span></div>
+        <div class="tile-price-row">
+          <span class="price-now">$15</span>
+          <span class="price-orig">$24</span>
+          <span class="discount-badge">-38%</span>
+        </div>
+      </div>
+    </a>
+    <a class="tile" href="#">
+      <div class="tile-img" style="background:#f8f0f0;">👜</div>
+      <div class="tile-body">
+        <div class="tile-store">Zara</div>
+        <div class="tile-name">Structured Tote Bag</div>
+        <div class="tile-tags"><span class="tag">Women</span><span class="tag">Accessories</span></div>
+        <div class="tile-price-row">
+          <span class="price-now">$35</span>
+          <span class="price-orig">$59</span>
+          <span class="discount-badge">-41%</span>
+        </div>
+      </div>
+    </a>
+  </div>
+</div>
+
+<script>
+function toggleSort() {
+  document.getElementById('sort-dropdown').classList.toggle('open');
+}
+function setSort(el, label) {
+  document.querySelectorAll('.sort-option').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+  document.getElementById('sort-label').textContent = label;
+  document.getElementById('sort-dropdown').classList.remove('open');
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('.sort-wrapper')) {
+    document.getElementById('sort-dropdown').classList.remove('open');
+  }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+node_modules/
+data/
+.env
+*.log
+
+# Playwright
+/test-results/
+/playwright-report/
+
+# Brainstorm server temp state (content is kept, state is ephemeral)
+.superpowers/brainstorm/*/state/
+
+# Agent research artifacts
+*.png
+*.jpg
+.playwright-mcp/
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Deal Scraper — Design Directions</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #f5f0e8;
+    color: #3d4a3e;
+    padding: 32px 24px;
+    min-height: 100vh;
+  }
+  h1 {
+    font-size: 20px;
+    font-weight: 600;
+    text-align: center;
+    margin-bottom: 6px;
+    color: #2d3a2e;
+    letter-spacing: -0.3px;
+  }
+  .subtitle {
+    text-align: center;
+    font-size: 13px;
+    color: #7a8c7b;
+    margin-bottom: 32px;
+  }
+  .cards {
+    display: flex;
+    gap: 24px;
+    justify-content: center;
+    flex-wrap: wrap;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  .card {
+    background: white;
+    border-radius: 16px;
+    width: 320px;
+    overflow: hidden;
+    border: 2.5px solid transparent;
+    cursor: pointer;
+    transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+  }
+  .card:hover { transform: translateY(-2px); box-shadow: 0 6px 24px rgba(0,0,0,0.10); }
+  .card.selected { border-color: #5a8a5e; box-shadow: 0 0 0 4px rgba(90,138,94,0.15); }
+  .card-preview {
+    height: 220px;
+    position: relative;
+    overflow: hidden;
+  }
+  .card-body {
+    padding: 16px 18px 18px;
+    border-top: 1px solid #f0ebe0;
+  }
+  .card-body h3 { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+  .card-body p { font-size: 12.5px; color: #7a8c7b; line-height: 1.5; }
+  .badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+  }
+  .selected-indicator {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #3d5e40;
+    color: white;
+    padding: 10px 22px;
+    border-radius: 24px;
+    font-size: 13px;
+    font-weight: 500;
+    opacity: 0;
+    transition: opacity 0.2s;
+    pointer-events: none;
+    z-index: 100;
+  }
+  .selected-indicator.show { opacity: 1; }
+
+  /* ── Option A: Sage Frost ── */
+  .preview-a {
+    background: #f7f9f5;
+    padding: 12px;
+  }
+  .a-nav {
+    background: white;
+    border-radius: 8px;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+  .a-logo { font-size: 11px; font-weight: 700; color: #3d5e40; letter-spacing: -0.2px; }
+  .a-filters { display: flex; gap: 4px; }
+  .a-pill {
+    background: #eef3ec;
+    color: #4a6e4d;
+    border-radius: 20px;
+    padding: 2px 7px;
+    font-size: 9px;
+    font-weight: 500;
+  }
+  .a-pill.active { background: #4a7a4e; color: white; }
+  .a-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+  .a-tile {
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+  .a-img { height: 50px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .a-info { padding: 5px 6px; }
+  .a-brand { font-size: 7px; color: #9aad9b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
+  .a-price { font-size: 9px; font-weight: 700; color: #2d3a2e; }
+  .a-orig { font-size: 7px; color: #b0bdb0; text-decoration: line-through; }
+  .a-discount { display: inline-block; background: #e8f3e8; color: #3d6b40; border-radius: 4px; padding: 1px 4px; font-size: 7px; font-weight: 700; margin-left: 2px; }
+
+  /* ── Option B: Warm Linen ── */
+  .preview-b {
+    background: #fdf6e8;
+    padding: 12px;
+  }
+  .b-nav {
+    background: #3d3228;
+    border-radius: 8px;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .b-logo { font-size: 11px; font-weight: 700; color: #e8d5b0; letter-spacing: 0.5px; }
+  .b-filters { display: flex; gap: 4px; }
+  .b-pill { background: rgba(255,255,255,0.1); color: #c8b898; border-radius: 4px; padding: 2px 7px; font-size: 9px; }
+  .b-pill.active { background: #c8962a; color: white; }
+  .b-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .b-tile {
+    background: white;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.08);
+  }
+  .b-img { height: 64px; display: flex; align-items: center; justify-content: center; font-size: 22px; }
+  .b-info { padding: 6px 8px; }
+  .b-brand { font-size: 7px; color: #b8a888; font-weight: 600; text-transform: uppercase; }
+  .b-price { font-size: 11px; font-weight: 700; color: #3d3228; }
+  .b-row { display: flex; align-items: center; gap: 4px; }
+  .b-orig { font-size: 8px; color: #c0b0a0; text-decoration: line-through; }
+  .b-discount { background: #c8962a; color: white; border-radius: 3px; padding: 1px 4px; font-size: 7px; font-weight: 700; }
+
+  /* ── Option C: Nordic Mint ── */
+  .preview-c {
+    background: #f0f5f2;
+    padding: 12px;
+  }
+  .c-nav {
+    background: white;
+    border-radius: 8px;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+    border-bottom: 2px solid #d4ebe0;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  }
+  .c-logo { font-size: 11px; font-weight: 800; color: #1a4a35; letter-spacing: -0.5px; }
+  .c-filters { display: flex; gap: 4px; align-items: center; }
+  .c-pill { background: #e4f0ea; color: #2a6644; border-radius: 6px; padding: 2px 7px; font-size: 9px; font-weight: 500; border: 1px solid #c0dece; }
+  .c-pill.active { background: #2a6644; color: white; border-color: #2a6644; }
+  .c-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; }
+  .c-tile {
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid #e0ece6;
+  }
+  .c-img { height: 48px; display: flex; align-items: center; justify-content: center; font-size: 18px; background: #f6faf8; }
+  .c-info { padding: 5px 6px; }
+  .c-brand { font-size: 7px; color: #7aa88a; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; }
+  .c-price-row { display: flex; align-items: center; gap: 3px; flex-wrap: wrap; }
+  .c-price { font-size: 9px; font-weight: 800; color: #1a3a28; }
+  .c-orig { font-size: 7px; color: #b0c4b8; text-decoration: line-through; }
+  .c-discount { background: #e8f8ee; color: #1a6640; border-radius: 3px; padding: 1px 3px; font-size: 7px; font-weight: 700; border: 1px solid #b8e8c8; }
+</style>
+</head>
+<body>
+
+<h1>Deal Scraper — Design Direction</h1>
+<p class="subtitle">Three visual directions, all in the Everforest family. Click one to select.</p>
+
+<div class="cards">
+
+  <!-- Option A -->
+  <div class="card" data-choice="a" onclick="selectCard(this)">
+    <div class="card-preview preview-a">
+      <div class="a-nav">
+        <span class="a-logo">🌿 dealsco</span>
+        <div class="a-filters">
+          <span class="a-pill active">All</span>
+          <span class="a-pill">Men</span>
+          <span class="a-pill">Women</span>
+          <span class="a-pill">Sale</span>
+        </div>
+      </div>
+      <div class="a-grid">
+        <div class="a-tile">
+          <div class="a-img" style="background:#f0f5ee;">👟</div>
+          <div class="a-info">
+            <div class="a-brand">Under Armour</div>
+            <div class="a-price">$62 <span class="a-orig">$89</span><span class="a-discount">-30%</span></div>
+          </div>
+        </div>
+        <div class="a-tile">
+          <div class="a-img" style="background:#faf5f0;">👕</div>
+          <div class="a-info">
+            <div class="a-brand">Uniqlo</div>
+            <div class="a-price">$19 <span class="a-orig">$29</span><span class="a-discount">-34%</span></div>
+          </div>
+        </div>
+        <div class="a-tile">
+          <div class="a-img" style="background:#f5f0f5;">👗</div>
+          <div class="a-info">
+            <div class="a-brand">Zara</div>
+            <div class="a-price">$45 <span class="a-orig">$79</span><span class="a-discount">-43%</span></div>
+          </div>
+        </div>
+        <div class="a-tile">
+          <div class="a-img" style="background:#f0f5f5;">🧥</div>
+          <div class="a-info">
+            <div class="a-brand">Under Armour</div>
+            <div class="a-price">$98 <span class="a-orig">$149</span><span class="a-discount">-34%</span></div>
+          </div>
+        </div>
+        <div class="a-tile">
+          <div class="a-img" style="background:#f5f5f0;">🩳</div>
+          <div class="a-info">
+            <div class="a-brand">Uniqlo</div>
+            <div class="a-price">$15 <span class="a-orig">$24</span><span class="a-discount">-38%</span></div>
+          </div>
+        </div>
+        <div class="a-tile">
+          <div class="a-img" style="background:#f5f0ee;">👜</div>
+          <div class="a-info">
+            <div class="a-brand">Zara</div>
+            <div class="a-price">$35 <span class="a-orig">$59</span><span class="a-discount">-41%</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <span class="badge" style="background:#eef3ec;color:#3d6b40;">A — Sage Frost</span>
+      <h3>Clean & Airy</h3>
+      <p>White card tiles on a soft sage background. Pill filters, small discount badges in green. Feels like a modern boutique app.</p>
+    </div>
+  </div>
+
+  <!-- Option B -->
+  <div class="card" data-choice="b" onclick="selectCard(this)">
+    <div class="card-preview preview-b">
+      <div class="b-nav">
+        <span class="b-logo">DEALSCO</span>
+        <div class="b-filters">
+          <span class="b-pill active">All</span>
+          <span class="b-pill">Men</span>
+          <span class="b-pill">Women</span>
+        </div>
+      </div>
+      <div class="b-grid">
+        <div class="b-tile">
+          <div class="b-img" style="background:#fdf0e0;">👟</div>
+          <div class="b-info">
+            <div class="b-brand">Under Armour</div>
+            <div class="b-row"><span class="b-price">$62</span><span class="b-orig">$89</span><span class="b-discount">-30%</span></div>
+          </div>
+        </div>
+        <div class="b-tile">
+          <div class="b-img" style="background:#fdf5e8;">👕</div>
+          <div class="b-info">
+            <div class="b-brand">Uniqlo</div>
+            <div class="b-row"><span class="b-price">$19</span><span class="b-orig">$29</span><span class="b-discount">-34%</span></div>
+          </div>
+        </div>
+        <div class="b-tile">
+          <div class="b-img" style="background:#f8f0f5;">👗</div>
+          <div class="b-info">
+            <div class="b-brand">Zara</div>
+            <div class="b-row"><span class="b-price">$45</span><span class="b-orig">$79</span><span class="b-discount">-43%</span></div>
+          </div>
+        </div>
+        <div class="b-tile">
+          <div class="b-img" style="background:#eef5f0;">🧥</div>
+          <div class="b-info">
+            <div class="b-brand">Under Armour</div>
+            <div class="b-row"><span class="b-price">$98</span><span class="b-orig">$149</span><span class="b-discount">-34%</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <span class="badge" style="background:#f5e8cc;color:#8a5a10;">B — Warm Linen</span>
+      <h3>Warm & Editorial</h3>
+      <p>Warm cream background, dark espresso nav bar, amber/gold sale badges. Feels premium and editorial — like a curated lookbook.</p>
+    </div>
+  </div>
+
+  <!-- Option C -->
+  <div class="card" data-choice="c" onclick="selectCard(this)">
+    <div class="card-preview preview-c">
+      <div class="c-nav">
+        <span class="c-logo">dealsco.</span>
+        <div class="c-filters">
+          <span class="c-pill active">All</span>
+          <span class="c-pill">Men</span>
+          <span class="c-pill">Women</span>
+          <span class="c-pill">↓ Sort</span>
+        </div>
+      </div>
+      <div class="c-grid">
+        <div class="c-tile">
+          <div class="c-img">👟</div>
+          <div class="c-info">
+            <div class="c-brand">Under Armour</div>
+            <div class="c-price-row"><span class="c-price">$62</span><span class="c-orig">$89</span><span class="c-discount">-30%</span></div>
+          </div>
+        </div>
+        <div class="c-tile">
+          <div class="c-img">👕</div>
+          <div class="c-info">
+            <div class="c-brand">Uniqlo</div>
+            <div class="c-price-row"><span class="c-price">$19</span><span class="c-orig">$29</span><span class="c-discount">-34%</span></div>
+          </div>
+        </div>
+        <div class="c-tile">
+          <div class="c-img">👗</div>
+          <div class="c-info">
+            <div class="c-brand">Zara</div>
+            <div class="c-price-row"><span class="c-price">$45</span><span class="c-orig">$79</span><span class="c-discount">-43%</span></div>
+          </div>
+        </div>
+        <div class="c-tile">
+          <div class="c-img">🧥</div>
+          <div class="c-info">
+            <div class="c-brand">Under Armour</div>
+            <div class="c-price-row"><span class="c-price">$98</span><span class="c-orig">$149</span><span class="c-discount">-34%</span></div>
+          </div>
+        </div>
+        <div class="c-tile">
+          <div class="c-img">🩳</div>
+          <div class="c-info">
+            <div class="c-brand">Uniqlo</div>
+            <div class="c-price-row"><span class="c-price">$15</span><span class="c-orig">$24</span><span class="c-discount">-38%</span></div>
+          </div>
+        </div>
+        <div class="c-tile">
+          <div class="c-img">👜</div>
+          <div class="c-info">
+            <div class="c-brand">Zara</div>
+            <div class="c-price-row"><span class="c-price">$35</span><span class="c-orig">$59</span><span class="c-discount">-41%</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <span class="badge" style="background:#e4f0ea;color:#1a5435;border:1px solid #b8d8c4;">C — Nordic Mint</span>
+      <h3>Crisp & Structured</h3>
+      <p>White tiles with sage green borders and accents. Bold typography, structured grid, discount badges in soft green. Feels like a clean Scandinavian product catalog.</p>
+    </div>
+  </div>
+
+</div>
+
+<div class="selected-indicator" id="indicator">✓ Selected</div>
+
+<script>
+  let selected = null;
+  function selectCard(el) {
+    document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+    el.classList.add('selected');
+    selected = el.dataset.choice;
+    const indicator = document.getElementById('indicator');
+    const name = el.querySelector('h3').textContent;
+    indicator.textContent = '✓ ' + name + ' selected';
+    indicator.classList.add('show');
+    setTimeout(() => indicator.classList.remove('show'), 2000);
+    // record selection for Claude to read
+    if (window.__superpower_select) window.__superpower_select(selected, name);
+  }
+</script>
+</body>
+</html>

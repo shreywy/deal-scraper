@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>dealsco — Sidebar Layout</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f2f5f0;
+    --surface: #ffffff;
+    --border: #e2ece0;
+    --border-hover: #b8cfb8;
+    --green-dark: #2e4a30;
+    --green-mid: #3d5e40;
+    --green-pill: #4a7a4e;
+    --green-light: #eef3ec;
+    --green-tag: #d4e8d4;
+    --text-primary: #2d3a2e;
+    --text-secondary: #6a7e6c;
+    --text-muted: #9aad9b;
+    --badge-bg: #e2f0e2;
+    --badge-text: #235025;
+    --sidebar-w: 230px;
+    --topbar-h: 52px;
+    --radius: 12px;
+    --transition: 0.18s cubic-bezier(0.4,0,0.2,1);
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text-primary);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ──────── TOPBAR ──────── */
+  .topbar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: var(--topbar-h);
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    z-index: 100;
+    gap: 14px;
+  }
+
+  .logo {
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--green-dark);
+    letter-spacing: -0.6px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex-shrink: 0;
+  }
+  .logo-leaf { font-size: 16px; }
+
+  .topbar-divider { width: 1px; height: 22px; background: var(--border); flex-shrink: 0; }
+
+  /* Refresh status strip — inline in topbar */
+  .refresh-strip {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    background: #fffce8;
+    border: 1px solid #e8d860;
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 11.5px;
+    color: #6a5c10;
+    animation: fadeIn 0.3s ease;
+    transition: opacity var(--transition);
+  }
+  .refresh-strip.live {
+    background: #eef6ee;
+    border-color: #b0d4b0;
+    color: #2a5a2c;
+  }
+  .strip-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: #d4b820;
+    flex-shrink: 0;
+    animation: pulse 1.6s infinite;
+  }
+  .refresh-strip.live .strip-dot { background: #4a9e4e; }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(0.85)} }
+
+  .topbar-spacer { flex: 1; }
+
+  .store-badges { display: flex; gap: 5px; align-items: center; }
+  .store-badge {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: var(--green-light);
+    border-radius: 20px;
+    padding: 3px 9px;
+    transition: opacity var(--transition);
+  }
+  .store-badge.disabled { opacity: 0.38; text-decoration: line-through; }
+
+  /* Cog button */
+  .cog-btn {
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    transition: background var(--transition), border-color var(--transition), transform var(--transition);
+    flex-shrink: 0;
+    position: relative;
+  }
+  .cog-btn:hover { background: var(--green-light); border-color: var(--border-hover); }
+  .cog-btn.open { background: var(--green-light); border-color: var(--green-mid); }
+  .cog-btn.open .cog-icon { transform: rotate(90deg); }
+  .cog-icon {
+    font-size: 15px;
+    line-height: 1;
+    display: block;
+    transition: transform 0.35s cubic-bezier(0.4,0,0.2,1);
+  }
+
+  /* Settings panel */
+  .settings-panel {
+    position: fixed;
+    top: calc(var(--topbar-h) + 8px);
+    right: 16px;
+    width: 280px;
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 16px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.12);
+    z-index: 200;
+    overflow: hidden;
+    transform-origin: top right;
+    transform: scale(0.92) translateY(-8px);
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 0.22s cubic-bezier(0.4,0,0.2,1), opacity 0.18s ease;
+  }
+  .settings-panel.open {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+    pointer-events: all;
+  }
+  .sp-header {
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .sp-header h3 { font-size: 13px; font-weight: 700; color: var(--green-dark); }
+  .sp-header p { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+  .sp-section { padding: 12px 16px; border-bottom: 1px solid var(--border); }
+  .sp-section:last-child { border-bottom: none; }
+  .sp-section-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 9px;
+  }
+  .sp-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .sp-row:last-child { margin-bottom: 0; }
+  .sp-store-name { font-size: 13px; font-weight: 500; color: var(--text-primary); }
+  .sp-store-sub { font-size: 11px; color: var(--text-muted); }
+
+  /* Toggle switch */
+  .toggle {
+    width: 34px; height: 19px;
+    background: #d0ddd0;
+    border-radius: 20px;
+    position: relative;
+    cursor: pointer;
+    transition: background var(--transition);
+    flex-shrink: 0;
+  }
+  .toggle.on { background: var(--green-mid); }
+  .toggle::after {
+    content: '';
+    position: absolute;
+    top: 2px; left: 2px;
+    width: 15px; height: 15px;
+    border-radius: 50%;
+    background: white;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.18);
+    transition: transform var(--transition);
+  }
+  .toggle.on::after { transform: translateX(15px); }
+
+  /* ──────── LAYOUT ──────── */
+  .layout {
+    display: flex;
+    margin-top: var(--topbar-h);
+    min-height: calc(100vh - var(--topbar-h));
+  }
+
+  /* ──────── SIDEBAR ──────── */
+  .sidebar {
+    width: var(--sidebar-w);
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    position: fixed;
+    top: var(--topbar-h);
+    bottom: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 18px 14px 32px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+    flex-shrink: 0;
+  }
+  .sidebar::-webkit-scrollbar { width: 4px; }
+  .sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  .sb-section { margin-bottom: 22px; }
+  .sb-section-title {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.7px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+    padding: 0 4px;
+  }
+
+  /* Sort options in sidebar */
+  .sort-option {
+    display: flex;
+    align-items: center;
+    padding: 7px 10px;
+    border-radius: 8px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background var(--transition), color var(--transition);
+    gap: 8px;
+  }
+  .sort-option:hover { background: var(--bg); }
+  .sort-option.active { background: var(--green-light); color: var(--green-dark); font-weight: 600; }
+  .sort-icon { font-size: 13px; width: 18px; text-align: center; }
+
+  /* Filter pills in sidebar */
+  .pill-group { display: flex; flex-wrap: wrap; gap: 5px; padding: 0 2px; }
+  .pill {
+    background: var(--surface);
+    color: var(--text-secondary);
+    border: 1.5px solid var(--border);
+    border-radius: 20px;
+    padding: 4px 11px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background var(--transition), border-color var(--transition), color var(--transition), transform 0.1s;
+    user-select: none;
+  }
+  .pill:hover { border-color: var(--border-hover); background: var(--green-light); transform: translateY(-1px); }
+  .pill.active { background: var(--green-mid); color: white; border-color: var(--green-mid); }
+
+  /* Grid scale */
+  .scale-btns { display: flex; gap: 4px; padding: 0 2px; }
+  .scale-btn {
+    flex: 1;
+    height: 32px;
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    transition: background var(--transition), border-color var(--transition);
+    gap: 2px;
+  }
+  .scale-btn:hover { background: var(--green-light); border-color: var(--border-hover); }
+  .scale-btn.active { background: var(--green-mid); border-color: var(--green-mid); }
+  /* mini grid icons */
+  .grid-icon { display: grid; gap: 2px; }
+  .grid-icon .d { width: 5px; height: 5px; background: var(--text-muted); border-radius: 1px; transition: background var(--transition); }
+  .scale-btn.active .d { background: white; }
+  .grid-2 { grid-template-columns: 1fr 1fr; }
+  .grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .grid-4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+  .grid-5 { grid-template-columns: 1fr 1fr 1fr 1fr 1fr; }
+
+  /* Store filter pills */
+  .store-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--transition);
+    white-space: nowrap;
+  }
+  .store-pill:hover { background: var(--green-light); border-color: var(--border-hover); }
+  .store-pill.active { background: var(--green-mid); color: white; border-color: var(--green-mid); }
+  .store-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+
+  /* ──────── MAIN ──────── */
+  .main {
+    margin-left: var(--sidebar-w);
+    flex: 1;
+    padding: 22px 24px 40px;
+    min-width: 0;
+  }
+
+  .results-bar {
+    display: flex;
+    align-items: center;
+    margin-bottom: 16px;
+    gap: 10px;
+  }
+  .results-count {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+  .active-filters {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+    flex: 1;
+  }
+  .active-tag {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--green-light);
+    color: var(--green-dark);
+    border-radius: 20px;
+    padding: 3px 10px 3px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    animation: fadeIn 0.2s ease;
+  }
+  .active-tag-x {
+    color: var(--green-pill);
+    cursor: pointer;
+    font-size: 13px;
+    line-height: 1;
+    margin-left: 1px;
+  }
+
+  /* Product grid */
+  .grid {
+    display: grid;
+    gap: 14px;
+    transition: grid-template-columns 0.22s cubic-bezier(0.4,0,0.2,1);
+  }
+  .grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
+  .grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+  .grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
+  .grid.cols-5 { grid-template-columns: repeat(5, 1fr); }
+
+  .tile {
+    background: var(--surface);
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: transform var(--transition), box-shadow var(--transition), border-color var(--transition);
+    text-decoration: none;
+    color: inherit;
+    display: block;
+    animation: fadeUp 0.25s ease both;
+  }
+  .tile:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 28px rgba(0,0,0,0.10);
+    border-color: var(--border-hover);
+  }
+
+  @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+
+  .tile:nth-child(1) { animation-delay: 0.02s; }
+  .tile:nth-child(2) { animation-delay: 0.05s; }
+  .tile:nth-child(3) { animation-delay: 0.08s; }
+  .tile:nth-child(4) { animation-delay: 0.11s; }
+  .tile:nth-child(5) { animation-delay: 0.14s; }
+  .tile:nth-child(6) { animation-delay: 0.17s; }
+  .tile:nth-child(7) { animation-delay: 0.20s; }
+  .tile:nth-child(8) { animation-delay: 0.23s; }
+
+  .tile-img {
+    width: 100%;
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 40px;
+    transition: transform 0.22s ease;
+  }
+  .tile:hover .tile-img { transform: scale(1.04); }
+
+  .tile-body { padding: 10px 12px 13px; }
+  .tile-store {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 2px;
+  }
+  .tile-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 7px;
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .tile-tags {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    margin-bottom: 9px;
+  }
+  .tag {
+    background: var(--green-tag);
+    color: #2a5a2c;
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 10px;
+    font-weight: 500;
+  }
+  .tile-price-row {
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
+    flex-wrap: wrap;
+  }
+  .price-now { font-size: 15px; font-weight: 800; color: var(--text-primary); }
+  .price-orig { font-size: 11px; color: #b8c8b8; text-decoration: line-through; }
+  .discount-badge {
+    margin-left: auto;
+    background: var(--badge-bg);
+    color: var(--badge-text);
+    border-radius: 6px;
+    padding: 2px 7px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  /* Skeleton loader */
+  .skeleton { background: linear-gradient(90deg, #eef2ec 25%, #f5f8f4 50%, #eef2ec 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; }
+  @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+  .tile-skel .tile-img-skel { width:100%; aspect-ratio:1; }
+  .tile-skel .line { height: 10px; border-radius: 6px; margin: 6px 12px; }
+  .tile-skel .line.short { width: 55%; }
+  .tile-skel .line.med { width: 75%; margin-top:8px; }
+</style>
+</head>
+<body>
+
+<!-- ── TOPBAR ── -->
+<div class="topbar">
+  <div class="logo"><span class="logo-leaf">🌿</span> dealsco</div>
+  <div class="topbar-divider"></div>
+  <div class="refresh-strip" id="refreshStrip">
+    <span class="strip-dot"></span>
+    Showing cached results · Refreshing now…
+  </div>
+  <div class="topbar-spacer"></div>
+  <div class="store-badges">
+    <span class="store-badge">Under Armour</span>
+    <span class="store-badge">Uniqlo</span>
+    <span class="store-badge">Zara</span>
+  </div>
+  <div class="topbar-divider"></div>
+  <div class="cog-btn" id="cogBtn" onclick="toggleSettings()">
+    <span class="cog-icon">⚙️</span>
+  </div>
+</div>
+
+<!-- ── SETTINGS PANEL ── -->
+<div class="settings-panel" id="settingsPanel">
+  <div class="sp-header">
+    <h3>Settings</h3>
+    <p>Configure stores and preferences</p>
+  </div>
+  <div class="sp-section">
+    <div class="sp-section-label">Active Stores</div>
+    <div class="sp-row">
+      <div><div class="sp-store-name">Under Armour CA</div><div class="sp-store-sub">underarmour.ca</div></div>
+      <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+    </div>
+    <div class="sp-row">
+      <div><div class="sp-store-name">Uniqlo Canada</div><div class="sp-store-sub">uniqlo.com/ca</div></div>
+      <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+    </div>
+    <div class="sp-row">
+      <div><div class="sp-store-name">Zara Canada</div><div class="sp-store-sub">zara.com/ca</div></div>
+      <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+    </div>
+  </div>
+  <div class="sp-section">
+    <div class="sp-section-label">Behaviour</div>
+    <div class="sp-row">
+      <div><div class="sp-store-name">Auto-refresh on launch</div><div class="sp-store-sub">Scrape on every app start</div></div>
+      <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+    </div>
+    <div class="sp-row">
+      <div><div class="sp-store-name">Show % off badges</div><div class="sp-store-sub">Highlight discount percentage</div></div>
+      <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+    </div>
+    <div class="sp-row">
+      <div><div class="sp-store-name">Min. discount threshold</div><div class="sp-store-sub">Hide items below X% off</div></div>
+      <div style="font-size:13px;font-weight:700;color:var(--green-dark)">20%</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── LAYOUT ── -->
+<div class="layout">
+
+  <!-- ── SIDEBAR ── -->
+  <aside class="sidebar">
+
+    <!-- Sort -->
+    <div class="sb-section">
+      <div class="sb-section-title">Sort by</div>
+      <div class="sort-option active" onclick="setSort(this)"><span class="sort-icon">%</span> % Off (highest)</div>
+      <div class="sort-option" onclick="setSort(this)"><span class="sort-icon">↑</span> Price (low → high)</div>
+      <div class="sort-option" onclick="setSort(this)"><span class="sort-icon">↓</span> Price (high → low)</div>
+      <div class="sort-option" onclick="setSort(this)"><span class="sort-icon">✦</span> Newest</div>
+    </div>
+
+    <!-- Grid scale -->
+    <div class="sb-section">
+      <div class="sb-section-title">Grid size</div>
+      <div class="scale-btns">
+        <div class="scale-btn" title="2 per row" onclick="setScale(this,2)">
+          <div class="grid-icon grid-2"><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div></div>
+        </div>
+        <div class="scale-btn active" title="3 per row" onclick="setScale(this,3)">
+          <div class="grid-icon grid-3"><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div></div>
+        </div>
+        <div class="scale-btn" title="4 per row" onclick="setScale(this,4)">
+          <div class="grid-icon grid-4"><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div></div>
+        </div>
+        <div class="scale-btn" title="5 per row" onclick="setScale(this,5)">
+          <div class="grid-icon grid-5"><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div><div class="d"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Store filter -->
+    <div class="sb-section">
+      <div class="sb-section-title">Store</div>
+      <div class="pill-group">
+        <div class="pill active" onclick="togglePill(this)">All</div>
+        <div class="pill" onclick="togglePill(this)">Under Armour</div>
+        <div class="pill" onclick="togglePill(this)">Uniqlo</div>
+        <div class="pill" onclick="togglePill(this)">Zara</div>
+      </div>
+    </div>
+
+    <!-- Gender filter -->
+    <div class="sb-section">
+      <div class="sb-section-title">Gender</div>
+      <div class="pill-group">
+        <div class="pill active" onclick="togglePill(this)">All</div>
+        <div class="pill" onclick="togglePill(this)">Men</div>
+        <div class="pill" onclick="togglePill(this)">Women</div>
+        <div class="pill" onclick="togglePill(this)">Unisex</div>
+      </div>
+    </div>
+
+    <!-- Category filter — auto-populated -->
+    <div class="sb-section">
+      <div class="sb-section-title">Category <span style="font-size:9px;color:#9aad9b;font-weight:500;text-transform:none;letter-spacing:0">(auto-tagged)</span></div>
+      <div class="pill-group">
+        <div class="pill active" onclick="togglePill(this)">All</div>
+        <div class="pill" onclick="togglePill(this)">T-Shirts</div>
+        <div class="pill" onclick="togglePill(this)">Shorts</div>
+        <div class="pill" onclick="togglePill(this)">Jackets</div>
+        <div class="pill" onclick="togglePill(this)">Dresses</div>
+        <div class="pill" onclick="togglePill(this)">Footwear</div>
+        <div class="pill" onclick="togglePill(this)">Pants</div>
+        <div class="pill" onclick="togglePill(this)">Tops</div>
+        <div class="pill" onclick="togglePill(this)">Hoodies</div>
+        <div class="pill" onclick="togglePill(this)">Accessories</div>
+        <div class="pill" onclick="togglePill(this)">Activewear</div>
+        <div class="pill" onclick="togglePill(this)">Swimwear</div>
+        <div class="pill" onclick="togglePill(this)">Underwear</div>
+      </div>
+    </div>
+
+    <!-- Price filter -->
+    <div class="sb-section">
+      <div class="sb-section-title">Price range</div>
+      <div class="pill-group">
+        <div class="pill active" onclick="togglePill(this)">Any</div>
+        <div class="pill" onclick="togglePill(this)">Under $25</div>
+        <div class="pill" onclick="togglePill(this)">$25–$50</div>
+        <div class="pill" onclick="togglePill(this)">$50–$100</div>
+        <div class="pill" onclick="togglePill(this)">$100+</div>
+      </div>
+    </div>
+
+    <!-- Discount filter -->
+    <div class="sb-section">
+      <div class="sb-section-title">Min. discount</div>
+      <div class="pill-group">
+        <div class="pill active" onclick="togglePill(this)">Any</div>
+        <div class="pill" onclick="togglePill(this)">20%+</div>
+        <div class="pill" onclick="togglePill(this)">30%+</div>
+        <div class="pill" onclick="togglePill(this)">40%+</div>
+        <div class="pill" onclick="togglePill(this)">50%+</div>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- ── MAIN ── -->
+  <main class="main">
+
+    <div class="results-bar">
+      <span class="results-count">42 deals</span>
+      <div class="active-filters" id="activeFilters">
+        <!-- active filter tags show here -->
+      </div>
+    </div>
+
+    <div class="grid cols-3" id="grid">
+      <a class="tile" href="#" target="_blank">
+        <div class="tile-img" style="background:#eef4ee;">👟</div>
+        <div class="tile-body">
+          <div class="tile-store">Under Armour</div>
+          <div class="tile-name">HOVR Phantom 3 Running Shoe</div>
+          <div class="tile-tags"><span class="tag">Men</span><span class="tag">Footwear</span><span class="tag">Activewear</span></div>
+          <div class="tile-price-row"><span class="price-now">$62</span><span class="price-orig">$89</span><span class="discount-badge">-30%</span></div>
+        </div>
+      </a>
+      <a class="tile" href="#" target="_blank">
+        <div class="tile-img" style="background:#f5f0ee;">👗</div>
+        <div class="tile-body">
+          <div class="tile-store">Zara</div>
+          <div class="tile-name">Linen Blend Midi Dress</div>
+          <div class="tile-tags"><span class="tag">Women</span><span class="tag">Dresses</span></div>
+          <div class="tile-price-row"><span class="price-now">$45</span><span class="price-orig">$79</span><span class="discount-badge">-43%</span></div>
+        </div>
+      </a>
+      <a class="tile" href="#" target="_blank">
+        <div class="tile-img" style="background:#f0f4f8;">👕</div>
+        <div class="tile-body">
+          <div class="tile-store">Uniqlo</div>
+          <div class="tile-name">AIRism Cotton T-Shirt</div>
+          <div class="tile-tags"><span class="tag">Men</span><span class="tag">T-Shirts</span></div>
+          <div class="tile-price-row"><span class="price-now">$19</span><span class="price-orig">$29</span><span class="discount-badge">-34%</span></div>
+        </div>
+      </a>
+      <a class="tile" href="#" target="_blank">
+        <div class="tile-img" style="background:#f0eef8;">🧥</div>
+        <div class="tile-body">
+          <div class="tile-store">Under Armour</div>
+          <div class="tile-name">Storm Fleece Full Zip Jacket</div>
+          <div class="tile-tags"><span class="tag">Men</span><span class="tag">Jackets</span><span class="tag">Activewear</span></div>
+          <div class="tile-price-row"><span class="price-now">$98</span><span class="price-orig">$149</span><span class="discount-badge">-34%</span></div>
+        </div>
+      </a>
+      <a class="tile" href="#" target="_blank">
+        <div class="tile-img" style="background:#f5f5ee;">🩳</div>
+        <div class="tile-body">
+          <div class="tile-store">Uniqlo</div>
+          <div class="tile-name">Ultra Stretch Active Shorts</div>
+          <div class="tile-tags"><span class="tag">Women</span><span class="tag">Shorts</span><span class="tag">Activewear</span></div>
+          <div class="tile-price-row"><span class="price-now">$15</span><span class="price-orig">$24</span><span class="discount-badge">-38%</span></div>
+        </div>
+      </a>
+      <a class="tile" href="#" target="_blank">
+        <div class="tile-img" style="background:#f8f0f0;">👜</div>
+        <div class="tile-body">
+          <div class="tile-store">Zara</div>
+          <div class="tile-name">Structured Canvas Tote</div>
+          <div class="tile-tags"><span class="tag">Women</span><span class="tag">Accessories</span></div>
+          <div class="tile-price-row"><span class="price-now">$35</span><span class="price-orig">$59</span><span class="discount-badge">-41%</span></div>
+        </div>
+      </a>
+      <a class="tile" href="#" target="_blank">
+        <div class="tile-img" style="background:#eef0f8;">👖</div>
+        <div class="tile-body">
+          <div class="tile-store">Uniqlo</div>
+          <div class="tile-name">Slim Fit Straight Jeans</div>
+          <div class="tile-tags"><span class="tag">Men</span><span class="tag">Pants</span></div>
+          <div class="tile-price-row"><span class="price-now">$39</span><span class="price-orig">$59</span><span class="discount-badge">-34%</span></div>
+        </div>
+      </a>
+      <a class="tile" href="#" target="_blank">
+        <div class="tile-img" style="background:#f5eef0;">🧤</div>
+        <div class="tile-body">
+          <div class="tile-store">Under Armour</div>
+          <div class="tile-name">ColdGear Liner Gloves</div>
+          <div class="tile-tags"><span class="tag">Unisex</span><span class="tag">Accessories</span></div>
+          <div class="tile-price-row"><span class="price-now">$22</span><span class="price-orig">$35</span><span class="discount-badge">-37%</span></div>
+        </div>
+      </a>
+      <a class="tile" href="#" target="_blank">
+        <div class="tile-img" style="background:#eef5f0;">🧶</div>
+        <div class="tile-body">
+          <div class="tile-store">Zara</div>
+          <div class="tile-name">Knit Oversized Hoodie</div>
+          <div class="tile-tags"><span class="tag">Women</span><span class="tag">Hoodies</span><span class="tag">Tops</span></div>
+          <div class="tile-price-row"><span class="price-now">$49</span><span class="price-orig">$89</span><span class="discount-badge">-45%</span></div>
+        </div>
+      </a>
+    </div>
+  </main>
+</div>
+
+<script>
+  // Sort
+  function setSort(el) {
+    document.querySelectorAll('.sort-option').forEach(o => o.classList.remove('active'));
+    el.classList.add('active');
+  }
+
+  // Grid scale
+  function setScale(btn, cols) {
+    document.querySelectorAll('.scale-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const grid = document.getElementById('grid');
+    grid.className = 'grid cols-' + cols;
+  }
+
+  // Pills
+  function togglePill(el) {
+    const group = el.closest('.pill-group');
+    const isAll = el.textContent.trim() === 'All' || el.textContent.trim() === 'Any';
+    if (isAll) {
+      group.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+      el.classList.add('active');
+    } else {
+      const allPill = Array.from(group.querySelectorAll('.pill')).find(p => p.textContent.trim() === 'All' || p.textContent.trim() === 'Any');
+      if (allPill) allPill.classList.remove('active');
+      el.classList.toggle('active');
+      const anyActive = Array.from(group.querySelectorAll('.pill')).some(p => p.classList.contains('active') && p !== allPill);
+      if (!anyActive && allPill) allPill.classList.add('active');
+    }
+    updateActiveFilters();
+  }
+
+  function updateActiveFilters() {
+    const container = document.getElementById('activeFilters');
+    const active = [];
+    document.querySelectorAll('.pill.active').forEach(p => {
+      const t = p.textContent.trim();
+      if (t !== 'All' && t !== 'Any') active.push(t);
+    });
+    container.innerHTML = active.map(t =>
+      `<div class="active-tag">${t}<span class="active-tag-x">×</span></div>`
+    ).join('');
+  }
+
+  // Settings panel
+  function toggleSettings() {
+    const panel = document.getElementById('settingsPanel');
+    const btn = document.getElementById('cogBtn');
+    const isOpen = panel.classList.contains('open');
+    panel.classList.toggle('open', !isOpen);
+    btn.classList.toggle('open', !isOpen);
+  }
+  document.addEventListener('click', e => {
+    if (!e.target.closest('#settingsPanel') && !e.target.closest('#cogBtn')) {
+      document.getElementById('settingsPanel').classList.remove('open');
+      document.getElementById('cogBtn').classList.remove('open');
+    }
+  });
+
+  // Simulate refresh completing after 3s
+  setTimeout(() => {
+    const strip = document.getElementById('refreshStrip');
+    strip.classList.add('live');
+    strip.innerHTML = '<span class="strip-dot"></span> Up to date · Last refreshed just now';
+  }, 3000);
+</script>
+</body>
+</html>
