@@ -72,8 +72,8 @@ async function scrape(browser, onProgress = () => {}) {
       } catch (_) {}
 
       await page.waitForTimeout(2000);
-      await autoScroll(page);
-      await page.waitForTimeout(1500);
+      await loadAllProductsScroll(page, rawProducts, onProgress);
+      await page.waitForTimeout(1000);
 
       if (rawProducts.length > 0) { foundProducts = true; break; }
     }
@@ -253,20 +253,27 @@ function mapZaraProducts(raw) {
   return deals;
 }
 
-async function autoScroll(page) {
-  await page.evaluate(async () => {
-    await new Promise(resolve => {
-      let total = 0;
-      const timer = setInterval(() => {
-        window.scrollBy(0, 700);
-        total += 700;
-        if (total >= document.body.scrollHeight) { clearInterval(timer); resolve(); }
-      }, 250);
-      // Safety: never scroll for more than 20s
-      setTimeout(() => { clearInterval(timer); resolve(); }, 20000);
-    });
-  });
-  await page.waitForTimeout(1000);
+// Zara uses infinite scroll — keep scrolling until product count stabilizes
+async function loadAllProductsScroll(page, rawProducts, onProgress) {
+  let prevCount = 0;
+  let stableRounds = 0;
+  const MAX_STABLE = 3; // stop after 3 scrolls with no new products
+  const MAX_ROUNDS = 30;
+
+  for (let i = 0; i < MAX_ROUNDS; i++) {
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await page.waitForTimeout(1500);
+
+    const currentCount = rawProducts.length;
+    if (currentCount > prevCount) {
+      onProgress(`Zara: loading products… (${currentCount} so far)`);
+      stableRounds = 0;
+      prevCount = currentCount;
+    } else {
+      stableRounds++;
+      if (stableRounds >= MAX_STABLE) break;
+    }
+  }
 }
 
 function slugify(str) {

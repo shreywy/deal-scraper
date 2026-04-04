@@ -100,6 +100,32 @@ app.get('/api/refresh', (req, res) => {
   });
 });
 
+// ── Scheduled auto-scrape ─────────────────────────────────────────────────────
+function scheduleAutoScrape(intervalHours) {
+  if (!intervalHours || intervalHours <= 0) return;
+  const ms = intervalHours * 60 * 60 * 1000;
+
+  setInterval(async () => {
+    if (scrapeInProgress) {
+      console.log('⏰ Scheduled scrape skipped — one already in progress');
+      return;
+    }
+    console.log(`\n⏰ Scheduled scrape starting (every ${intervalHours}h)…`);
+    scrapeInProgress = true;
+    const cfg = loadConfig();
+    try {
+      const deals = await runAll(cfg, msg => console.log(`  ${msg}`));
+      console.log(`✅ Scheduled scrape done — ${deals.length} deals\n`);
+    } catch (err) {
+      console.error(`❌ Scheduled scrape failed: ${err.message}\n`);
+    } finally {
+      scrapeInProgress = false;
+    }
+  }, ms);
+
+  console.log(`⏰ Auto-scrape scheduled every ${intervalHours}h`);
+}
+
 // ── Start ────────────────────────────────────────────────────────────────────
 function start() {
   const cfg = loadConfig();
@@ -107,6 +133,7 @@ function start() {
 
   app.listen(port, () => {
     console.log(`\n🌿 dealsco running at http://localhost:${port}\n`);
+    scheduleAutoScrape(cfg.settings?.refreshIntervalHours || 6);
   });
 
   return port;

@@ -74,10 +74,8 @@ async function scrapePage(page, url, onProgress) {
     onProgress('Under Armour: no product grid found, trying scroll anyway…');
   }
 
-  // Scroll to trigger lazy loading
-  await autoScroll(page);
-  // Extra wait for any deferred renders
-  await page.waitForTimeout(1500);
+  // Scroll + click "Load More" until all products are visible
+  await loadAllProducts(page, onProgress);
 
   const deals = await page.evaluate(({ storeName, storeKey, pageUrl }) => {
     // --- Strategy 1: SFCC window data (fastest, most reliable) ---
@@ -198,25 +196,47 @@ async function scrapePage(page, url, onProgress) {
   }));
 }
 
-async function autoScroll(page) {
-  await page.evaluate(async () => {
-    await new Promise(resolve => {
-      let total = 0;
-      const dist = 500;
-      const delay = 180;
-      const timer = setInterval(() => {
-        window.scrollBy(0, dist);
-        total += dist;
-        if (total >= document.body.scrollHeight) {
-          clearInterval(timer);
-          resolve();
-        }
-      }, delay);
-      // Safety timeout — don't scroll forever on infinite-scroll pages
-      setTimeout(() => { clearInterval(timer); resolve(); }, 15000);
-    });
-  });
-  await page.waitForTimeout(1000);
+// Click "Load More" / "Show More" buttons until they disappear, scrolling between each click.
+// UA SFCC sites typically paginate with a visible button rather than infinite scroll.
+async function loadAllProducts(page, onProgress) {
+  const LOAD_MORE_SEL = [
+    'button[data-testid*="load-more"]',
+    'button[class*="load-more"]',
+    'button[class*="LoadMore"]',
+    'button[class*="show-more"]',
+    'button[class*="ShowMore"]',
+    '[class*="pagination"] button',
+    'button[aria-label*="more"]',
+  ].join(', ');
+
+  let round = 0;
+  const MAX_ROUNDS = 20; // safety cap
+
+  while (round < MAX_ROUNDS) {
+    // Scroll to bottom to trigger any lazy-load triggers
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await page.waitForTimeout(1000);
+
+    // Try clicking a "Load More" button
+    try {
+      const btn = await page.$(LOAD_MORE_SEL);
+      if (!btn) break; // No more button — all loaded
+      const visible = await btn.isVisible();
+      if (!visible) break;
+
+      await btn.scrollIntoViewIfNeeded();
+      await btn.click();
+      round++;
+      onProgress(`Under Armour: loading more products (page ${round + 1})…`);
+      await page.waitForTimeout(2000);
+    } catch (_) {
+      break;
+    }
+  }
+
+  // Final scroll to capture any remaining lazy-loaded images
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(500);
 }
 
 function slugify(str) {

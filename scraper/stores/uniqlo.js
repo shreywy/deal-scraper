@@ -158,7 +158,7 @@ async function scrapViaBrowser(browser, onProgress) {
 
     // Last resort: DOM scrape
     onProgress('Uniqlo: falling back to DOM scrape…');
-    await autoScroll(page);
+    await loadAllProductsScroll(page, onProgress);
 
     const deals = await page.evaluate(({ storeName, storeKey }) => {
       const cards = document.querySelectorAll('[class*="ProductTile"], [class*="product-tile"], [class*="fr-product"]');
@@ -193,18 +193,27 @@ async function scrapViaBrowser(browser, onProgress) {
   }
 }
 
-async function autoScroll(page) {
-  await page.evaluate(async () => {
-    await new Promise(resolve => {
-      let total = 0;
-      const timer = setInterval(() => {
-        window.scrollBy(0, 500);
-        total += 500;
-        if (total >= document.body.scrollHeight) { clearInterval(timer); resolve(); }
-      }, 200);
-    });
-  });
-  await page.waitForTimeout(800);
+// Scroll until page height stabilizes (handles both lazy-load and infinite scroll)
+async function loadAllProductsScroll(page, onProgress) {
+  let lastHeight = 0;
+  let stableRounds = 0;
+  const MAX_ROUNDS = 25;
+
+  for (let i = 0; i < MAX_ROUNDS; i++) {
+    const currentHeight = await page.evaluate(() => document.body.scrollHeight);
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await page.waitForTimeout(1200);
+
+    if (currentHeight === lastHeight) {
+      stableRounds++;
+      if (stableRounds >= 3) break;
+    } else {
+      stableRounds = 0;
+      lastHeight = currentHeight;
+      onProgress(`Uniqlo: loading more products…`);
+    }
+  }
+  await page.waitForTimeout(500);
 }
 
 function slugify(str) {

@@ -3,8 +3,11 @@
 // ── State ────────────────────────────────────────────────────────────────────
 let allDeals = [];
 let filteredDeals = [];
-let cols = 3;
+let cols = 4;   // 1–8 scale; maps to tile min-widths (smaller col = smaller tiles = more per row)
 let currentSort = 'discount';
+
+// Tile min-widths for each "cols" step — auto-fill handles actual column count
+const TILE_WIDTHS = { 1: 480, 2: 360, 3: 280, 4: 220, 5: 175, 6: 150, 7: 125, 8: 100 };
 let config = null;
 
 const filters = {
@@ -22,14 +25,12 @@ async function init() {
     document.documentElement.classList.add('dark');
   }
 
-  // Restore grid size
-  const savedCols = parseInt(localStorage.getItem('gridCols') || '3');
-  if (savedCols >= 2 && savedCols <= 6) {
+  // Restore grid size preference
+  const savedCols = parseInt(localStorage.getItem('gridCols') || '4');
+  if (savedCols >= 1 && savedCols <= 8) {
     cols = savedCols;
-    document.getElementById('gsVal').textContent = cols;
-    document.getElementById('gridLabel').textContent = `${cols} per row`;
-    document.getElementById('grid').className = `grid cols-${cols}`;
   }
+  applyGridSize();
 
   // Load config first (for settings drawer)
   try {
@@ -294,12 +295,26 @@ function renderSettingsDrawer(cfg) {
       <div class="ds-row">
         <div class="ds-row-text">
           <div class="ds-name">Min. discount threshold</div>
-          <div class="ds-sub">Hide items below this % off</div>
+          <div class="ds-sub">Hide items below this % off (applied at scrape time)</div>
         </div>
         <div class="stepper">
           <div class="stepper-btn" onclick="stepSetting('minDiscountPercent', -10)">−</div>
           <div class="stepper-val" id="discountStepVal">${settings.minDiscountPercent || 0}%</div>
           <div class="stepper-btn" onclick="stepSetting('minDiscountPercent', 10)">+</div>
+        </div>
+      </div>
+    </div>
+    <div class="ds-section">
+      <div class="ds-label">Scheduling</div>
+      <div class="ds-row">
+        <div class="ds-row-text">
+          <div class="ds-name">Auto-scrape interval</div>
+          <div class="ds-sub">Automatically refresh deals while app is running</div>
+        </div>
+        <div class="stepper">
+          <div class="stepper-btn" onclick="stepSetting('refreshIntervalHours', -1)">−</div>
+          <div class="stepper-val" id="intervalStepVal" style="min-width:48px">${settings.refreshIntervalHours || 6}h</div>
+          <div class="stepper-btn" onclick="stepSetting('refreshIntervalHours', 1)">+</div>
         </div>
       </div>
     </div>
@@ -323,10 +338,21 @@ async function toggleSetting(key, el) {
 async function stepSetting(key, delta) {
   if (!config) return;
   const current = config.settings?.[key] ?? 0;
-  const next = Math.max(0, Math.min(70, current + delta));
-  config.settings[key] = next;
-  const el = document.getElementById('discountStepVal');
-  if (el) el.textContent = `${next}%`;
+  let next;
+  if (key === 'minDiscountPercent') {
+    next = Math.max(0, Math.min(70, current + delta));
+    config.settings[key] = next;
+    const el = document.getElementById('discountStepVal');
+    if (el) el.textContent = `${next}%`;
+  } else if (key === 'refreshIntervalHours') {
+    next = Math.max(1, Math.min(168, current + delta)); // 1h to 1 week
+    config.settings[key] = next;
+    const el = document.getElementById('intervalStepVal');
+    if (el) el.textContent = `${next}h`;
+  } else {
+    next = current + delta;
+    config.settings[key] = next;
+  }
   await patchConfig({ settings: { [key]: next } });
 }
 
@@ -342,11 +368,19 @@ async function patchConfig(patch) {
 
 // ── Controls ─────────────────────────────────────────────────────────────────
 function changeGrid(d) {
-  cols = Math.max(2, Math.min(6, cols + d));
-  document.getElementById('grid').className = `grid cols-${cols}`;
-  document.getElementById('gsVal').textContent = cols;
-  document.getElementById('gridLabel').textContent = `${cols} per row`;
+  cols = Math.max(1, Math.min(8, cols + d));
+  applyGridSize();
   localStorage.setItem('gridCols', cols);
+}
+
+function applyGridSize() {
+  const grid = document.getElementById('grid');
+  const minW = TILE_WIDTHS[cols] || 220;
+  grid.style.setProperty('--tile-min', `${minW}px`);
+  document.getElementById('gsVal').textContent = cols;
+  // Label reflects what this size means visually
+  const labels = { 1: 'XL', 2: 'L', 3: 'M-L', 4: 'M', 5: 'M-S', 6: 'S', 7: 'XS', 8: 'XXS' };
+  document.getElementById('gridLabel').textContent = `Tile size: ${labels[cols] || cols}`;
 }
 
 function setSort(el) {

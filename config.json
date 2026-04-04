@@ -21,6 +21,7 @@
     "openLinksInNewTab": true,
     "showDiscountBadges": true,
     "minDiscountPercent": 0,
+    "refreshIntervalHours": 6,
     "port": 3000
   }
 }

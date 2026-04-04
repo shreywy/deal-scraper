@@ -356,15 +356,12 @@ html.dark .dark-icon-sun  { transform: translateY(0) rotate(0deg); opacity: 1; }
 .active-tag-x:hover { opacity: 1; }
 
 /* ── GRID ── */
+/* Tile min-width is set via --tile-min on the element, auto-fill does the rest.
+   This naturally scales: more columns on ultrawide, fewer on small screens. */
 .grid {
   display: grid; gap: 14px;
-  transition: grid-template-columns 0.22s var(--ease) !important;
+  grid-template-columns: repeat(auto-fill, minmax(var(--tile-min, 280px), 1fr));
 }
-.grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
-.grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
-.grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
-.grid.cols-5 { grid-template-columns: repeat(5, 1fr); }
-.grid.cols-6 { grid-template-columns: repeat(6, 1fr); }
 
 .tile {
   background: var(--surface);
