@@ -5,15 +5,15 @@ const { tag } = require('../tagger');
 const STORE_NAME = 'Zara';
 const STORE_KEY = 'zara';
 
-// Zara (Inditex) is a heavy React SPA. They have an internal API but it
-// requires session cookies + specific headers. We use Playwright and intercept
-// network responses to capture the JSON product data as the page loads.
-// This approach also works for other Inditex brands (Pull&Bear, Bershka, etc.)
-// by changing the BASE_URL.
+// Zara (Inditex) is a React SPA. Their internal catalog API serves JSON but
+// requires session cookies embedded via the page load. Best approach: Playwright
+// + response interception. Works for other Inditex brands too (just change BASE_URL).
 
+// Try multiple sale entry points — Zara periodically restructures these URLs
 const SALE_URLS = [
-  'https://www.zara.com/ca/en/sale-l1333.html',   // All sale
-  // Men/Women specific pages are loaded via filters on the same URL
+  'https://www.zara.com/ca/en/sale-l1333.html',
+  'https://www.zara.com/ca/en/woman-sale-l1001.html',
+  'https://www.zara.com/ca/en/man-sale-l1002.html',
 ];
 
 /**
@@ -25,156 +25,217 @@ async function scrape(browser, onProgress = () => {}) {
   const context = await browser.newContext({
     userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
     locale: 'en-CA',
-    extraHTTPHeaders: {
-      'Accept-Language': 'en-CA,en;q=0.9',
-    },
+    extraHTTPHeaders: { 'Accept-Language': 'en-CA,en;q=0.9' },
   });
   const page = await context.newPage();
 
-  const interceptedProducts = [];
+  const rawProducts = [];
+  const seenIds = new Set();
 
-  // Zara's internal API returns product arrays in responses to paths like
-  // /api/catalog/store/... — capture all of them
+  // Intercept ALL JSON responses — Zara fires several catalog API calls on page load
   page.on('response', async response => {
     const url = response.url();
+    const ct = response.headers()['content-type'] || '';
+    if (!ct.includes('application/json')) return;
+
+    // Zara API URLs contain these patterns
     if (
-      (url.includes('/api/catalog') || url.includes('/api/product')) &&
-      response.headers()['content-type']?.includes('application/json')
+      url.includes('/api/catalog') ||
+      url.includes('/api/product') ||
+      url.includes('zara.com') && (url.includes('product') || url.includes('catalog') || url.includes('search'))
     ) {
       try {
         const json = await response.json();
-        extractZaraProducts(json, interceptedProducts);
+        extractZaraProducts(json, rawProducts, seenIds);
       } catch (_) {}
     }
   });
 
   try {
-    onProgress('Zara: navigating to sale page…');
-    await page.goto(SALE_URLS[0], { waitUntil: 'domcontentloaded', timeout: 35000 });
+    let foundProducts = false;
 
-    // Handle cookie consent
-    try {
-      await page.click('[id*="onetrust-accept"], button[class*="accept"], [data-testid="accept-all-cookies"]', { timeout: 4000 });
-    } catch (_) {}
+    for (const saleUrl of SALE_URLS) {
+      onProgress(`Zara: loading ${saleUrl.split('/').pop()}…`);
+      try {
+        await page.goto(saleUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      } catch (_) {
+        // Redirect / 404 — try next URL
+        continue;
+      }
 
-    onProgress('Zara: waiting for products to load…');
-    await page.waitForTimeout(3000);
+      // Accept cookies once
+      try {
+        await page.click(
+          '#onetrust-accept-btn-handler, [class*="onetrust-accept"], button[id*="accept"]',
+          { timeout: 3000 }
+        );
+      } catch (_) {}
 
-    // Scroll to trigger lazy loading + additional API calls
-    await autoScroll(page);
-    await page.waitForTimeout(1500);
+      await page.waitForTimeout(2000);
+      await autoScroll(page);
+      await page.waitForTimeout(1500);
 
-    if (interceptedProducts.length > 0) {
-      onProgress(`Zara: captured ${interceptedProducts.length} products from network`);
-      const deals = mapZaraProducts(interceptedProducts);
+      if (rawProducts.length > 0) { foundProducts = true; break; }
+    }
+
+    if (rawProducts.length > 0) {
+      const deals = mapZaraProducts(rawProducts);
       onProgress(`Zara: found ${deals.length} sale items`);
       return deals;
     }
 
-    // Fallback: DOM scrape
-    onProgress('Zara: falling back to DOM scrape…');
+    if (!foundProducts) {
+      onProgress('Zara: no network data captured, trying DOM scrape…');
+    }
+
+    // DOM fallback — Zara renders product cards even if we miss the API
     const deals = await page.evaluate(({ storeName, storeKey }) => {
-      const cards = document.querySelectorAll(
-        '[class*="product-grid-product"], article[class*="product"], [data-testid="product"]'
-      );
-      return [...cards].map(card => {
+      const CARD_SELS = [
+        'article[class*="product"]',
+        '[class*="product-grid-product"]',
+        '[data-testid*="product"]',
+        'li[class*="product"]',
+      ];
+      let cards = [];
+      for (const sel of CARD_SELS) {
+        cards = [...document.querySelectorAll(sel)];
+        if (cards.length > 0) break;
+      }
+
+      const parsePrice = el => {
+        if (!el) return null;
+        const n = parseFloat((el.textContent || '').replace(/[^0-9.]/g, ''));
+        return isNaN(n) ? null : n;
+      };
+
+      const seen = new Set();
+      return cards.map(card => {
         const link = card.querySelector('a[href]');
-        const nameEl = card.querySelector('[class*="product-grid-product-info__name"], h2, [class*="name"]');
-        const salePriceEl = card.querySelector('[class*="price__sale"], [class*="sale-price"], [aria-label*="sale"]');
-        const origPriceEl = card.querySelector('[class*="price__old"], s, del, [class*="original-price"]');
-        const imgEl = card.querySelector('img[src*="zara"], img[src*="static"]');
+        const url = link?.href || '';
+        if (!url || seen.has(url)) return null;
+        seen.add(url);
+
+        const nameEl = card.querySelector([
+          '[class*="product-grid-product-info__name"]',
+          '[class*="product-info__name"]',
+          'h2', 'h3',
+          '[class*="name"]',
+        ].join(', '));
+        const salePriceEl = card.querySelector('[class*="price__sale"], [class*="sale"], [aria-label*="sale"], [class*="current"]');
+        const origPriceEl = card.querySelector('[class*="price__old"], [class*="old"], s, del, [class*="original"]');
+        const imgEl = card.querySelector('img[src]');
 
         const name = nameEl?.textContent?.trim() || '';
-        const url = link?.href || '';
-        const image = imgEl?.src || '';
-        const parsePrice = el => {
-          if (!el) return null;
-          const n = parseFloat(el.textContent.replace(/[^0-9.]/g, ''));
-          return isNaN(n) ? null : n;
-        };
+        const image = imgEl?.currentSrc || imgEl?.src || '';
+
         const price = parsePrice(salePriceEl);
         const originalPrice = parsePrice(origPriceEl);
-        if (!name || !url || !price || !originalPrice || price >= originalPrice) return null;
+        if (!name || !price || !originalPrice || price >= originalPrice) return null;
         const discount = Math.round((1 - price / originalPrice) * 100);
         if (discount <= 0) return null;
+
         return { store: storeName, storeKey, name, url, image, price, originalPrice, discount, tags: [] };
       }).filter(Boolean);
     }, { storeName: STORE_NAME, storeKey: STORE_KEY });
 
-    return deals.map(d => ({
+    const tagged = deals.map(d => ({
       ...d,
       id: slugify(`${d.storeKey}-${d.name}`),
       tags: tag({ name: d.name }),
       scrapedAt: new Date().toISOString(),
     }));
 
+    onProgress(`Zara: found ${tagged.length} deals (DOM fallback)`);
+    return tagged;
+
   } finally {
     await context.close();
   }
 }
 
-function extractZaraProducts(json, out) {
-  // Zara API nests products under various keys depending on endpoint
-  const candidates = [
-    json?.productGroups,
-    json?.products,
-    json?.elements,
-    json?.catalog,
-  ].flat().filter(Boolean);
+/**
+ * Walk a Zara API response JSON tree and pull out product objects.
+ * Zara nests products under different keys depending on the endpoint version.
+ */
+function extractZaraProducts(json, out, seenIds) {
+  if (!json || typeof json !== 'object') return;
 
-  for (const item of candidates) {
-    if (Array.isArray(item)) {
-      for (const p of item) {
-        if (p?.name && p?.detail?.colors) out.push(p);
-        else if (Array.isArray(p?.products)) out.push(...p.products);
+  // Known top-level containers
+  const containers = [
+    json.productGroups,   // catalog API
+    json.products,        // search API
+    json.elements,        // some versions
+    json.catalog,         // older versions
+    json.items,
+  ].filter(Boolean);
+
+  for (const container of containers) {
+    const arr = Array.isArray(container) ? container : [container];
+    for (const item of arr) {
+      if (!item) continue;
+      // ProductGroup has a nested .products array
+      if (Array.isArray(item.products)) {
+        for (const p of item.products) pushProduct(p, out, seenIds);
+      } else if (Array.isArray(item.elements)) {
+        for (const p of item.elements) pushProduct(p, out, seenIds);
+      } else {
+        pushProduct(item, out, seenIds);
       }
-    } else if (item?.name && item?.detail?.colors) {
-      out.push(item);
     }
   }
 }
 
+function pushProduct(p, out, seenIds) {
+  if (!p || !p.id || seenIds.has(p.id)) return;
+  // Must have name and color/price data to be useful
+  if (!p.name) return;
+  seenIds.add(p.id);
+  out.push(p);
+}
+
 function mapZaraProducts(raw) {
-  const seen = new Set();
   const deals = [];
 
   for (const item of raw) {
     try {
       const name = item.name || '';
-      const colors = item.detail?.colors || [{}];
-      const firstColor = colors[0] || {};
+      const colors = item.detail?.colors || item.colors || [{}];
+      const firstColor = Array.isArray(colors) ? (colors[0] || {}) : {};
 
-      // Prices
       const priceObj = firstColor.price || item.price || {};
-      const price = priceObj.value ?? null;
-      const originalPrice = priceObj.originalValue ?? priceObj.value ?? null;
+      // Zara prices are in cents in some API versions, whole numbers in others
+      // If value > 1000, assume cents
+      const rawPrice = priceObj.value ?? null;
+      const rawOrig = priceObj.originalValue ?? priceObj.oldValue ?? null;
+      if (rawPrice === null || rawOrig === null || rawPrice >= rawOrig) continue;
 
-      if (!price || !originalPrice || price >= originalPrice) continue;
+      const factor = rawPrice > 1000 ? 0.01 : 1;
+      const price = Math.round(rawPrice * factor * 100) / 100;
+      const originalPrice = Math.round(rawOrig * factor * 100) / 100;
+
       const discount = Math.round((1 - price / originalPrice) * 100);
       if (discount <= 0) continue;
 
-      // URL
-      const seo = item.seo || {};
-      const slug = seo.keyword || item.id;
-      const url = `https://www.zara.com/ca/en/${slug}-p${item.id}.html`;
+      // Build URL
+      const keyword = item.seo?.keyword || item.seoKeyword || slugify(name);
+      const url = `https://www.zara.com/ca/en/${keyword}-p${item.id}.html`;
 
-      if (seen.has(url)) continue;
-      seen.add(url);
-
-      // Image
+      // Image — Zara CDN
       const media = firstColor.xmedia?.[0] || firstColor.media?.[0] || {};
-      const image = media.url
-        ? `https://static.zara.net/assets${media.url}/w/750`
-        : '';
+      let image = '';
+      if (media.url) {
+        // media.url is like /assets/public/.../image.jpg
+        image = media.url.startsWith('http') ? media.url : `https://static.zara.net${media.url}?w=750`;
+      }
 
-      // Gender from URL/section
-      const genderHint = (item.sectionName || item.section || '').toLowerCase();
-      const gender = genderHint.includes('woman') || genderHint.includes('women') ? 'Women'
-        : genderHint.includes('man') || genderHint.includes('men') ? 'Men'
+      // Gender from section data
+      const section = (item.sectionName || item.section || item.familyName || '').toLowerCase();
+      const gender = section.includes('woman') || section.includes('women') ? 'Women'
+        : section.includes('man') || section.includes('men') ? 'Men'
         : '';
 
       deals.push({
-        id: slugify(`${STORE_KEY}-${name}`),
+        id: slugify(`${STORE_KEY}-${name}-${item.id}`),
         store: STORE_NAME,
         storeKey: STORE_KEY,
         name,
@@ -197,10 +258,12 @@ async function autoScroll(page) {
     await new Promise(resolve => {
       let total = 0;
       const timer = setInterval(() => {
-        window.scrollBy(0, 600);
-        total += 600;
-        if (total >= document.body.scrollHeight * 1.5) { clearInterval(timer); resolve(); }
+        window.scrollBy(0, 700);
+        total += 700;
+        if (total >= document.body.scrollHeight) { clearInterval(timer); resolve(); }
       }, 250);
+      // Safety: never scroll for more than 20s
+      setTimeout(() => { clearInterval(timer); resolve(); }, 20000);
     });
   });
   await page.waitForTimeout(1000);

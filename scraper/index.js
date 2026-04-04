@@ -73,15 +73,19 @@ async function runAll(config, onProgress = () => {}) {
       }
     }
 
+    // Apply global min-discount filter from config
+    const minDiscount = config.settings?.minDiscountPercent || 0;
+    const filtered = minDiscount > 0 ? allDeals.filter(d => d.discount >= minDiscount) : allDeals;
+
     // Sort by discount descending
-    allDeals.sort((a, b) => b.discount - a.discount);
+    filtered.sort((a, b) => b.discount - a.discount);
 
     // Persist to cache
     fs.mkdirSync(path.dirname(CACHE_PATH), { recursive: true });
-    fs.writeFileSync(CACHE_PATH, JSON.stringify({ scrapedAt: new Date().toISOString(), deals: allDeals }, null, 2));
+    fs.writeFileSync(CACHE_PATH, JSON.stringify({ scrapedAt: new Date().toISOString(), deals: filtered }, null, 2));
 
-    onProgress(`Done — ${allDeals.length} total deals cached`);
-    return allDeals;
+    onProgress(`Done — ${filtered.length} deals cached (${allDeals.length} total, ${allDeals.length - filtered.length} below min discount)`);
+    return filtered;
 
   } finally {
     await browser.close();

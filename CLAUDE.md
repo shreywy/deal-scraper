@@ -108,25 +108,24 @@ deal-scraper/
 - `package.json` — npm project, scripts: `npm start`, `npm run scrape`
 - `config.json` — store toggles + settings
 - `scraper/tagger.js` — auto-tags products by gender + category from name keywords
-- `scraper/stores/underarmour.js` — Playwright DOM scraper (SFCC site, waits for grid, auto-scrolls)
+- `scraper/stores/underarmour.js` — Playwright DOM scraper (SFCC site, scrapes /sale/ + /outlet/, tries window.__STORE_STATE__ first then DOM)
 - `scraper/stores/uniqlo.js` — tries JSON API first (`/api/commerce/v5/en/products?path=/sale`), falls back to XHR intercept, then DOM
-- `scraper/stores/zara.js` — Playwright + XHR intercept for Inditex API, falls back to DOM
+- `scraper/stores/zara.js` — Playwright + XHR intercept (multiple sale URLs), falls back to DOM
 - `scraper/index.js` — orchestrator, runs all scrapers in parallel, caches to `data/deals.json`
 - `server/index.js` — Express server: `/api/deals`, `/api/refresh` (SSE), `/api/config` GET+PATCH
-- `index.js` — entry point, starts server + triggers background scrape on launch
+- `index.js` — entry point, starts server + auto-opens browser (scrape triggered by frontend SSE connection)
 - `frontend/index.html` — full storefront HTML
 - `frontend/style.css` — complete Sage Frost + dark mode CSS
 - `frontend/app.js` — full frontend JS: SSE refresh stream, filtering, sorting, settings drawer, dark mode, grid resize
 
 ### TODO 🔲
 - Test each scraper against live sites (scrapers may need selector tuning once we see real page structure)
-- Add `open` package to auto-open browser on `npm start`
 - Test end-to-end: `npm start` → browser opens → deals load → refresh completes
 
 ### Known issues / next steps
 - Scraping research agents hit rate limits mid-run — selectors in scrapers are best-guess from public knowledge. Run `npm run scrape` and check what each site actually returns, then tune selectors.
-- Under Armour may need the outlet URL: `https://www.underarmour.ca/en-ca/c/outlet/` in addition to `/c/sale/`
 - Zara's API paths change periodically — XHR intercept is the most resilient approach
+- Uniqlo API URL might need adjustment — the scraper tries the JSON API first then falls back to DOM
 
 ## How to run
 

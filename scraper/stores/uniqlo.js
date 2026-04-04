@@ -1,5 +1,6 @@
 'use strict';
 
+const fetch = require('node-fetch');
 const { tag } = require('../tagger');
 
 const STORE_NAME = 'Uniqlo';
@@ -38,8 +39,6 @@ async function scrape(browser, onProgress = () => {}) {
 }
 
 async function scrapeViaApi() {
-  const fetch = (await import('node-fetch')).default;
-
   // Paginate through all results
   const allItems = [];
   let offset = 0;

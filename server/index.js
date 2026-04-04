@@ -108,6 +108,8 @@ function start() {
   app.listen(port, () => {
     console.log(`\n🌿 dealsco running at http://localhost:${port}\n`);
   });
+
+  return port;
 }
 
 module.exports = { app, start };

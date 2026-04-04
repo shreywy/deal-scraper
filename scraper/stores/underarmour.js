@@ -2,124 +2,208 @@
 
 const { tag } = require('../tagger');
 
-const SALE_URL = 'https://www.underarmour.ca/en-ca/c/sale/';
+// Under Armour CA uses Salesforce Commerce Cloud (SFCC).
+// Products are rendered client-side. We scrape both the /sale/ and /outlet/
+// pages and deduplicate by URL.
+
+const URLS = [
+  'https://www.underarmour.ca/en-ca/c/sale/',
+  'https://www.underarmour.ca/en-ca/c/outlet/',
+];
 const STORE_NAME = 'Under Armour';
 const STORE_KEY = 'underarmour';
 
-// UA uses Salesforce Commerce Cloud (SFCC). Products load via JS after
-// the initial page render. We use Playwright to wait for the grid then
-// extract product data from the page's __NEXT_DATA__ or DOM elements.
-
 /**
  * @param {import('playwright').Browser} browser
- * @param {function(string):void} [onProgress]  Optional progress callback
+ * @param {function(string):void} [onProgress]
  * @returns {Promise<import('../index').Deal[]>}
  */
 async function scrape(browser, onProgress = () => {}) {
   const context = await browser.newContext({
     userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
     locale: 'en-CA',
+    extraHTTPHeaders: { 'Accept-Language': 'en-CA,en;q=0.9' },
   });
-  const page = await context.newPage();
 
-  try {
-    onProgress('Under Armour: navigating to sale page…');
-    await page.goto(SALE_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  const allDeals = [];
+  const seenUrls = new Set();
 
-    // Dismiss any cookie/consent banners
+  for (const url of URLS) {
+    onProgress(`Under Armour: loading ${url.includes('outlet') ? 'outlet' : 'sale'} page…`);
+    const page = await context.newPage();
     try {
-      await page.click('[id*="onetrust-accept"]', { timeout: 3000 });
-    } catch (_) {}
-
-    // Wait for product grid
-    onProgress('Under Armour: waiting for products…');
-    await page.waitForSelector('[data-testid="product-card"], .product-card, [class*="ProductCard"], li[class*="product"]', {
-      timeout: 20000,
-    }).catch(() => {});
-
-    // Scroll to trigger lazy loading
-    await autoScroll(page);
-
-    onProgress('Under Armour: extracting products…');
-
-    const deals = await page.evaluate(({ storeName, storeKey }) => {
-      // Try multiple selector strategies — UA has changed their markup over time
-      const cards = [
-        ...document.querySelectorAll('[data-testid="product-card"]'),
-        ...document.querySelectorAll('[class*="ProductCard_product"]'),
-        ...document.querySelectorAll('li[class*="product-card"]'),
-        ...document.querySelectorAll('.product-card'),
-      ];
-
-      // Deduplicate by href
-      const seen = new Set();
-      const unique = [];
-      for (const card of cards) {
-        const link = card.querySelector('a[href]');
-        const href = link?.href || '';
-        if (href && !seen.has(href)) {
-          seen.add(href);
-          unique.push(card);
+      const pageDeals = await scrapePage(page, url, onProgress);
+      for (const d of pageDeals) {
+        if (!seenUrls.has(d.url)) {
+          seenUrls.add(d.url);
+          allDeals.push(d);
         }
       }
-
-      return unique.map(card => {
-        const link = card.querySelector('a[href]');
-        const nameEl = card.querySelector('[data-testid="product-name"], [class*="ProductName"], [class*="product-name"], h2, h3');
-        const salePriceEl = card.querySelector('[data-testid="sale-price"], [class*="sale-price"], [class*="SalePrice"], [class*="reduced"]');
-        const origPriceEl = card.querySelector('[data-testid="original-price"], [class*="original-price"], [class*="OriginalPrice"], [class*="was-price"], s, del');
-        const imgEl = card.querySelector('img[src], img[data-src]');
-
-        const name = nameEl?.textContent?.trim() || '';
-        const url = link?.href || '';
-        const image = imgEl?.src || imgEl?.dataset?.src || '';
-
-        // Parse prices — strip currency symbols and commas
-        const parsePrice = el => {
-          if (!el) return null;
-          const text = el.textContent.replace(/[^0-9.]/g, '');
-          const n = parseFloat(text);
-          return isNaN(n) ? null : n;
-        };
-
-        const price = parsePrice(salePriceEl);
-        const originalPrice = parsePrice(origPriceEl);
-
-        if (!name || !url || price === null) return null;
-
-        const discount = originalPrice && originalPrice > price
-          ? Math.round((1 - price / originalPrice) * 100)
-          : 0;
-
-        // Skip items with no discount — they're not actually on sale
-        if (discount <= 0) return null;
-
-        return { store: storeName, storeKey, name, url, image, price, originalPrice, discount, tags: [] };
-      }).filter(Boolean);
-    }, { storeName: STORE_NAME, storeKey: STORE_KEY });
-
-    // Add tags and IDs
-    const results = deals.map(d => ({
-      ...d,
-      id: slugify(`${d.storeKey}-${d.name}`),
-      tags: tag({ name: d.name }),
-      scrapedAt: new Date().toISOString(),
-    }));
-
-    onProgress(`Under Armour: found ${results.length} deals`);
-    return results;
-
-  } finally {
-    await context.close();
+    } catch (err) {
+      onProgress(`Under Armour: error on ${url} — ${err.message}`);
+    } finally {
+      await page.close();
+    }
   }
+
+  await context.close();
+  onProgress(`Under Armour: found ${allDeals.length} deals total`);
+  return allDeals;
+}
+
+async function scrapePage(page, url, onProgress) {
+  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+
+  // Dismiss cookie banner
+  try {
+    await page.click('#onetrust-accept-btn-handler, [class*="onetrust-accept"]', { timeout: 4000 });
+  } catch (_) {}
+
+  // Wait for any product to appear
+  const PRODUCT_SEL = [
+    '[data-testid="product-card"]',
+    '[class*="ProductCard"]',
+    '[class*="product-card"]',
+    'li[class*="product"]',
+    'div[class*="ProductTile"]',
+  ].join(', ');
+
+  try {
+    await page.waitForSelector(PRODUCT_SEL, { timeout: 20000 });
+  } catch (_) {
+    onProgress('Under Armour: no product grid found, trying scroll anyway…');
+  }
+
+  // Scroll to trigger lazy loading
+  await autoScroll(page);
+  // Extra wait for any deferred renders
+  await page.waitForTimeout(1500);
+
+  const deals = await page.evaluate(({ storeName, storeKey, pageUrl }) => {
+    // --- Strategy 1: SFCC window data (fastest, most reliable) ---
+    try {
+      const sfcc = window.__STORE_STATE__ || window.__NEXT_DATA__?.props?.pageProps;
+      if (sfcc) {
+        const products =
+          sfcc?.products?.productList ||
+          sfcc?.searchResult?.products ||
+          sfcc?.category?.products || [];
+
+        if (products.length > 0) {
+          return products.map(p => {
+            const price = p.price?.salePriceValue || p.price?.salePrice || p.salePrice;
+            const originalPrice = p.price?.listPriceValue || p.price?.listPrice || p.listPrice;
+            if (!price || !originalPrice || price >= originalPrice) return null;
+            const discount = Math.round((1 - price / originalPrice) * 100);
+            if (discount <= 0) return null;
+            const name = p.productName || p.name || '';
+            const slug = p.productId || p.masterId || p.id || '';
+            const prodUrl = p.url || `https://www.underarmour.ca/en-ca/p/${slug}`;
+            const image = p.images?.[0]?.url || p.imageUrl || '';
+            return { store: storeName, storeKey, name, url: prodUrl, image, price, originalPrice, discount, tags: [] };
+          }).filter(Boolean);
+        }
+      }
+    } catch (_) {}
+
+    // --- Strategy 2: DOM scraping with multiple selector attempts ---
+    const cardSelectors = [
+      '[data-testid="product-card"]',
+      '[class*="ProductCard_product"]',
+      '[class*="product-card__"]',
+      'li[class*="product"]',
+      'div[class*="ProductTile"]',
+      'article[class*="product"]',
+    ];
+
+    let cards = [];
+    for (const sel of cardSelectors) {
+      const found = [...document.querySelectorAll(sel)];
+      if (found.length > 0) { cards = found; break; }
+    }
+
+    // Deduplicate by href
+    const seen = new Set();
+    const unique = cards.filter(card => {
+      const href = card.querySelector('a[href]')?.href || '';
+      if (!href || seen.has(href)) return false;
+      seen.add(href);
+      return true;
+    });
+
+    const parsePrice = el => {
+      if (!el) return null;
+      // Handle cases like "$62.98" or "62.98" or "CA$62"
+      const text = (el.textContent || el.getAttribute('aria-label') || '').replace(/[^0-9.]/g, '');
+      const n = parseFloat(text);
+      return isNaN(n) ? null : n;
+    };
+
+    return unique.map(card => {
+      const link = card.querySelector('a[href]');
+      const nameEl = card.querySelector([
+        '[data-testid="product-name"]',
+        '[class*="ProductName"]',
+        '[class*="product-name"]',
+        '[class*="productName"]',
+        'h2', 'h3', 'h4',
+      ].join(', '));
+      const salePriceEl = card.querySelector([
+        '[data-testid="sale-price"]',
+        '[class*="SalePrice"]',
+        '[class*="sale-price"]',
+        '[class*="salePrice"]',
+        '[class*="promo-price"]',
+        '[class*="promoPrice"]',
+        '[class*="reduced"]',
+        '[aria-label*="Sale"]',
+      ].join(', '));
+      const origPriceEl = card.querySelector([
+        '[data-testid="original-price"]',
+        '[class*="OriginalPrice"]',
+        '[class*="original-price"]',
+        '[class*="originalPrice"]',
+        '[class*="was-price"]',
+        '[class*="wasPrice"]',
+        '[class*="list-price"]',
+        's', 'del', 'strike',
+      ].join(', '));
+      const imgEl = card.querySelector('img[src]:not([src=""])', 'img[data-src]');
+
+      const name = nameEl?.textContent?.trim() || '';
+      const cardUrl = link?.href || '';
+      const image = imgEl?.src || imgEl?.dataset?.src || imgEl?.dataset?.lazySrc || '';
+
+      const price = parsePrice(salePriceEl);
+      const originalPrice = parsePrice(origPriceEl);
+
+      if (!name || !cardUrl || price === null) return null;
+
+      const discount = originalPrice && originalPrice > price
+        ? Math.round((1 - price / originalPrice) * 100)
+        : 0;
+
+      if (discount <= 0) return null;
+
+      return { store: storeName, storeKey, name, url: cardUrl, image, price, originalPrice, discount, tags: [] };
+    }).filter(Boolean);
+  }, { storeName: STORE_NAME, storeKey: STORE_KEY, pageUrl: url });
+
+  // Add tags and IDs
+  return deals.map(d => ({
+    ...d,
+    id: slugify(`${d.storeKey}-${d.name}`),
+    tags: tag({ name: d.name }),
+    scrapedAt: new Date().toISOString(),
+  }));
 }
 
 async function autoScroll(page) {
   await page.evaluate(async () => {
     await new Promise(resolve => {
       let total = 0;
-      const dist = 400;
-      const delay = 150;
+      const dist = 500;
+      const delay = 180;
       const timer = setInterval(() => {
         window.scrollBy(0, dist);
         total += dist;
@@ -128,6 +212,8 @@ async function autoScroll(page) {
           resolve();
         }
       }, delay);
+      // Safety timeout — don't scroll forever on infinite-scroll pages
+      setTimeout(() => { clearInterval(timer); resolve(); }, 15000);
     });
   });
   await page.waitForTimeout(1000);

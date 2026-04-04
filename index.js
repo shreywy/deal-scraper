@@ -1,35 +1,24 @@
 'use strict';
 
 const { start } = require('./server/index');
-const { runAll, loadCache } = require('./scraper/index');
-const fs = require('fs');
-const path = require('path');
+const { loadCache } = require('./scraper/index');
+const open = require('open');
 
 async function main() {
   // Start the web server
-  start();
+  const port = start();
 
-  // Auto-refresh on launch if configured
-  let cfg;
-  try {
-    cfg = JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json'), 'utf8'));
-  } catch (_) {
-    cfg = { settings: { autoRefreshOnLaunch: true } };
+  // Report cache status in the console
+  const cache = loadCache();
+  if (cache) {
+    const age = Math.round((Date.now() - new Date(cache.scrapedAt)) / 60000);
+    console.log(`📦 Cache: ${cache.deals.length} deals from ${age}m ago`);
+  } else {
+    console.log('📦 No cache yet — scraping will begin when the page loads');
   }
 
-  if (cfg.settings?.autoRefreshOnLaunch !== false) {
-    const cache = loadCache();
-    if (cache) {
-      console.log(`📦 Serving ${cache.deals.length} cached deals from ${cache.scrapedAt}`);
-    } else {
-      console.log('📦 No cache yet — first run will take a moment');
-    }
-
-    console.log('🔄 Scraping in background…\n');
-    runAll(cfg, msg => console.log(`  ${msg}`))
-      .then(deals => console.log(`\n✅ Scrape complete — ${deals.length} deals`))
-      .catch(err => console.error(`\n❌ Scrape error: ${err.message}`));
-  }
+  // Open browser. The page's SSE connection will trigger the scrape automatically.
+  setTimeout(() => open(`http://localhost:${port}`), 800);
 }
 
 main().catch(err => {
