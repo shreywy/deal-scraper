@@ -1,0 +1,30 @@
+{
+  "name": "deal-scraper",
+  "version": "1.0.0",
+  "description": "A local deal-scraper app that automatically scrapes sale items from Canadian clothing retailers on launch, tags them (gender, category, item type), and presents them in a clean storefront UI.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "scrape": "node -e \"const {runAll}=require('./scraper/index');const cfg=require('./config.json');runAll(cfg,m=>console.log(m)).then(d=>console.log(d.length,'deals')).catch(console.error)\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shreywy/deal-scraper.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/shreywy/deal-scraper/issues"
+  },
+  "homepage": "https://github.com/shreywy/deal-scraper#readme",
+  "dependencies": {
+    "express": "^5.2.1",
+    "node-fetch": "^2.7.0",
+    "playwright": "^1.59.1"
+  }
+}

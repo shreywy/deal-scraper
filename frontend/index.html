@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>dealsco</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ── TOPBAR ── -->
+<div class="topbar">
+  <div class="logo">🌿 dealsco</div>
+  <div class="topbar-divider"></div>
+  <div class="refresh-strip" id="refreshStrip">
+    <span class="strip-dot" id="stripDot"></span>
+    <span id="stripText">Loading…</span>
+  </div>
+  <div class="topbar-spacer"></div>
+  <div class="dark-btn" id="darkBtn" onclick="toggleDark()" title="Toggle dark mode">
+    <span class="dark-icon dark-icon-moon">🌙</span>
+    <span class="dark-icon dark-icon-sun">☀️</span>
+  </div>
+  <div class="menu-btn" id="menuBtn" onclick="toggleDrawer()">
+    <span class="menu-icon">⚙️</span>
+    <span>Settings</span>
+  </div>
+</div>
+
+<!-- ── DRAWER OVERLAY ── -->
+<div class="drawer-overlay" id="overlay" onclick="closeDrawer()"></div>
+
+<!-- ── SETTINGS DRAWER ── -->
+<div class="drawer" id="drawer">
+  <div class="drawer-header">
+    <h2>Settings</h2>
+    <div class="drawer-close" onclick="closeDrawer()">×</div>
+  </div>
+  <div class="drawer-body" id="drawerBody">
+    <div class="ds-section">
+      <div class="ds-label">Loading…</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── LAYOUT ── -->
+<div class="layout">
+  <!-- ── SIDEBAR ── -->
+  <aside class="sidebar">
+    <div class="sb-section">
+      <div class="sb-label">Sort by</div>
+      <div class="sort-row active" data-sort="discount" onclick="setSort(this)"><span class="si">%</span>% Off (highest)</div>
+      <div class="sort-row" data-sort="price-asc" onclick="setSort(this)"><span class="si">↑</span>Price: low → high</div>
+      <div class="sort-row" data-sort="price-desc" onclick="setSort(this)"><span class="si">↓</span>Price: high → low</div>
+      <div class="sort-row" data-sort="newest" onclick="setSort(this)"><span class="si">✦</span>Newest</div>
+    </div>
+
+    <div class="sb-section">
+      <div class="sb-label">Grid size</div>
+      <div class="grid-size-ctrl">
+        <span class="label-txt" id="gridLabel">3 per row</span>
+        <div class="gs-btn" onclick="changeGrid(-1)">−</div>
+        <div class="gs-val" id="gsVal">3</div>
+        <div class="gs-btn" onclick="changeGrid(1)">+</div>
+      </div>
+    </div>
+
+    <div class="sb-section" id="filterStore">
+      <div class="sb-label">Store</div>
+      <div class="pill-group" id="storePills">
+        <div class="pill active" data-filter="store" data-value="all" onclick="togglePill(this)">All</div>
+      </div>
+    </div>
+
+    <div class="sb-section">
+      <div class="sb-label">Gender</div>
+      <div class="pill-group" id="genderPills">
+        <div class="pill active" data-filter="gender" data-value="all" onclick="togglePill(this)">All</div>
+        <div class="pill" data-filter="gender" data-value="Men" onclick="togglePill(this)">Men</div>
+        <div class="pill" data-filter="gender" data-value="Women" onclick="togglePill(this)">Women</div>
+        <div class="pill" data-filter="gender" data-value="Unisex" onclick="togglePill(this)">Unisex</div>
+      </div>
+    </div>
+
+    <div class="sb-section">
+      <div class="sb-label">Category <span class="sb-label-note">(auto-tagged)</span></div>
+      <div class="pill-group" id="categoryPills">
+        <div class="pill active" data-filter="category" data-value="all" onclick="togglePill(this)">All</div>
+      </div>
+    </div>
+
+    <div class="sb-section">
+      <div class="sb-label">Price range</div>
+      <div class="pill-group">
+        <div class="pill active" data-filter="price" data-value="all" onclick="togglePill(this)">Any</div>
+        <div class="pill" data-filter="price" data-value="0-25" onclick="togglePill(this)">Under $25</div>
+        <div class="pill" data-filter="price" data-value="25-50" onclick="togglePill(this)">$25–$50</div>
+        <div class="pill" data-filter="price" data-value="50-100" onclick="togglePill(this)">$50–$100</div>
+        <div class="pill" data-filter="price" data-value="100-99999" onclick="togglePill(this)">$100+</div>
+      </div>
+    </div>
+
+    <div class="sb-section">
+      <div class="sb-label">Min. discount</div>
+      <div class="pill-group">
+        <div class="pill active" data-filter="discount" data-value="0" onclick="togglePill(this)">Any</div>
+        <div class="pill" data-filter="discount" data-value="20" onclick="togglePill(this)">20%+</div>
+        <div class="pill" data-filter="discount" data-value="30" onclick="togglePill(this)">30%+</div>
+        <div class="pill" data-filter="discount" data-value="40" onclick="togglePill(this)">40%+</div>
+        <div class="pill" data-filter="discount" data-value="50" onclick="togglePill(this)">50%+</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── MAIN ── -->
+  <main class="main">
+    <div class="results-bar">
+      <span class="results-count" id="resultsCount">—</span>
+      <div id="activeFilters" class="active-filters"></div>
+    </div>
+    <div class="grid cols-3" id="grid"></div>
+    <div class="empty-state" id="emptyState" style="display:none">
+      <div class="empty-icon">🌿</div>
+      <div class="empty-title">No deals match your filters</div>
+      <div class="empty-sub">Try adjusting your filters or wait for the scrape to complete</div>
+    </div>
+  </main>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

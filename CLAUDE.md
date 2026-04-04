@@ -102,17 +102,46 @@ deal-scraper/
 }
 ```
 
-## Where we left off
+## Current implementation status
 
-- Design is **finalized and approved** (see mockup)
-- Design spec written to `docs/superpowers/specs/2026-04-04-deal-scraper-design.md`
-- Scraping research agents ran but hit rate limits — need to re-run when implementing
-- **Next step:** Write implementation plan (invoke `superpowers:writing-plans` skill)
-- Then implement: scaffold project, build scrapers one by one (start with UA), build Express server, build frontend
+### DONE ✅
+- `package.json` — npm project, scripts: `npm start`, `npm run scrape`
+- `config.json` — store toggles + settings
+- `scraper/tagger.js` — auto-tags products by gender + category from name keywords
+- `scraper/stores/underarmour.js` — Playwright DOM scraper (SFCC site, waits for grid, auto-scrolls)
+- `scraper/stores/uniqlo.js` — tries JSON API first (`/api/commerce/v5/en/products?path=/sale`), falls back to XHR intercept, then DOM
+- `scraper/stores/zara.js` — Playwright + XHR intercept for Inditex API, falls back to DOM
+- `scraper/index.js` — orchestrator, runs all scrapers in parallel, caches to `data/deals.json`
+- `server/index.js` — Express server: `/api/deals`, `/api/refresh` (SSE), `/api/config` GET+PATCH
+- `index.js` — entry point, starts server + triggers background scrape on launch
+- `frontend/index.html` — full storefront HTML
+- `frontend/style.css` — complete Sage Frost + dark mode CSS
+- `frontend/app.js` — full frontend JS: SSE refresh stream, filtering, sorting, settings drawer, dark mode, grid resize
+
+### TODO 🔲
+- Test each scraper against live sites (scrapers may need selector tuning once we see real page structure)
+- Add `open` package to auto-open browser on `npm start`
+- Test end-to-end: `npm start` → browser opens → deals load → refresh completes
+
+### Known issues / next steps
+- Scraping research agents hit rate limits mid-run — selectors in scrapers are best-guess from public knowledge. Run `npm run scrape` and check what each site actually returns, then tune selectors.
+- Under Armour may need the outlet URL: `https://www.underarmour.ca/en-ca/c/outlet/` in addition to `/c/sale/`
+- Zara's API paths change periodically — XHR intercept is the most resilient approach
+
+## How to run
+
+```bash
+git clone https://github.com/shreywy/deal-scraper
+cd deal-scraper
+npm install
+npx playwright install chromium
+npm start
+# → http://localhost:3000
+```
 
 ## Resuming on another machine
 
-1. Clone repo: `git clone https://github.com/shreywy/deal-scraper`
-2. Open in Claude Code: `claude` from the repo directory
-3. Claude will load this CLAUDE.md automatically
-4. Say: "Let's continue building dealsco — start with the implementation plan"
+1. Clone: `git clone https://github.com/shreywy/deal-scraper`
+2. `cd deal-scraper && claude`
+3. Claude loads this CLAUDE.md automatically
+4. Say: "Let's continue — test the scrapers and fix any selector issues"
