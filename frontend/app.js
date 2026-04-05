@@ -133,9 +133,20 @@ function manualRefresh() {
 // ── SSE Refresh Stream ────────────────────────────────────────────────────────
 let currentSSE = null;
 
+function showGridOverlay(msg) {
+  const ov = document.getElementById('gridOverlay');
+  document.getElementById('gridOverlayLabel').textContent = msg || 'Refreshing deals…';
+  ov.style.display = 'flex';
+}
+function hideGridOverlay() {
+  document.getElementById('gridOverlay').style.display = 'none';
+}
+
 function startRefreshStream() {
   if (currentSSE) { currentSSE.close(); currentSSE = null; }
   refreshInProgress = true;
+  // Only show overlay if we already have deals (otherwise skeletons show)
+  if (allDeals.length > 0) showGridOverlay('Connecting…');
   if (lastScrapedAt) updateStripText();
   else setStrip('cached', 'Scraping…');
 
@@ -144,13 +155,11 @@ function startRefreshStream() {
 
   es.addEventListener('progress', e => {
     const { message } = JSON.parse(e.data);
-    if (!lastScrapedAt) setStrip('cached', message);
-    else {
-      document.getElementById('stripText').textContent =
-        document.getElementById('stripText').textContent.replace(' · Refreshing…', '') + ' · Refreshing…';
+    document.getElementById('gridOverlayLabel').textContent = message;
+    if (!lastScrapedAt) {
+      // No cache yet — show message in strip too
+      setStrip('cached', message);
     }
-    // Show progress message briefly in strip
-    document.getElementById('stripText').textContent = message;
   });
 
   es.addEventListener('complete', e => {
@@ -161,7 +170,12 @@ function startRefreshStream() {
     refreshInProgress = false;
     updateStripText();
     startStripTimer();
-    fetch('/api/deals').then(r => r.json()).then(data => loadDeals(data.deals)).catch(() => {});
+    hideGridOverlay();
+    showGridOverlay('Loading results…');
+    fetch('/api/deals').then(r => r.json()).then(data => {
+      hideGridOverlay();
+      loadDeals(data.deals);
+    }).catch(() => hideGridOverlay());
     es.close(); currentSSE = null;
   });
 
@@ -169,6 +183,7 @@ function startRefreshStream() {
     try {
       const { message } = JSON.parse(e.data);
       refreshInProgress = false;
+      hideGridOverlay();
       setStrip('outdated', `Scrape error: ${message}`);
     } catch (_) {}
     es.close(); currentSSE = null;
@@ -176,6 +191,7 @@ function startRefreshStream() {
 
   es.onerror = () => {
     refreshInProgress = false;
+    hideGridOverlay();
     if (lastScrapedAt) updateStripText();
     es.close(); currentSSE = null;
   };

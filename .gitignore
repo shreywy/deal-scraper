@@ -10,9 +10,8 @@ data/
 # Brainstorm server temp state (content is kept, state is ephemeral)
 .superpowers/brainstorm/*/state/
 
-# Agent research artifacts
-*.png
-*.jpg
+# Agent research artifacts / screenshots
+screenshots/
 .playwright-mcp/
 
 # OS
