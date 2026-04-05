@@ -17,3 +17,6 @@ screenshots/
 # OS
 .DS_Store
 Thumbs.db
+
+# AI planning workflow artifacts
+docs/superpowers/
