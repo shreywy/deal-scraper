@@ -17,8 +17,10 @@ async function main() {
     console.log('📦 No cache yet — scraping will begin when the page loads');
   }
 
-  // Open browser. The page's SSE connection will trigger the scrape automatically.
-  setTimeout(() => open(`http://localhost:${port}`), 800);
+  // Open browser unless suppressed (e.g. during dev/testing via NO_OPEN env var)
+  if (!process.env.NO_OPEN) {
+    setTimeout(() => open(`http://localhost:${port}`), 800);
+  }
 }
 
 main().catch(err => {

@@ -49,7 +49,7 @@
     "showDiscountBadges": true,
     "autoCurrencyConvert": true,
     "minDiscountPercent": 0,
-    "refreshIntervalHours": 6,
+    "refreshIntervalHours": 24,
     "port": 3000
   }
 }

@@ -16,30 +16,17 @@ const SCRAPERS = {
 };
 
 const CACHE_PATH = path.join(__dirname, '../data/deals.json');
-
-/**
- * @typedef {object} Deal
- * @property {string} id
- * @property {string} store
- * @property {string} storeKey
- * @property {string} name
- * @property {string} url
- * @property {string} image
- * @property {number} price
- * @property {number} originalPrice
- * @property {number} discount
- * @property {string[]} tags
- * @property {string} scrapedAt
- */
+const STORE_TIMEOUT_MS = 3 * 60 * 1000; // 3 min per store before giving up
 
 /**
  * Run all enabled store scrapers in parallel.
  *
- * @param {object} config  The parsed config.json object
+ * @param {object} config         The parsed config.json object
  * @param {function(string):void} [onProgress]  Called with status strings
- * @returns {Promise<Deal[]>}
+ * @param {function(string, object[]):void} [onPartial]  Called when a store finishes with (storeKey, deals)
+ * @returns {Promise<object[]>}
  */
-async function runAll(config, onProgress = () => {}) {
+async function runAll(config, onProgress = () => {}, onPartial = () => {}) {
   const enabledStores = Object.entries(config.stores)
     .filter(([, s]) => s.enabled)
     .map(([key]) => key);
@@ -63,55 +50,65 @@ async function runAll(config, onProgress = () => {}) {
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
   });
 
+  const storeResults = {};
+  const allDeals = [];
+  const minDiscount = config.settings?.minDiscountPercent || 0;
+
   try {
-    const results = await Promise.allSettled(
-      enabledStores.map(key => {
-        const scraper = SCRAPERS[key];
-        if (!scraper) {
-          onProgress(`No scraper found for "${key}" — skipping`);
-          return Promise.resolve([]);
-        }
-        return scraper.scrape(browser, onProgress);
-      })
-    );
-
-    const allDeals = [];
-    const storeResults = {};
-
-    for (let i = 0; i < results.length; i++) {
-      const key = enabledStores[i];
-      const r = results[i];
-      if (r.status === 'fulfilled') {
-        storeResults[key] = { count: r.value.length, error: null };
-        allDeals.push(...r.value);
-      } else {
-        const msg = r.reason?.message || String(r.reason);
-        storeResults[key] = { count: 0, error: msg };
-        onProgress(`${key}: scrape failed — ${msg}`);
+    // Run all stores in parallel, call onPartial as each finishes
+    await Promise.all(enabledStores.map(async (key) => {
+      const scraper = SCRAPERS[key];
+      if (!scraper) {
+        onProgress(`No scraper found for "${key}" — skipping`);
+        storeResults[key] = { count: 0, error: 'no scraper' };
+        onPartial(key, []);
+        return;
       }
-    }
 
-    // Apply global min-discount filter from config
-    const minDiscount = config.settings?.minDiscountPercent || 0;
-    const filtered = minDiscount > 0 ? allDeals.filter(d => d.discount >= minDiscount) : allDeals;
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('timed out after 3 minutes')), STORE_TIMEOUT_MS)
+      );
+
+      try {
+        const deals = await Promise.race([
+          scraper.scrape(browser, onProgress),
+          timeoutPromise,
+        ]);
+
+        // Tag each deal with its storeKey for partial streaming
+        const tagged = deals.map(d => ({ ...d, storeKey: key }));
+        // Apply global min-discount filter
+        const filtered = minDiscount > 0 ? tagged.filter(d => d.discount >= minDiscount) : tagged;
+
+        storeResults[key] = { count: filtered.length, error: null };
+        allDeals.push(...filtered);
+        onProgress(`${key}: ${filtered.length} deals found`);
+        onPartial(key, filtered);
+      } catch (err) {
+        const msg = err.message || String(err);
+        storeResults[key] = { count: 0, error: msg };
+        onProgress(`${key}: failed — ${msg}`);
+        onPartial(key, [], msg);
+      }
+    }));
 
     // Sort by discount descending
-    filtered.sort((a, b) => b.discount - a.discount);
+    allDeals.sort((a, b) => b.discount - a.discount);
 
-    // Persist to cache (include per-store results for the status API)
+    // Persist to cache
     fs.mkdirSync(path.dirname(CACHE_PATH), { recursive: true });
     fs.writeFileSync(CACHE_PATH, JSON.stringify({
       scrapedAt: new Date().toISOString(),
       usdToCAD,
       storeResults,
-      deals: filtered,
+      deals: allDeals,
     }, null, 2));
 
     const summary = Object.entries(storeResults)
       .map(([k, v]) => `${k}: ${v.error ? '❌ ' + v.error : v.count + ' deals'}`)
       .join(' | ');
-    onProgress(`Done — ${filtered.length} total deals | ${summary}`);
-    return filtered;
+    onProgress(`Done — ${allDeals.length} total deals | ${summary}`);
+    return allDeals;
 
   } finally {
     await browser.close();
@@ -120,7 +117,6 @@ async function runAll(config, onProgress = () => {}) {
 
 /**
  * Load deals from cache. Returns null if no cache exists.
- * @returns {{ scrapedAt: string, deals: Deal[] } | null}
  */
 function loadCache() {
   try {

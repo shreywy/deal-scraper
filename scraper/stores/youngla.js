@@ -78,40 +78,34 @@ async function scrape(browser, onProgress = () => {}) {
       }
     }
 
-    // DOM fallback
+    // DOM fallback — YoungLA uses custom HTML elements (Shopify Dawn theme variant)
     onProgress('YoungLA: DOM scrape…');
     const rawDeals = await page.evaluate(({ storeName, storeKey }) => {
-      const CARD_SELS = [
-        '[data-product-id]',
-        '[class*="product-card"]',
-        '[class*="ProductCard"]',
-        '.grid-item',
-        'li[class*="product"]',
-      ];
-      let cards = [];
-      for (const sel of CARD_SELS) {
-        cards = [...document.querySelectorAll(sel)];
-        if (cards.length > 0) break;
-      }
+      // YoungLA structure:
+      //   <product-card handle="...">
+      //     <img alt="Product Name" src="...">
+      //     <a href="/products/handle">
+      //     <sale-price>$28.00</sale-price>
+      //     <compare-at-price>$38.00</compare-at-price>
+      const cards = document.querySelectorAll('product-card');
       const parsePrice = el => {
         if (!el) return null;
         const n = parseFloat((el.textContent || '').replace(/[^0-9.]/g, ''));
         return isNaN(n) ? null : n;
       };
       const seen = new Set();
-      return cards.map(card => {
-        const link = card.querySelector('a[href]');
+      return [...cards].map(card => {
+        const link = card.querySelector('a[href*="/products/"]');
         const url = link?.href || '';
         if (!url || seen.has(url)) return null;
         seen.add(url);
-        const nameEl = card.querySelector('[class*="title"], [class*="name"], h2, h3');
-        const salePriceEl = card.querySelector('[class*="sale"], [class*="Sale"]');
-        const origPriceEl = card.querySelector('s, del, [class*="compare"], [class*="original"]');
-        const imgEl = card.querySelector('img[src]');
-        const name = nameEl?.textContent?.trim() || '';
-        const image = imgEl?.src || imgEl?.dataset?.src || '';
-        const price = parsePrice(salePriceEl || card.querySelector('[class*="price"]'));
-        const originalPrice = parsePrice(origPriceEl);
+        const img = card.querySelector('img[alt]');
+        const name = img?.alt || card.querySelector('[class*="title"], h2, h3')?.textContent?.trim() || '';
+        const salePriceEl = card.querySelector('sale-price');
+        const compareEl = card.querySelector('compare-at-price');
+        const image = img?.src || '';
+        const price = parsePrice(salePriceEl);
+        const originalPrice = parsePrice(compareEl);
         if (!name || !url || !price || !originalPrice || price >= originalPrice) return null;
         const discount = Math.round((1 - price / originalPrice) * 100);
         if (discount <= 0) return null;

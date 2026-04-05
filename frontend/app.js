@@ -30,6 +30,11 @@ let stripLive = false;
 let stripTimerInterval = null;
 let refreshInProgress = false;
 
+// Per-store scrape progress for the hover popdown
+// { storeKey: { name, status: 'pending'|'done'|'error', count, error } }
+let storeProgress = {};
+let popdownHideTimer = null;
+
 // Hover preview state
 let hoverTimer1 = null;
 let hoverTimer2 = null;
@@ -150,15 +155,52 @@ function startRefreshStream() {
   if (lastScrapedAt) updateStripText();
   else setStrip('cached', 'Scraping…');
 
+  // Init per-store progress from config for the popdown
+  storeProgress = {};
+  if (config?.stores) {
+    for (const [key, s] of Object.entries(config.stores)) {
+      if (s.enabled) storeProgress[key] = { name: s.name, status: 'pending', count: 0, error: null };
+    }
+  }
+
   const es = new EventSource('/api/refresh');
   currentSSE = es;
 
+  es.addEventListener('started', e => {
+    const { liveStoreProgress } = JSON.parse(e.data);
+    if (liveStoreProgress) storeProgress = liveStoreProgress;
+    renderScrapePopdown();
+  });
+
   es.addEventListener('progress', e => {
-    const { message } = JSON.parse(e.data);
+    const { message, liveStoreProgress } = JSON.parse(e.data);
     document.getElementById('gridOverlayLabel').textContent = message;
-    if (!lastScrapedAt) {
-      // No cache yet — show message in strip too
-      setStrip('cached', message);
+    if (!lastScrapedAt) setStrip('cached', message);
+    if (liveStoreProgress) { storeProgress = liveStoreProgress; renderScrapePopdown(); }
+  });
+
+  es.addEventListener('partial', e => {
+    const { storeKey, deals, liveStoreProgress } = JSON.parse(e.data);
+    if (liveStoreProgress) { storeProgress = liveStoreProgress; renderScrapePopdown(); }
+
+    // Merge this store's deals into allDeals (replace old deals from same store)
+    if (deals && deals.length > 0) {
+      // Remove existing deals from this store (match by storeKey or store name)
+      const storeName = config?.stores?.[storeKey]?.name;
+      allDeals = allDeals.filter(d => {
+        if (d.storeKey) return d.storeKey !== storeKey;
+        if (storeName) return d.store !== storeName;
+        return true;
+      });
+      allDeals.push(...deals);
+
+      document.getElementById('gridOverlayLabel').textContent =
+        `Found ${allDeals.length} deals so far…`;
+      buildDynamicFilters();
+      applyFiltersAndRender();
+
+      // Hide skeleton overlay on first partial result
+      if (allDeals.length > 0) hideGridOverlay();
     }
   });
 
@@ -170,13 +212,13 @@ function startRefreshStream() {
     refreshInProgress = false;
     updateStripText();
     startStripTimer();
-    hideGridOverlay();
-    showGridOverlay('Loading results…');
+    // Fetch final sorted list from server (already cached)
     fetch('/api/deals').then(r => r.json()).then(data => {
       hideGridOverlay();
       loadDeals(data.deals);
     }).catch(() => hideGridOverlay());
     es.close(); currentSSE = null;
+    renderScrapePopdown();
   });
 
   es.addEventListener('error', e => {
@@ -195,6 +237,46 @@ function startRefreshStream() {
     if (lastScrapedAt) updateStripText();
     es.close(); currentSSE = null;
   };
+}
+
+// ── Scrape Popdown ────────────────────────────────────────────────────────────
+function renderScrapePopdown() {
+  const content = document.getElementById('scrapePopdownContent');
+  if (!content) return;
+  const entries = Object.entries(storeProgress);
+  if (entries.length === 0) { content.innerHTML = ''; return; }
+
+  const doneCount = entries.filter(([, s]) => s.status !== 'pending').length;
+  content.innerHTML =
+    `<div class="sp-header">Scraping ${doneCount}/${entries.length} stores</div>` +
+    entries.map(([, s]) => {
+      const dotClass = s.status === 'done' ? 'done' : s.status === 'error' ? 'error' : 'pending';
+      const countTxt = s.status === 'done'
+        ? `<span class="sp-count">${s.count} deals</span>`
+        : s.status === 'error'
+        ? `<span class="sp-err" title="${escHtml(s.error || '')}">${escHtml((s.error || 'error').slice(0, 30))}</span>`
+        : `<span class="sp-count" style="color:var(--text-muted)">pending…</span>`;
+      return `<div class="sp-row"><div class="sp-dot ${dotClass}"></div><span class="sp-name">${escHtml(s.name || '')}</span>${countTxt}</div>`;
+    }).join('');
+}
+
+function showScrapePopdown() {
+  if (!refreshInProgress) return;
+  clearTimeout(popdownHideTimer);
+  renderScrapePopdown();
+  const pd = document.getElementById('scrapePopdown');
+  const strip = document.getElementById('refreshStrip');
+  if (!pd || !strip) return;
+  const rect = strip.getBoundingClientRect();
+  pd.style.left = rect.left + 'px';
+  pd.classList.add('visible');
+}
+
+function hideScrapePopdown() {
+  popdownHideTimer = setTimeout(() => {
+    const pd = document.getElementById('scrapePopdown');
+    if (pd) pd.classList.remove('visible');
+  }, 200);
 }
 
 // ── Data Loading ─────────────────────────────────────────────────────────────
@@ -349,6 +431,11 @@ function renderGrid() {
 
 function renderResultsBar() {
   const total = filteredDeals.length;
+  if (allDeals.length === 0) {
+    document.getElementById('resultsCount').textContent = '';
+    document.getElementById('activeFilters').innerHTML = '';
+    return;
+  }
   const start = (currentPage - 1) * PAGE_SIZE + 1;
   const end = Math.min(currentPage * PAGE_SIZE, total);
   let text = `${total} deal${total !== 1 ? 's' : ''}`;

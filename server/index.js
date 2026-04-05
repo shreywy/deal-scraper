@@ -19,8 +19,12 @@ const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../frontend')));
 
+// ── Scrape state ──────────────────────────────────────────────────────────────
+let scrapeInProgress = false;
+// Live per-store progress while a scrape runs: { key: { status, count, error } }
+let liveStoreProgress = {};
+
 // ── GET /api/deals ──────────────────────────────────────────────────────────
-// Returns cached deals immediately. 204 if no cache yet.
 app.get('/api/deals', (req, res) => {
   const cache = loadCache();
   if (!cache) return res.sendStatus(204);
@@ -30,13 +34,17 @@ app.get('/api/deals', (req, res) => {
 // ── GET /api/status ──────────────────────────────────────────────────────────
 app.get('/api/status', (req, res) => {
   const cache = loadCache();
-  if (!cache) return res.json({ scrapedAt: null, dealCount: 0, storeResults: {}, usdToCAD: null, scrapeInProgress });
+  if (!cache) return res.json({
+    scrapedAt: null, dealCount: 0, storeResults: {}, usdToCAD: null,
+    scrapeInProgress, liveStoreProgress,
+  });
   res.json({
     scrapedAt: cache.scrapedAt,
     dealCount: cache.deals.length,
     usdToCAD: cache.usdToCAD || null,
     storeResults: cache.storeResults || {},
     scrapeInProgress,
+    liveStoreProgress,
   });
 });
 
@@ -46,12 +54,10 @@ app.get('/api/config', (req, res) => {
 });
 
 // ── PATCH /api/config ────────────────────────────────────────────────────────
-// Merge patch — only updates keys provided in body.
 app.patch('/api/config', (req, res) => {
   const cfg = loadConfig();
   const body = req.body;
 
-  // Allow patching stores.*.enabled and settings.*
   if (body.stores) {
     for (const [key, val] of Object.entries(body.stores)) {
       if (cfg.stores[key]) Object.assign(cfg.stores[key], val);
@@ -66,11 +72,7 @@ app.patch('/api/config', (req, res) => {
 });
 
 // ── GET /api/refresh ─────────────────────────────────────────────────────────
-// Server-Sent Events stream. Triggers a scrape and streams progress back.
-// The client subscribes once on load; the server emits events as scraping progresses.
-
-let scrapeInProgress = false;
-
+// SSE stream. Triggers scrape and streams progress + partial results back.
 app.get('/api/refresh', (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -78,39 +80,73 @@ app.get('/api/refresh', (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.flushHeaders();
 
+  let closed = false;
   const send = (event, data) => {
-    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    if (closed) return;
+    try {
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    } catch (_) {}
   };
 
+  req.on('close', () => { closed = true; });
+
   if (scrapeInProgress) {
-    send('progress', { message: 'Scrape already in progress…' });
-    // Still keep connection open and close after a moment so client knows
-    setTimeout(() => res.end(), 500);
+    // Return current progress snapshot so the client can show the popdown
+    send('progress', { message: 'Scrape already in progress…', liveStoreProgress });
+    setTimeout(() => { if (!closed) res.end(); }, 500);
     return;
   }
 
   scrapeInProgress = true;
-  send('progress', { message: 'Starting scrape…' });
-
   const cfg = loadConfig();
 
-  runAll(cfg, message => {
-    send('progress', { message });
-  })
+  // Initialise per-store progress to 'pending' for all enabled stores
+  liveStoreProgress = {};
+  Object.entries(cfg.stores)
+    .filter(([, s]) => s.enabled)
+    .forEach(([key, s]) => {
+      liveStoreProgress[key] = { name: s.name, status: 'pending', count: 0, error: null };
+    });
+
+  send('started', { liveStoreProgress });
+
+  // Called by the orchestrator when each store finishes
+  const onPartial = (key, deals, errorMsg) => {
+    const storeName = cfg.stores[key]?.name || key;
+    if (errorMsg) {
+      liveStoreProgress[key] = { name: storeName, status: 'error', count: 0, error: String(errorMsg).slice(0, 80) };
+    } else {
+      liveStoreProgress[key] = { name: storeName, status: 'done', count: deals.length, error: null };
+    }
+    send('partial', { storeKey: key, count: deals.length, deals, liveStoreProgress });
+  };
+
+  // Safety: forcibly end the scrape after 20 minutes to prevent permanent hang
+  const safetyTimer = setTimeout(() => {
+    if (scrapeInProgress) {
+      scrapeInProgress = false;
+      liveStoreProgress = {};
+      send('error', { message: 'Scrape timed out after 20 minutes — some stores may not have loaded' });
+      try { res.end(); } catch (_) {}
+    }
+  }, 20 * 60 * 1000);
+
+  runAll(cfg,
+    message => send('progress', { message }),
+    onPartial,
+  )
     .then(deals => {
+      clearTimeout(safetyTimer);
       send('complete', { count: deals.length, scrapedAt: new Date().toISOString() });
     })
     .catch(err => {
+      clearTimeout(safetyTimer);
       send('error', { message: err.message });
     })
     .finally(() => {
       scrapeInProgress = false;
-      res.end();
+      try { res.end(); } catch (_) {}
     });
-
-  req.on('close', () => {
-    // Client disconnected — scrape still runs to completion but we stop sending
-  });
 });
 
 // ── Scheduled auto-scrape ─────────────────────────────────────────────────────
@@ -125,14 +161,29 @@ function scheduleAutoScrape(intervalHours) {
     }
     console.log(`\n⏰ Scheduled scrape starting (every ${intervalHours}h)…`);
     scrapeInProgress = true;
+    liveStoreProgress = {};
     const cfg = loadConfig();
+    Object.entries(cfg.stores)
+      .filter(([, s]) => s.enabled)
+      .forEach(([key, s]) => {
+        liveStoreProgress[key] = { name: s.name, status: 'pending', count: 0, error: null };
+      });
     try {
-      const deals = await runAll(cfg, msg => console.log(`  ${msg}`));
+      const deals = await runAll(cfg,
+        msg => console.log(`  ${msg}`),
+        (key, deals, err) => {
+          const name = cfg.stores[key]?.name || key;
+          liveStoreProgress[key] = err
+            ? { name, status: 'error', count: 0, error: String(err).slice(0, 80) }
+            : { name, status: 'done', count: deals.length, error: null };
+        },
+      );
       console.log(`✅ Scheduled scrape done — ${deals.length} deals\n`);
     } catch (err) {
       console.error(`❌ Scheduled scrape failed: ${err.message}\n`);
     } finally {
       scrapeInProgress = false;
+      liveStoreProgress = {};
     }
   }, ms);
 
@@ -146,7 +197,7 @@ function start() {
 
   app.listen(port, () => {
     console.log(`\n🌿 dealsco running at http://localhost:${port}\n`);
-    scheduleAutoScrape(cfg.settings?.refreshIntervalHours || 6);
+    scheduleAutoScrape(cfg.settings?.refreshIntervalHours || 24);
   });
 
   return port;

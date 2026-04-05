@@ -141,6 +141,64 @@ html.dark .strip-dot { border-color: #a09030; border-top-color: transparent; }
 html.dark .refresh-strip.live .strip-dot { background: #83c092; border-color: transparent; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* ── Scrape popdown ── */
+.scrape-popdown {
+  position: fixed;
+  top: calc(var(--topbar-h) + 6px);
+  z-index: 200;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 28px rgba(0,0,0,0.14);
+  min-width: 230px;
+  padding: 8px 0;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-6px);
+  transition: opacity 0.18s var(--ease), transform 0.18s var(--ease) !important;
+}
+.scrape-popdown.visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+.sp-header {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 4px 14px 8px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+.sp-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 5px 14px;
+  font-size: 12px;
+}
+.sp-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.sp-dot.pending {
+  width: 10px; height: 10px;
+  border: 2px solid var(--text-muted);
+  border-top-color: transparent;
+  animation: spin 0.8s linear infinite;
+  background: transparent;
+}
+.sp-dot.done { background: #4a9e4e; }
+html.dark .sp-dot.done { background: #83c092; }
+.sp-dot.error { background: #d05050; }
+.sp-name { flex: 1; color: var(--text-secondary); font-weight: 500; }
+.sp-count { color: var(--text-primary); font-weight: 600; font-size: 11.5px; }
+.sp-err { color: #c04040; font-size: 10.5px; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html.dark .sp-err { color: #e07070; }
+
 /* Grid refresh overlay — shown while new data loads after a manual refresh */
 .grid-refreshing {
   position: relative;

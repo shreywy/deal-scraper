@@ -58,30 +58,30 @@ async function scrape(browser, onProgress = () => {}) {
       return deals;
     }
 
-    // DOM fallback
+    // DOM fallback — Nike uses server-side rendering so cards are present on load
     onProgress('Nike: trying DOM scrape…');
     const deals = await page.evaluate(({ storeName, storeKey }) => {
-      const cards = [
-        ...document.querySelectorAll('[data-testid="product-card"]'),
-        ...document.querySelectorAll('[class*="product-card"]'),
-        ...document.querySelectorAll('[class*="ProductCard"]'),
-      ];
+      // Nike's actual class structure (as of 2025):
+      // Name: a[data-testid="product-card__link-overlay"]
+      // Sale price: .product-price.is--current-price
+      // Original price: .product-price.is--striked-out (or ca__styling)
+      const cards = document.querySelectorAll('[data-testid="product-card"]');
       const parsePrice = el => {
         if (!el) return null;
         const n = parseFloat((el.textContent || '').replace(/[^0-9.]/g, ''));
         return isNaN(n) ? null : n;
       };
       const seen = new Set();
-      return cards.map(card => {
-        const link = card.querySelector('a[href]');
-        const url = link?.href || '';
+      return [...cards].map(card => {
+        const linkEl = card.querySelector('a[data-testid="product-card__link-overlay"], a.product-card__link-overlay');
+        const imgLink = card.querySelector('a[data-testid="product-card__img-link-overlay"], a.product-card__img-link-overlay');
+        const url = (linkEl || imgLink)?.href || '';
         if (!url || seen.has(url)) return null;
         seen.add(url);
-        const nameEl = card.querySelector('[data-testid="product-card-title"], [class*="title"], [class*="name"]');
-        const salePriceEl = card.querySelector('[data-testid="product-card-sale-price"], [class*="sale"]');
-        const origPriceEl = card.querySelector('[data-testid="product-card-price"], s, del');
-        const imgEl = card.querySelector('img[src]');
-        const name = nameEl?.textContent?.trim() || '';
+        const name = (linkEl?.textContent || imgLink?.getAttribute('aria-label') || '').trim();
+        const salePriceEl = card.querySelector('[class*="is--current-price"]');
+        const origPriceEl = card.querySelector('[class*="is--striked-out"]');
+        const imgEl = card.querySelector('img[class*="product-card__image"], img[src]');
         const image = imgEl?.src || '';
         const price = parsePrice(salePriceEl);
         const originalPrice = parsePrice(origPriceEl);

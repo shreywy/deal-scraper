@@ -12,10 +12,15 @@
 <div class="topbar">
   <div class="logo">🌿 dealsco</div>
   <div class="topbar-divider"></div>
-  <div class="refresh-strip" id="refreshStrip">
+  <div class="refresh-strip" id="refreshStrip"
+       onmouseenter="showScrapePopdown()" onmouseleave="hideScrapePopdown()">
     <span class="strip-dot" id="stripDot"></span>
     <span id="stripText">Loading…</span>
     <span class="strip-refresh-btn" id="stripRefreshBtn" onclick="manualRefresh()" title="Refresh now">↻</span>
+  </div>
+  <div class="scrape-popdown" id="scrapePopdown"
+       onmouseenter="showScrapePopdown()" onmouseleave="hideScrapePopdown()">
+    <div id="scrapePopdownContent"></div>
   </div>
   <div class="topbar-spacer"></div>
   <div class="dark-btn" id="darkBtn" onclick="toggleDark()" title="Toggle dark mode">
@@ -108,7 +113,7 @@
   <!-- ── MAIN ── -->
   <main class="main">
     <div class="results-bar">
-      <span class="results-count" id="resultsCount">—</span>
+      <span class="results-count" id="resultsCount"></span>
       <div id="activeFilters" class="active-filters"></div>
     </div>
     <div class="grid-wrap" id="gridWrap">
