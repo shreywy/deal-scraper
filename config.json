@@ -15,11 +15,12 @@
       "category": "clothing"
     },
     "zara": {
-      "enabled": true,
+      "enabled": false,
       "name": "Zara Canada",
       "domain": "zara.com/ca",
       "currency": "CAD",
-      "category": "clothing"
+      "category": "clothing",
+      "note": "Akamai bot detection - redirects to homepage instead of sale page"
     },
     "gymshark": {
       "enabled": true,
@@ -57,11 +58,12 @@
       "category": "clothing"
     },
     "aritzia": {
-      "enabled": true,
+      "enabled": false,
       "name": "Aritzia",
       "domain": "aritzia.com",
       "currency": "CAD",
-      "category": "clothing"
+      "category": "clothing",
+      "note": "Sale page returns 404 - site structure changed or bot detection"
     },
     "roots": {
       "enabled": true,
