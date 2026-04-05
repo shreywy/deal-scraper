@@ -59,13 +59,13 @@ deal-scraper/
 │   │   ├── abercrombie.js   # HCo clearance DOM — ~180 deals ✅
 │   │   ├── bananarepublic.js# GAP Inc XHR — ~594 deals ✅
 │   │   ├── aloyoga.js       # Builder.io DOM — ~31 USD deals ✅
-│   │   ├── lululemon.js     # XHR + DOM — 0 (returned 0, may have no active sale) 🔲
-│   │   ├── asos.js          # Browser XHR intercept — needs live test 🔲
-│   │   ├── patagonia.js     # SFCC XHR + DOM — scraper written, untested 🔲
-│   │   ├── gap.js           # GAP Inc XHR — scraper written, untested 🔲
-│   │   ├── levis.js         # SFCC DOM — scraper written, untested 🔲
-│   │   ├── sportchek.js     # XHR + DOM — scraper written, untested 🔲
-│   │   ├── reigningchamp.js # Shopify API — 0 (no active sales on site) 🔲
+│   │   ├── lululemon.js     # Disabled — sale pages have no original prices ❌
+│   │   ├── asos.js          # Browser XHR intercept — ECONNRESET on direct fetch 🔲
+│   │   ├── patagonia.js     # SFCC DOM — 36-178 deals ✅
+│   │   ├── gap.js           # GAP Inc XHR — 0 (sale pages redirect currently) 🔲
+│   │   ├── levis.js         # SFCC DOM — 0 (Access Denied, bot block) ❌
+│   │   ├── sportchek.js     # FGL XHR intercept — 28 deals (first page only) ✅
+│   │   ├── reigningchamp.js # Shopify API — 0 (store has no active sales) 🔲
 │   │   ├── adidas.js        # PerimeterX blocked — disabled ❌
 │   │   ├── northface.js     # Akamai blocked — disabled ❌
 │   │   ├── uniqlo.js        # Requires live client-id — disabled ❌
@@ -98,51 +98,51 @@ deal-scraper/
 ### Confirmed working ✅
 | Store | Deals | Platform | Notes |
 |-------|-------|----------|-------|
-| Gymshark CA | ~677 | Algolia CA | AppId: `2DEAES0CUO`, Key: `932fd4562e8443c09e3d14fd4ab94295`, index: `production_ca_products_v2`; inStock:true filter added |
+| Gymshark CA | ~677 | Algolia CA | AppId: `2DEAES0CUO`, Key: `932fd4562e8443c09e3d14fd4ab94295`, index: `production_ca_products_v2`; inStock:true filter |
 | Nike CA | ~24 | DOM (SSR) | sale URL: `/ca/w/sale-3yaep`, price classes: `is--current-price`, `is--striked-out` |
 | YoungLA | ~35 | DOM (Shopify custom elements) | USD → CAD; custom elements: `product-card`, `sale-price`, `compare-at-price` |
 | Under Armour CA | ~24 | SFCC DOM | `/en-ca/c/sale/?sz=120` + outlet |
-| Club Monaco CA | ~48 | XHR intercept + DOM | `clubmonaco.ca/en/sale/` — works with stealth browser |
-| Hollister CA | ~180 | HCo DOM clearance page | `hollisterco.com/shop/sale/` — clearance page DOM scrape works |
-| Abercrombie CA | ~180 | HCo DOM clearance page | `abercrombie.com/shop/ca/mens-sale` — DOM scrape works |
-| Banana Republic CA | ~594 | GAP Inc XHR intercept | `bananarepublic.gap.com` — XHR intercept captures product API |
-| Alo Yoga | ~31 | Builder.io DOM | `aloyoga.com/collections/sale` — Builder.io DOM, scroll to lazy-load |
+| Club Monaco CA | ~48 | XHR intercept + DOM | `clubmonaco.ca/en/sale/` |
+| Hollister CA | ~180 | HCo DOM clearance page | `hollisterco.com/shop/sale/` — clearance page DOM scrape |
+| Abercrombie CA | ~180 | HCo DOM clearance page | `abercrombie.com/shop/ca/mens-sale` — DOM scrape |
+| Banana Republic CA | ~620 | GAP Inc XHR intercept | `api.gap.com/commerce/search` — XHR captures product API |
+| Alo Yoga | ~10-31 | Builder.io DOM | `aloyoga.com/collections/sale` — scroll to lazy-load; CAD prices |
+| Patagonia CA | ~36-178 | SFCC DOM | `patagonia.com/ca/shop/` — "M's"/"W's" names tagged via tagger |
+| Sport Chek | ~28 | FGL XHR intercept | `sportchek.ca/sale.html` — `/api/v1/search/v2/search` — first page only (1602 total) |
 
-### Needs live testing 🔲
+### Needs investigation 🔲
 | Store | Platform | Notes |
 |-------|----------|-------|
-| Lululemon CA | XHR + DOM | `--disable-http2` added; returned 0 last test (no active sale or blocked) |
-| ASOS | Browser XHR intercept | XHR intercept implemented; needs live run to confirm product key |
-| Patagonia CA | SFCC XHR + DOM | `patagonia.com/ca/shop/` — scraper written, untested |
-| Gap CA | GAP Inc XHR + DOM | Same platform as Banana Republic — scraper written, untested |
-| Levi's CA | SFCC DOM | `levi.com/en-CA/c/sale/` — scraper written, untested |
-| Sport Chek | XHR + DOM | `sportchek.ca/en/sale.html` — scraper written, untested |
-| Reigning Champ | Shopify API | Checked all 697 products — 0 have sale prices; store just has no active sales |
+| ASOS | Browser XHR intercept | Direct API fetch fails (ECONNRESET); XHR browser intercept approach in scraper |
+| Gap CA | GAP Inc XHR | Same platform as BR — category pages redirect to OutOfStockNoResults currently |
+| Reigning Champ | Shopify API | Scraper works; store has no active sales right now |
 
 ### Confirmed broken / disabled ❌
 | Store | Reason |
 |-------|--------|
+| Lululemon CA | Sale pages don't expose original prices — can't calculate discount |
 | Zara CA | Akamai bot block — redirects to homepage |
-| Aritzia | Sale page 404 / Cloudflare — disabled |
-| Arc'teryx CA | Sale page 404 (moved to outlet.arcteryx.com) — disabled |
-| H&M Canada | Akamai 403 even with stealth — disabled |
-| Frank and Oak | No `compare_at_price` in Shopify — can't detect discounts |
-| Adidas CA | PerimeterX bot protection — disabled |
-| North Face CA | Akamai bot protection — disabled |
-| Uniqlo CA | Requires dynamic client-id from browser session — disabled |
-| Musinsa Global | Location chooser blocks automated access — disabled |
-| American Eagle CA | Sale pages redirect to homepage (bot detection) — disabled |
-| Roots Canada | SFCC ISML errors on sale pages — disabled |
+| Aritzia | Sale page 404 / Cloudflare |
+| Arc'teryx CA | Sale page moved to outlet.arcteryx.com (times out) |
+| H&M Canada | Akamai 403 even with stealth |
+| Frank and Oak | No `compare_at_price` in Shopify |
+| Adidas CA | PerimeterX bot protection |
+| North Face CA | Akamai bot protection |
+| Uniqlo CA | Requires dynamic client-id from browser session |
+| Musinsa Global | Location chooser blocks automated access |
+| American Eagle CA | Sale pages redirect to homepage (bot detection) |
+| Roots Canada | SFCC ISML server errors |
+| Levi's CA | Access Denied (bot block on sale URL) |
 | Vuori | Disabled per user preference |
 
 ## Known issues / TODO
 
 - **YoungLA timeout**: Occasionally times out when run concurrently with many other stores. Retry usually works.
-- **ASOS**: XHR interception implemented — needs live testing to confirm products array key.
-- **Untested stores**: Patagonia, Gap, Levi's, Sport Chek scrapers written but not live-tested — run `npm start` and check /api/status.
-- **Lululemon**: Returned 0 last test — may have no active sale, or still being blocked. Try again.
-- **Gymshark price accuracy**: Algolia index can lag behind actual site prices. inStock:true filter now excludes OOS items.
-- **Gender tagging**: FIXED — items no longer default to Unisex.
+- **ASOS**: XHR intercept scraper in place — direct API fetch fails (ECONNRESET). Needs live run to confirm XHR interception picks up products.
+- **Sport Chek**: Only scrapes first page (~28 of 1602 deals). Implementing pagination would require 41 page loads; acceptable trade-off for now.
+- **Gap CA**: Sale category pages redirect to OutOfStockNoResults — could be temporary or URL change.
+- **Gymshark price accuracy**: Algolia index can lag behind actual site prices. inStock:true filter excludes OOS items.
+- **Gender tagging**: FIXED — items tagged via product name; tagger recognizes "M's"/"W's" (Patagonia convention).
 - **Store sidebar pills**: FIXED — pills use storeKey (short key from config), matching deals by storeKey field.
 - **Filter persistence**: FIXED — filters saved to localStorage, survive page refresh.
 - **Grid overlay during scrape**: FIXED — overlay only shows when zero cached deals exist.

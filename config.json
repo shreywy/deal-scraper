@@ -53,11 +53,12 @@
       "category": "clothing"
     },
     "lululemon": {
-      "enabled": true,
+      "enabled": false,
       "name": "Lululemon CA",
       "domain": "lululemon.com",
       "currency": "CAD",
-      "category": "clothing"
+      "category": "clothing",
+      "note": "Sale pages don't expose original prices - can't calculate discount percentage"
     },
     "aritzia": {
       "enabled": false,

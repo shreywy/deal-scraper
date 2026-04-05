@@ -150,22 +150,36 @@ async function browserScrape(browser, rate, onProgress) {
     try {
       const json = await response.json();
       // Enhanced XHR interception - look for goods/products in multiple locations
-      const products = json?.data?.goods || json?.goods || json?.products || json?.data?.list || [];
+      // Musinsa sale API uses: data.goods or just goods array
+      const products =
+        json?.data?.goodsInfoList ||  // Musinsa sale API uses goodsInfoList
+        json?.data?.goods ||
+        json?.goods ||
+        json?.data?.list ||
+        json?.products ||
+        json?.data?.products ||
+        (json?.data?.content ? json.data.content : []) ||
+        [];
 
       if (Array.isArray(products) && products.length > 0) {
-        onProgress(`Musinsa: found ${products.length} products in API response`);
+        // Check if this looks like real product data (not banner/header data)
+        const hasRealProducts = products.some(p =>
+          (p.goodsPrice !== undefined || p.salePrice !== undefined || p.price !== undefined)
+        );
 
-        // Log sample product structure for debugging
-        if (products[0] && rawProducts.length === 0) {
-          onProgress(`Musinsa: sample product has keys: ${Object.keys(products[0]).slice(0, 10).join(', ')}`);
-        }
-      }
+        if (hasRealProducts) {
+          onProgress(`Musinsa: found ${products.length} sale products in API response`);
 
-      for (const p of (Array.isArray(products) ? products : [])) {
-        const id = p.goodsNo || p.id || p.goodsId;
-        if (id && !seenIds.has(id)) {
-          seenIds.add(id);
-          rawProducts.push(p);
+          for (const p of products) {
+            const id = p.goodsNo || p.id || p.goodsId;
+            if (id && !seenIds.has(id)) {
+              seenIds.add(id);
+              rawProducts.push(p);
+            }
+          }
+        } else if (products.length > 0 && rawProducts.length === 0) {
+          // Log non-product data for debugging
+          onProgress(`Musinsa: found ${products.length} items but not product data (keys: ${Object.keys(products[0]).slice(0, 10).join(', ')})`);
         }
       }
     } catch (_) {}
