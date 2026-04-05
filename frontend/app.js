@@ -3,12 +3,13 @@
 // ── State ────────────────────────────────────────────────────────────────────
 let allDeals = [];
 let filteredDeals = [];
-let cols = 4;   // 1–8 scale; maps to tile min-widths (smaller col = smaller tiles = more per row)
+let cols = 4;
 let currentSort = 'discount';
-
-// Tile min-widths for each "cols" step — auto-fill handles actual column count
-const TILE_WIDTHS = { 1: 480, 2: 360, 3: 280, 4: 220, 5: 175, 6: 150, 7: 125, 8: 100 };
 let config = null;
+
+// Tile min-widths for each size step — auto-fill handles actual column count
+const TILE_WIDTHS = { 1: 480, 2: 360, 3: 280, 4: 220, 5: 175, 6: 150, 7: 125, 8: 100 };
+const SIZE_LABELS = { 1: 'XL', 2: 'L', 3: 'M-L', 4: 'M', 5: 'M-S', 6: 'S', 7: 'XS', 8: 'XXS' };
 
 const filters = {
   store: 'all',
@@ -18,86 +19,173 @@ const filters = {
   discount: '0',
 };
 
+// Pagination
+const PAGE_SIZE = 100;
+let currentPage = 1;
+
+// Strip state
+let lastScrapedAt = null;
+let lastDealCount = 0;
+let stripLive = false;
+let stripTimerInterval = null;
+let refreshInProgress = false;
+
+// Hover preview state
+let hoverTimer1 = null;
+let hoverTimer2 = null;
+let hoverTarget = null;
+let mousePos = { x: 0, y: 0 };
+
 // ── Init ─────────────────────────────────────────────────────────────────────
 async function init() {
-  // Restore dark mode preference
   if (localStorage.getItem('darkMode') === 'true') {
     document.documentElement.classList.add('dark');
   }
 
-  // Restore grid size preference
   const savedCols = parseInt(localStorage.getItem('gridCols') || '4');
-  if (savedCols >= 1 && savedCols <= 8) {
-    cols = savedCols;
-  }
+  if (savedCols >= 1 && savedCols <= 8) cols = savedCols;
   applyGridSize();
 
-  // Load config first (for settings drawer)
+  // Track mouse for hover preview
+  document.addEventListener('mousemove', e => {
+    mousePos = { x: e.clientX, y: e.clientY };
+    const spinner = document.getElementById('hoverSpinner');
+    if (spinner.classList.contains('visible')) {
+      spinner.style.left = e.clientX + 'px';
+      spinner.style.top = e.clientY + 'px';
+    }
+  });
+  setupHoverListeners();
+
   try {
     const res = await fetch('/api/config');
     config = await res.json();
     renderSettingsDrawer(config);
   } catch (_) {}
 
-  // Load cached deals immediately
-  showSkeletons(9);
-  setStrip('cached', 'Loading cached deals…');
+  showSkeletons(12);
+  setStrip('loading', 'Loading…');
 
   try {
     const res = await fetch('/api/deals');
     if (res.status === 204) {
-      setStrip('cached', 'No cache yet — scraping now…');
       clearGrid();
+      setStrip('cached', 'No cache yet — scraping now…');
     } else {
       const data = await res.json();
-      const age = data.scrapedAt ? timeSince(data.scrapedAt) : 'unknown';
-      setStrip('cached', `Cached results from ${age} ago · Refreshing…`);
+      lastScrapedAt = data.scrapedAt;
+      lastDealCount = data.deals?.length || 0;
+      stripLive = false;
+      updateStripText();
+      startStripTimer();
       loadDeals(data.deals);
     }
   } catch (_) {
-    setStrip('cached', 'Could not load cache — scraping now…');
     clearGrid();
+    setStrip('cached', 'Could not load cache — scraping now…');
   }
 
-  // Kick off background refresh via SSE
+  startRefreshStream();
+}
+
+// ── Strip ─────────────────────────────────────────────────────────────────────
+function setStrip(state, text) {
+  const strip = document.getElementById('refreshStrip');
+  strip.classList.remove('live', 'outdated');
+  if (state === 'live') strip.classList.add('live');
+  if (state === 'outdated') strip.classList.add('outdated');
+  document.getElementById('stripText').textContent = text;
+}
+
+function updateStripText() {
+  if (!lastScrapedAt) return;
+  const ageMs = Date.now() - new Date(lastScrapedAt);
+  const ageSecs = Math.floor(ageMs / 1000);
+  const ageStr = ageSecs < 60 ? 'just now'
+    : ageSecs < 3600 ? `${Math.floor(ageSecs / 60)}m ago`
+    : ageSecs < 86400 ? `${Math.floor(ageSecs / 3600)}h ago`
+    : `${Math.floor(ageSecs / 86400)}d ago`;
+
+  const isOutdated = ageMs > 12 * 3600 * 1000; // >12h = outdated
+  const prefix = refreshInProgress ? 'Cached' : (stripLive ? 'Up to date' : 'Cached');
+
+  const strip = document.getElementById('refreshStrip');
+  strip.classList.remove('live', 'outdated');
+  if (stripLive && !isOutdated) strip.classList.add('live');
+  if (isOutdated) strip.classList.add('outdated');
+
+  const refreshing = refreshInProgress ? ' · Refreshing…' : '';
+  document.getElementById('stripText').textContent =
+    `${prefix} · ${lastDealCount} deals · ${ageStr}${refreshing}`;
+}
+
+function startStripTimer() {
+  if (stripTimerInterval) clearInterval(stripTimerInterval);
+  stripTimerInterval = setInterval(updateStripText, 30000); // every 30s
+}
+
+function manualRefresh() {
+  if (refreshInProgress) return;
+  // Close existing SSE and open a new one
   startRefreshStream();
 }
 
 // ── SSE Refresh Stream ────────────────────────────────────────────────────────
+let currentSSE = null;
+
 function startRefreshStream() {
+  if (currentSSE) { currentSSE.close(); currentSSE = null; }
+  refreshInProgress = true;
+  if (lastScrapedAt) updateStripText();
+  else setStrip('cached', 'Scraping…');
+
   const es = new EventSource('/api/refresh');
+  currentSSE = es;
 
   es.addEventListener('progress', e => {
     const { message } = JSON.parse(e.data);
-    setStrip('cached', message);
+    if (!lastScrapedAt) setStrip('cached', message);
+    else {
+      document.getElementById('stripText').textContent =
+        document.getElementById('stripText').textContent.replace(' · Refreshing…', '') + ' · Refreshing…';
+    }
+    // Show progress message briefly in strip
+    document.getElementById('stripText').textContent = message;
   });
 
   es.addEventListener('complete', e => {
     const { count, scrapedAt } = JSON.parse(e.data);
-    setStrip('live', `Up to date · ${count} deals · refreshed just now`);
-    // Re-fetch the now-updated cache
-    fetch('/api/deals')
-      .then(r => r.json())
-      .then(data => loadDeals(data.deals))
-      .catch(() => {});
-    es.close();
+    lastScrapedAt = scrapedAt;
+    lastDealCount = count;
+    stripLive = true;
+    refreshInProgress = false;
+    updateStripText();
+    startStripTimer();
+    fetch('/api/deals').then(r => r.json()).then(data => loadDeals(data.deals)).catch(() => {});
+    es.close(); currentSSE = null;
   });
 
   es.addEventListener('error', e => {
     try {
       const { message } = JSON.parse(e.data);
-      setStrip('cached', `Scrape error: ${message}`);
+      refreshInProgress = false;
+      setStrip('outdated', `Scrape error: ${message}`);
     } catch (_) {}
-    es.close();
+    es.close(); currentSSE = null;
   });
 
-  es.onerror = () => es.close();
+  es.onerror = () => {
+    refreshInProgress = false;
+    if (lastScrapedAt) updateStripText();
+    es.close(); currentSSE = null;
+  };
 }
 
 // ── Data Loading ─────────────────────────────────────────────────────────────
 function loadDeals(deals) {
   allDeals = deals || [];
   buildDynamicFilters();
+  currentPage = 1;
   applyFiltersAndRender();
 }
 
@@ -105,75 +193,73 @@ function buildDynamicFilters() {
   // Store pills
   const stores = [...new Set(allDeals.map(d => d.store))].sort();
   const storePills = document.getElementById('storePills');
-  storePills.innerHTML = `<div class="pill active" data-filter="store" data-value="all" onclick="togglePill(this)">All</div>`;
-  for (const s of stores) {
-    const pill = document.createElement('div');
-    pill.className = 'pill';
-    pill.dataset.filter = 'store';
-    pill.dataset.value = s;
-    pill.textContent = s;
-    pill.onclick = () => togglePill(pill);
-    storePills.appendChild(pill);
-  }
+  storePills.innerHTML = makePill('store', 'all', 'All', true);
+  for (const s of stores) storePills.insertAdjacentHTML('beforeend', makePill('store', s, s));
 
-  // Category pills — collect all unique tags that aren't gender tags
+  // Category pills
   const GENDER_TAGS = new Set(['Men', 'Women', 'Unisex', 'Kids']);
-  const categories = [...new Set(allDeals.flatMap(d => d.tags).filter(t => !GENDER_TAGS.has(t)))].sort();
+  const cats = [...new Set(allDeals.flatMap(d => d.tags).filter(t => !GENDER_TAGS.has(t)))].sort();
   const catPills = document.getElementById('categoryPills');
-  catPills.innerHTML = `<div class="pill active" data-filter="category" data-value="all" onclick="togglePill(this)">All</div>`;
-  for (const c of categories) {
-    const pill = document.createElement('div');
-    pill.className = 'pill';
-    pill.dataset.filter = 'category';
-    pill.dataset.value = c;
-    pill.textContent = c;
-    pill.onclick = () => togglePill(pill);
-    catPills.appendChild(pill);
+  catPills.innerHTML = makePill('category', 'all', 'All', true);
+  for (const c of cats) catPills.insertAdjacentHTML('beforeend', makePill('category', c, c));
+
+  // Dynamic price range pills — only show ranges where deals exist
+  const PRICE_BREAKS = [25, 50, 100, 200, 500];
+  const pricePills = document.getElementById('pricePills');
+  pricePills.innerHTML = makePill('price', 'all', 'Any', true);
+  let prev = 0;
+  for (const bp of PRICE_BREAKS) {
+    const count = allDeals.filter(d => d.price > prev && d.price <= bp).length;
+    if (count > 0) {
+      const label = prev === 0 ? `Under $${bp}` : `$${prev}–$${bp}`;
+      pricePills.insertAdjacentHTML('beforeend', makePill('price', `${prev}-${bp}`, label));
+    }
+    prev = bp;
+  }
+  const above = allDeals.filter(d => d.price > prev).length;
+  if (above > 0) pricePills.insertAdjacentHTML('beforeend', makePill('price', `${prev}-99999`, `$${prev}+`));
+
+  // Dynamic discount pills — only show thresholds where deals exist
+  const DISC_STEPS = [10, 20, 30, 40, 50, 60, 70];
+  const discPills = document.getElementById('discountPills');
+  discPills.innerHTML = makePill('discount', '0', 'Any', true);
+  for (const t of DISC_STEPS) {
+    if (allDeals.some(d => d.discount >= t)) {
+      discPills.insertAdjacentHTML('beforeend', makePill('discount', String(t), `${t}%+`));
+    }
   }
 
-  // Re-sync active filter state for store/category pills
-  if (filters.store !== 'all') {
-    const p = storePills.querySelector(`[data-value="${filters.store}"]`);
-    if (p) { storePills.querySelector('[data-value="all"]').classList.remove('active'); p.classList.add('active'); }
-  }
-  if (filters.category !== 'all') {
-    const p = catPills.querySelector(`[data-value="${filters.category}"]`);
-    if (p) { catPills.querySelector('[data-value="all"]').classList.remove('active'); p.classList.add('active'); }
-  }
+  // Re-sync active states
+  syncPillActive('store', filters.store);
+  syncPillActive('category', filters.category);
+  syncPillActive('price', filters.price);
+  syncPillActive('discount', filters.discount);
+}
+
+function makePill(filter, value, label, active = false) {
+  return `<div class="pill${active ? ' active' : ''}" data-filter="${filter}" data-value="${escHtml(value)}" onclick="togglePill(this)">${escHtml(label)}</div>`;
+}
+
+function syncPillActive(filter, value) {
+  document.querySelectorAll(`[data-filter="${filter}"]`).forEach(p => {
+    p.classList.toggle('active', p.dataset.value === value);
+  });
 }
 
 // ── Filtering & Sorting ───────────────────────────────────────────────────────
 function applyFiltersAndRender() {
   let deals = [...allDeals];
 
-  // Store
-  if (filters.store !== 'all') {
-    deals = deals.filter(d => d.store === filters.store);
-  }
-
-  // Gender
-  if (filters.gender !== 'all') {
-    deals = deals.filter(d => d.tags.includes(filters.gender));
-  }
-
-  // Category
-  if (filters.category !== 'all') {
-    deals = deals.filter(d => d.tags.includes(filters.category));
-  }
-
-  // Price
+  if (filters.store !== 'all') deals = deals.filter(d => d.store === filters.store);
+  if (filters.gender !== 'all') deals = deals.filter(d => d.tags.includes(filters.gender));
+  if (filters.category !== 'all') deals = deals.filter(d => d.tags.includes(filters.category));
   if (filters.price !== 'all') {
     const [lo, hi] = filters.price.split('-').map(Number);
     deals = deals.filter(d => d.price >= lo && d.price <= hi);
   }
-
-  // Min discount
   const minDiscount = parseInt(filters.discount) || 0;
-  if (minDiscount > 0) {
-    deals = deals.filter(d => d.discount >= minDiscount);
-  }
+  if (minDiscount > 0) deals = deals.filter(d => d.discount >= minDiscount);
 
-  // Sort
   deals.sort((a, b) => {
     if (currentSort === 'discount') return b.discount - a.discount;
     if (currentSort === 'price-asc') return a.price - b.price;
@@ -183,8 +269,10 @@ function applyFiltersAndRender() {
   });
 
   filteredDeals = deals;
+  currentPage = 1;
   renderGrid();
   renderResultsBar();
+  renderPagination();
 }
 
 // ── Rendering ─────────────────────────────────────────────────────────────────
@@ -199,8 +287,12 @@ function renderGrid() {
   }
   empty.style.display = 'none';
 
-  grid.innerHTML = filteredDeals.map((d, i) => `
-    <a class="tile" href="${escHtml(d.url)}" target="_blank" rel="noopener" style="animation-delay:${Math.min(i * 0.04, 0.4)}s">
+  const start = (currentPage - 1) * PAGE_SIZE;
+  const pageDeals = filteredDeals.slice(start, start + PAGE_SIZE);
+
+  grid.innerHTML = pageDeals.map((d, i) => `
+    <a class="tile" href="${escHtml(d.url)}" target="_blank" rel="noopener"
+       data-idx="${start + i}" style="animation-delay:${Math.min(i * 0.03, 0.3)}s">
       <div class="tile-img">
         ${d.image
           ? `<img src="${escHtml(d.image)}" alt="${escHtml(d.name)}" loading="lazy" onerror="this.parentNode.innerHTML='<span class=\\'img-fallback\\'>🛍️</span>'">`
@@ -221,17 +313,54 @@ function renderGrid() {
 }
 
 function renderResultsBar() {
-  document.getElementById('resultsCount').textContent =
-    `${filteredDeals.length} deal${filteredDeals.length !== 1 ? 's' : ''}${allDeals.length !== filteredDeals.length ? ` of ${allDeals.length}` : ''}`;
+  const total = filteredDeals.length;
+  const start = (currentPage - 1) * PAGE_SIZE + 1;
+  const end = Math.min(currentPage * PAGE_SIZE, total);
+  let text = `${total} deal${total !== 1 ? 's' : ''}`;
+  if (allDeals.length !== total) text += ` of ${allDeals.length}`;
+  if (total > PAGE_SIZE) text += ` · showing ${start}–${end}`;
+  document.getElementById('resultsCount').textContent = text;
 
-  const activeContainer = document.getElementById('activeFilters');
   const chips = [];
   for (const [key, val] of Object.entries(filters)) {
     if (val === 'all' || val === '0') continue;
-    const label = key === 'price' ? `$${val.replace('-', '–')}` : key === 'discount' ? `${val}%+` : val;
+    const label = key === 'price' ? `$${val.replace(/-99999$/, '+').replace('-', '–')}` : key === 'discount' ? `${val}%+` : val;
     chips.push(`<div class="active-tag">${escHtml(label)} <span class="active-tag-x" onclick="clearFilter('${key}')">×</span></div>`);
   }
-  activeContainer.innerHTML = chips.join('');
+  document.getElementById('activeFilters').innerHTML = chips.join('');
+}
+
+function renderPagination() {
+  const total = filteredDeals.length;
+  const pageCount = Math.ceil(total / PAGE_SIZE);
+  const pg = document.getElementById('pagination');
+
+  if (pageCount <= 1) { pg.innerHTML = ''; return; }
+
+  const prevDis = currentPage === 1 ? ' disabled' : '';
+  const nextDis = currentPage === pageCount ? ' disabled' : '';
+  let html = `<button class="pg-btn"${prevDis} onclick="goPage(${currentPage - 1})">← Prev</button>`;
+  html += `<span class="pg-info">Page ${currentPage} of ${pageCount}</span>`;
+
+  // Up to 5 page number buttons around current page
+  const lo = Math.max(1, currentPage - 2);
+  const hi = Math.min(pageCount, currentPage + 2);
+  if (lo > 1) html += `<button class="pg-btn" onclick="goPage(1)">1</button>${lo > 2 ? '<span class="pg-info">…</span>' : ''}`;
+  for (let p = lo; p <= hi; p++) {
+    html += `<button class="pg-btn${p === currentPage ? ' active' : ''}" onclick="goPage(${p})">${p}</button>`;
+  }
+  if (hi < pageCount) html += `${hi < pageCount - 1 ? '<span class="pg-info">…</span>' : ''}<button class="pg-btn" onclick="goPage(${pageCount})">${pageCount}</button>`;
+
+  html += `<button class="pg-btn"${nextDis} onclick="goPage(${currentPage + 1})">Next →</button>`;
+  pg.innerHTML = html;
+}
+
+function goPage(p) {
+  currentPage = p;
+  renderGrid();
+  renderResultsBar();
+  renderPagination();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function showSkeletons(n) {
@@ -248,25 +377,127 @@ function showSkeletons(n) {
   `).join('');
 }
 
-function clearGrid() {
-  document.getElementById('grid').innerHTML = '';
+function clearGrid() { document.getElementById('grid').innerHTML = ''; }
+
+// ── Hover Preview ─────────────────────────────────────────────────────────────
+function setupHoverListeners() {
+  const grid = document.getElementById('grid');
+
+  grid.addEventListener('mouseover', e => {
+    const tile = e.target.closest('[data-idx]');
+    if (!tile) return;
+    if (hoverTarget?.tile === tile) return;
+    cancelHover();
+    const idx = parseInt(tile.dataset.idx);
+    if (!isNaN(idx) && filteredDeals[idx]) {
+      hoverTarget = { tile, deal: filteredDeals[idx] };
+      hoverTimer1 = setTimeout(() => startSpinner(tile, filteredDeals[idx]), 2000);
+    }
+  });
+
+  grid.addEventListener('mouseout', e => {
+    const tile = e.target.closest('[data-idx]');
+    if (!tile) return;
+    if (tile.contains(e.relatedTarget)) return;
+    cancelHover();
+  });
+}
+
+function startSpinner(tile, deal) {
+  const spinner = document.getElementById('hoverSpinner');
+  spinner.style.left = mousePos.x + 'px';
+  spinner.style.top = mousePos.y + 'px';
+  spinner.classList.add('visible');
+  // Force reflow so transition starts from dashoffset=106.8
+  spinner.classList.remove('animating');
+  void spinner.offsetWidth;
+  requestAnimationFrame(() => spinner.classList.add('animating'));
+
+  hoverTimer2 = setTimeout(() => {
+    spinner.classList.remove('visible', 'animating');
+    showPreviewCard(deal, tile);
+  }, 3000);
+}
+
+function cancelHover() {
+  clearTimeout(hoverTimer1);
+  clearTimeout(hoverTimer2);
+  hoverTimer1 = hoverTimer2 = null;
+  hoverTarget = null;
+  const spinner = document.getElementById('hoverSpinner');
+  spinner.classList.remove('visible', 'animating');
+  hidePreviewCard();
+}
+
+function showPreviewCard(deal, tile) {
+  const card = document.getElementById('previewCard');
+  card.innerHTML = `
+    <div class="pc-img">
+      ${deal.image
+        ? `<img src="${escHtml(deal.image)}" alt="${escHtml(deal.name)}" onerror="this.parentNode.innerHTML='<span class=pc-fallback>🛍️</span>'">`
+        : `<span class="pc-fallback">🛍️</span>`}
+    </div>
+    <div class="pc-body">
+      <div class="pc-store">${escHtml(deal.store)}</div>
+      <div class="pc-name">${escHtml(deal.name)}</div>
+      <div class="pc-tags">${deal.tags.map(t => `<span class="tag">${escHtml(t)}</span>`).join('')}</div>
+      <div class="pc-price-row">
+        <span class="price-now">$${deal.price.toFixed(2)}</span>
+        <span class="price-orig">$${deal.originalPrice.toFixed(2)}</span>
+        <span class="discount-badge">−${deal.discount}%</span>
+      </div>
+      <div class="pc-hint">Click tile to open →</div>
+    </div>
+  `;
+
+  const rect = tile.getBoundingClientRect();
+  const cardW = 270;
+  const cardH = 380;
+  const margin = 10;
+
+  let left = rect.right + margin;
+  let top = rect.top;
+  if (left + cardW > window.innerWidth - margin) left = rect.left - cardW - margin;
+  left = Math.max(margin, Math.min(left, window.innerWidth - cardW - margin));
+  top = Math.max(margin, Math.min(top, window.innerHeight - cardH - margin));
+
+  card.style.left = left + 'px';
+  card.style.top = top + 'px';
+  card.classList.add('visible');
+}
+
+function hidePreviewCard() {
+  document.getElementById('previewCard').classList.remove('visible');
 }
 
 // ── Settings Drawer ───────────────────────────────────────────────────────────
-function renderSettingsDrawer(cfg) {
+async function renderSettingsDrawer(cfg) {
   const body = document.getElementById('drawerBody');
   const stores = cfg.stores || {};
   const settings = cfg.settings || {};
 
-  const storeRows = Object.entries(stores).map(([key, s]) => `
+  // Fetch last scrape status for per-store counts
+  let status = {};
+  try {
+    const r = await fetch('/api/status');
+    status = await r.json();
+  } catch (_) {}
+
+  const storeRows = Object.entries(stores).map(([key, s]) => {
+    const sr = status.storeResults?.[key];
+    const statusText = sr
+      ? (sr.error ? `⚠ ${sr.error.slice(0, 40)}` : `${sr.count} deals`)
+      : 'not scraped yet';
+    const dotClass = sr ? (sr.error ? 'warn' : 'ok') : '';
+    return `
     <div class="ds-row">
       <div class="ds-row-text">
         <div class="ds-name">${escHtml(s.name)}</div>
-        <div class="ds-sub"><span class="store-status"><span class="status-dot ok"></span>${escHtml(s.domain)}</span></div>
+        <div class="ds-sub"><span class="store-status"><span class="status-dot ${dotClass}"></span>${escHtml(statusText)}</span></div>
       </div>
       <div class="toggle ${s.enabled ? 'on' : ''}" onclick="toggleStore('${key}', this)"></div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 
   body.innerHTML = `
     <div class="ds-section">
@@ -341,18 +572,16 @@ async function stepSetting(key, delta) {
   let next;
   if (key === 'minDiscountPercent') {
     next = Math.max(0, Math.min(70, current + delta));
-    config.settings[key] = next;
     const el = document.getElementById('discountStepVal');
     if (el) el.textContent = `${next}%`;
   } else if (key === 'refreshIntervalHours') {
-    next = Math.max(1, Math.min(168, current + delta)); // 1h to 1 week
-    config.settings[key] = next;
+    next = Math.max(1, Math.min(168, current + delta));
     const el = document.getElementById('intervalStepVal');
     if (el) el.textContent = `${next}h`;
   } else {
     next = current + delta;
-    config.settings[key] = next;
   }
+  config.settings[key] = next;
   await patchConfig({ settings: { [key]: next } });
 }
 
@@ -374,19 +603,17 @@ function changeGrid(d) {
 }
 
 function applyGridSize() {
-  const grid = document.getElementById('grid');
   const minW = TILE_WIDTHS[cols] || 220;
-  grid.style.setProperty('--tile-min', `${minW}px`);
+  document.getElementById('grid').style.setProperty('--tile-min', `${minW}px`);
   document.getElementById('gsVal').textContent = cols;
-  // Label reflects what this size means visually
-  const labels = { 1: 'XL', 2: 'L', 3: 'M-L', 4: 'M', 5: 'M-S', 6: 'S', 7: 'XS', 8: 'XXS' };
-  document.getElementById('gridLabel').textContent = `Tile size: ${labels[cols] || cols}`;
+  document.getElementById('gridLabel').textContent = SIZE_LABELS[cols] || cols;
 }
 
 function setSort(el) {
   document.querySelectorAll('.sort-row').forEach(r => r.classList.remove('active'));
   el.classList.add('active');
   currentSort = el.dataset.sort;
+  currentPage = 1;
   applyFiltersAndRender();
 }
 
@@ -395,39 +622,32 @@ function togglePill(el) {
   const filterKey = el.dataset.filter;
   const value = el.dataset.value;
 
-  if (value === 'all' || value === 'Any') {
-    group.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+  group.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+
+  if (value === 'all' || value === '0') {
     el.classList.add('active');
-    filters[filterKey] = 'all';
+    filters[filterKey] = filterKey === 'discount' ? '0' : 'all';
   } else {
-    const allPill = group.querySelector('[data-value="all"], [data-value="Any"]');
+    // Also deactivate the "all" pill
+    const allPill = group.querySelector('[data-value="all"], [data-value="0"]');
     if (allPill) allPill.classList.remove('active');
-    el.classList.toggle('active');
-    // Single-select for most filters
-    group.querySelectorAll('.pill').forEach(p => {
-      if (p !== el && p !== allPill) p.classList.remove('active');
-    });
     el.classList.add('active');
     filters[filterKey] = value;
   }
+  currentPage = 1;
   applyFiltersAndRender();
 }
 
 function clearFilter(key) {
   filters[key] = key === 'discount' ? '0' : 'all';
-  // Reset corresponding pill group
-  document.querySelectorAll(`[data-filter="${key}"]`).forEach(p => {
-    const val = p.dataset.value;
-    const isDefault = val === 'all' || val === 'Any' || val === '0';
-    p.classList.toggle('active', isDefault);
-  });
+  syncPillActive(key, filters[key]);
+  currentPage = 1;
   applyFiltersAndRender();
 }
 
 // ── Drawer ────────────────────────────────────────────────────────────────────
 function toggleDrawer() {
-  const isOpen = document.getElementById('drawer').classList.contains('open');
-  isOpen ? closeDrawer() : openDrawer();
+  document.getElementById('drawer').classList.contains('open') ? closeDrawer() : openDrawer();
 }
 function openDrawer() {
   document.getElementById('drawer').classList.add('open');
@@ -446,24 +666,9 @@ function toggleDark() {
   localStorage.setItem('darkMode', document.documentElement.classList.contains('dark'));
 }
 
-// ── Refresh strip ─────────────────────────────────────────────────────────────
-function setStrip(state, text) {
-  const strip = document.getElementById('refreshStrip');
-  strip.classList.toggle('live', state === 'live');
-  document.getElementById('stripText').textContent = text;
-}
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function escHtml(str) {
   return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-function timeSince(iso) {
-  const secs = Math.floor((Date.now() - new Date(iso)) / 1000);
-  if (secs < 60) return `${secs}s`;
-  if (secs < 3600) return `${Math.floor(secs / 60)}m`;
-  if (secs < 86400) return `${Math.floor(secs / 3600)}h`;
-  return `${Math.floor(secs / 86400)}d`;
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────

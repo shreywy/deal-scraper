@@ -102,8 +102,21 @@ body {
   color: #6a5c10;
 }
 .refresh-strip.live { background: #eef6ee; border-color: #b0d4b0; color: #2a5a2c; }
+.refresh-strip.outdated { background: #fdf0e0; border-color: #e8a830; color: #7a4e10; }
 html.dark .refresh-strip { background: #3a3620; border-color: #6a5c20; color: #c8b860; }
 html.dark .refresh-strip.live { background: #253028; border-color: #4a6a50; color: #83c092; }
+html.dark .refresh-strip.outdated { background: #3a2810; border-color: #8a6020; color: #d4a060; }
+
+.strip-refresh-btn {
+  margin-left: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  opacity: 0.6;
+  line-height: 1;
+  border-radius: 50%;
+  transition: opacity 0.15s, transform 0.3s !important;
+}
+.strip-refresh-btn:hover { opacity: 1; transform: rotate(180deg); }
 
 .strip-dot {
   width: 7px; height: 7px;
@@ -384,11 +397,9 @@ html.dark .dark-icon-sun  { transform: translateY(0) rotate(0deg); opacity: 1; }
   width: 100%; aspect-ratio: 1;
   display: flex; align-items: center; justify-content: center;
   overflow: hidden; background: var(--bg);
-  transition: transform 0.22s var(--ease) !important;
 }
 .tile-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .tile-img .img-fallback { font-size: 44px; }
-.tile:hover .tile-img { transform: scale(1.05); }
 
 .tile-body { padding: 10px 12px 12px; }
 .tile-store { font-size: 10px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 2px; }
@@ -415,3 +426,76 @@ html.dark .tag { color: #a7c080; }
 .empty-icon { font-size: 48px; margin-bottom: 12px; }
 .empty-title { font-size: 16px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
 .empty-sub { font-size: 13px; color: var(--text-muted); }
+
+/* ── PAGINATION ── */
+.pagination {
+  display: flex; align-items: center; justify-content: center;
+  gap: 6px; padding: 24px 0 8px;
+}
+.pg-btn {
+  padding: 6px 14px; border-radius: 20px;
+  background: var(--surface); border: 1.5px solid var(--border);
+  font-size: 13px; font-weight: 500; color: var(--text-secondary);
+  cursor: pointer; user-select: none;
+}
+.pg-btn:hover { background: var(--green-light); border-color: var(--border-hover); color: var(--green-dark); }
+.pg-btn:disabled { opacity: 0.4; pointer-events: none; }
+.pg-btn.active { background: var(--green-mid); color: white; border-color: var(--green-mid); }
+.pg-info { font-size: 12px; color: var(--text-muted); padding: 0 8px; }
+
+/* ── HOVER SPINNER ── */
+.hover-spinner {
+  position: fixed;
+  pointer-events: none;
+  z-index: 9998;
+  width: 44px; height: 44px;
+  transform: translate(-50%, -50%);
+  display: none;
+}
+.hover-spinner.visible { display: block; }
+.hover-spinner svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.hs-track { fill: none; stroke: rgba(100,150,100,0.2); stroke-width: 3; }
+.hs-fill {
+  fill: none; stroke: var(--green-mid); stroke-width: 3;
+  stroke-dasharray: 106.8; /* 2πr, r=17 */
+  stroke-dashoffset: 106.8;
+  stroke-linecap: round;
+}
+.hover-spinner.animating .hs-fill {
+  transition: stroke-dashoffset 3s linear !important;
+  stroke-dashoffset: 0;
+}
+
+/* ── PREVIEW CARD ── */
+.preview-card {
+  position: fixed;
+  width: 270px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.18), 0 4px 12px rgba(0,0,0,0.08);
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0;
+  transform: scale(0.95) translateY(6px);
+  display: none;
+}
+.preview-card.visible {
+  display: block;
+  opacity: 1;
+  transform: scale(1) translateY(0);
+  transition: opacity 0.18s var(--ease), transform 0.18s var(--ease) !important;
+}
+.pc-img {
+  width: 100%; height: 220px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg); border-radius: 13px 13px 0 0; overflow: hidden;
+}
+.pc-img img { width: 100%; height: 100%; object-fit: contain; }
+.pc-fallback { font-size: 60px; }
+.pc-body { padding: 12px 14px 14px; }
+.pc-store { font-size: 10px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 3px; }
+.pc-name { font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 7px; line-height: 1.35; }
+.pc-tags { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 9px; }
+.pc-price-row { display: flex; align-items: baseline; gap: 5px; flex-wrap: wrap; }
+.pc-hint { font-size: 10px; color: var(--text-muted); margin-top: 8px; text-align: right; }

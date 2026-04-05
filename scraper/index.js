@@ -64,12 +64,18 @@ async function runAll(config, onProgress = () => {}) {
     );
 
     const allDeals = [];
+    const storeResults = {};
+
     for (let i = 0; i < results.length; i++) {
+      const key = enabledStores[i];
       const r = results[i];
       if (r.status === 'fulfilled') {
+        storeResults[key] = { count: r.value.length, error: null };
         allDeals.push(...r.value);
       } else {
-        onProgress(`${enabledStores[i]}: scrape failed — ${r.reason?.message || r.reason}`);
+        const msg = r.reason?.message || String(r.reason);
+        storeResults[key] = { count: 0, error: msg };
+        onProgress(`${key}: scrape failed — ${msg}`);
       }
     }
 
@@ -80,11 +86,18 @@ async function runAll(config, onProgress = () => {}) {
     // Sort by discount descending
     filtered.sort((a, b) => b.discount - a.discount);
 
-    // Persist to cache
+    // Persist to cache (include per-store results for the status API)
     fs.mkdirSync(path.dirname(CACHE_PATH), { recursive: true });
-    fs.writeFileSync(CACHE_PATH, JSON.stringify({ scrapedAt: new Date().toISOString(), deals: filtered }, null, 2));
+    fs.writeFileSync(CACHE_PATH, JSON.stringify({
+      scrapedAt: new Date().toISOString(),
+      storeResults,
+      deals: filtered,
+    }, null, 2));
 
-    onProgress(`Done — ${filtered.length} deals cached (${allDeals.length} total, ${allDeals.length - filtered.length} below min discount)`);
+    const summary = Object.entries(storeResults)
+      .map(([k, v]) => `${k}: ${v.error ? '❌ ' + v.error : v.count + ' deals'}`)
+      .join(' | ');
+    onProgress(`Done — ${filtered.length} total deals | ${summary}`);
     return filtered;
 
   } finally {

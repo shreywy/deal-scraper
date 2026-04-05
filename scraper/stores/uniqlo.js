@@ -6,14 +6,18 @@ const { tag } = require('../tagger');
 const STORE_NAME = 'Uniqlo';
 const STORE_KEY = 'uniqlo';
 
-// Uniqlo Canada uses Fast Retailing's custom platform.
-// They expose a public JSON API that is much faster than DOM scraping.
-// API endpoint pattern (confirmed across Fast Retailing properties):
-//   GET /api/getOutfits?store=ca&lang=en&...
-// Fallback: Playwright DOM scrape of the sale page.
+// Uniqlo Canada — Fast Retailing platform.
+// Try the JSON API first (multiple URL patterns), then XHR intercept, then DOM.
 
-const API_URL = 'https://www.uniqlo.com/ca/api/commerce/v5/en/products?path=%2Fsale&limit=100&offset=0&httpFailure=true';
-const SALE_URL = 'https://www.uniqlo.com/ca/en/sale/';
+const SALE_PAGE = 'https://www.uniqlo.com/ca/en/sale/';
+
+// Multiple API patterns — FR changes paths between regions/versions
+const API_CANDIDATES = [
+  'https://www.uniqlo.com/ca/api/commerce/v5/en/products?path=%2Fsale&limit=100&offset=0&httpFailure=true',
+  'https://www.uniqlo.com/ca/api/commerce/v5/en/products?path=/sale&limit=100&offset=0',
+  'https://www.uniqlo.com/ca/api/commerce/v5/en/products?path=%2Fsale-and-special-offers&limit=100&offset=0&httpFailure=true',
+  'https://www.uniqlo.com/ca/api/commerce/v3/en/products?path=%2Fsale&limit=100&offset=0',
+];
 
 /**
  * @param {import('playwright').Browser} browser
@@ -23,158 +27,175 @@ const SALE_URL = 'https://www.uniqlo.com/ca/en/sale/';
 async function scrape(browser, onProgress = () => {}) {
   onProgress('Uniqlo: trying JSON API…');
 
-  // Try the JSON API first — no browser needed, much faster
-  try {
-    const apiDeals = await scrapeViaApi();
-    if (apiDeals.length > 0) {
-      onProgress(`Uniqlo: found ${apiDeals.length} deals via API`);
-      return apiDeals;
+  for (const apiUrl of API_CANDIDATES) {
+    try {
+      const apiDeals = await scrapeViaApi(apiUrl, onProgress);
+      if (apiDeals.length > 0) {
+        onProgress(`Uniqlo: found ${apiDeals.length} deals via API`);
+        return apiDeals;
+      }
+    } catch (err) {
+      onProgress(`Uniqlo: API attempt failed (${err.message})`);
     }
-  } catch (err) {
-    onProgress(`Uniqlo: API failed (${err.message}), falling back to browser…`);
   }
 
-  // Fallback: Playwright DOM scrape
-  return scrapViaBrowser(browser, onProgress);
+  onProgress('Uniqlo: all API attempts failed — using browser…');
+  return scrapeViaBrowser(browser, onProgress);
 }
 
-async function scrapeViaApi() {
-  // Paginate through all results
+async function scrapeViaApi(baseUrl, onProgress) {
   const allItems = [];
   let offset = 0;
   const limit = 100;
 
   while (true) {
-    const url = `https://www.uniqlo.com/ca/api/commerce/v5/en/products?path=%2Fsale&limit=${limit}&offset=${offset}&httpFailure=true`;
+    const url = baseUrl.replace(/offset=\d+/, `offset=${offset}`);
     const res = await fetch(url, {
       headers: {
         'Accept': 'application/json',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept-Language': 'en-CA,en;q=0.9',
       },
+      timeout: 15000,
     });
 
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
     const data = await res.json();
-    const items = data?.result?.items || data?.items || [];
+    const items = data?.result?.items || data?.items || data?.products || [];
     if (items.length === 0) break;
 
     allItems.push(...items);
     if (items.length < limit) break;
     offset += limit;
+
+    onProgress(`Uniqlo: fetched ${allItems.length} products from API…`);
   }
 
-  return allItems.map(item => {
-    const prices = item.prices || {};
-    const price = prices.promoPrice?.value ?? prices.base?.value ?? null;
-    const originalPrice = prices.base?.value ?? null;
-
-    if (!price || !originalPrice || price >= originalPrice) return null;
-
-    const discount = Math.round((1 - price / originalPrice) * 100);
-    if (discount <= 0) return null;
-
-    const name = item.name || item.displayCode || '';
-    const slug = item.productId || item.code || '';
-    const url = `https://www.uniqlo.com/ca/en/products/${slug}/`;
-
-    // Pick best image
-    const image = item.images?.main?.url
-      || item.images?.sub?.[0]?.url
-      || '';
-
-    const gender = item.gender || item.genderCategory || '';
-    const category = item.subCategory?.displayName || item.category?.displayName || '';
-
-    return {
-      id: slugify(`${STORE_KEY}-${name}`),
-      store: STORE_NAME,
-      storeKey: STORE_KEY,
-      name,
-      url,
-      image,
-      price,
-      originalPrice,
-      discount,
-      tags: tag({ name, category, gender }),
-      scrapedAt: new Date().toISOString(),
-    };
-  }).filter(Boolean);
+  return allItems.map(item => mapUniqloItem(item)).filter(Boolean);
 }
 
-async function scrapViaBrowser(browser, onProgress) {
+function mapUniqloItem(item) {
+  const prices = item.prices || {};
+  // promoPrice is the sale price; base is the original
+  const price = prices.promoPrice?.value ?? prices.base?.value ?? null;
+  const originalPrice = prices.base?.value ?? null;
+
+  if (!price || !originalPrice || price >= originalPrice) return null;
+
+  const discount = Math.round((1 - price / originalPrice) * 100);
+  if (discount <= 0) return null;
+
+  const name = item.name || item.displayCode || '';
+  if (!name) return null;
+
+  const slug = item.productId || item.code || '';
+  const url = `https://www.uniqlo.com/ca/en/products/${slug}/`;
+
+  // Best available image
+  const image =
+    item.images?.main?.url ||
+    item.images?.sub?.[0]?.url ||
+    (Array.isArray(item.images) ? item.images[0]?.url : '') ||
+    '';
+
+  const gender = item.gender || item.genderCategory || '';
+  const category = item.subCategory?.displayName || item.category?.displayName || '';
+
+  return {
+    id: slugify(`${STORE_KEY}-${name}-${slug}`),
+    store: STORE_NAME,
+    storeKey: STORE_KEY,
+    name,
+    url,
+    image,
+    price,
+    originalPrice,
+    discount,
+    tags: tag({ name, category, gender }),
+    scrapedAt: new Date().toISOString(),
+  };
+}
+
+async function scrapeViaBrowser(browser, onProgress) {
   const context = await browser.newContext({
     userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
     locale: 'en-CA',
+    extraHTTPHeaders: { 'Accept-Language': 'en-CA,en;q=0.9' },
   });
   const page = await context.newPage();
 
-  // Intercept API calls — Uniqlo's SPA fires XHR requests we can capture
   const intercepted = [];
+  const interceptedIds = new Set();
+
+  // Intercept ALL JSON from Uniqlo — FR fires several API calls on page load
   page.on('response', async response => {
     const url = response.url();
-    if (url.includes('/api/commerce') && url.includes('products')) {
-      try {
-        const json = await response.json();
-        const items = json?.result?.items || json?.items || [];
-        if (items.length > 0) intercepted.push(...items);
-      } catch (_) {}
-    }
+    const ct = response.headers()['content-type'] || '';
+    if (!ct.includes('application/json')) return;
+    if (!url.includes('uniqlo.com')) return;
+
+    try {
+      const json = await response.json();
+      // Try multiple item container keys
+      const items = json?.result?.items || json?.items || json?.products || [];
+      for (const item of items) {
+        if (item?.productId && !interceptedIds.has(item.productId)) {
+          interceptedIds.add(item.productId);
+          intercepted.push(item);
+        }
+      }
+    } catch (_) {}
   });
 
   try {
     onProgress('Uniqlo: navigating to sale page…');
-    await page.goto(SALE_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.goto(SALE_PAGE, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
-    try { await page.click('[class*="CookieBanner"] button, #onetrust-accept-btn-handler', { timeout: 3000 }); } catch (_) {}
+    try {
+      await page.click('[class*="CookieBanner"] button, #onetrust-accept-btn-handler', { timeout: 3000 });
+    } catch (_) {}
 
-    await page.waitForTimeout(3000); // Allow XHR to fire
+    await page.waitForTimeout(3000);
+    await loadAllProductsScroll(page, intercepted, onProgress);
 
     if (intercepted.length > 0) {
-      onProgress(`Uniqlo: captured ${intercepted.length} products from network`);
-      const deals = intercepted.map(item => {
-        const prices = item.prices || {};
-        const price = prices.promoPrice?.value ?? prices.base?.value ?? null;
-        const originalPrice = prices.base?.value ?? null;
-        if (!price || !originalPrice || price >= originalPrice) return null;
-        const discount = Math.round((1 - price / originalPrice) * 100);
-        if (discount <= 0) return null;
-        const name = item.name || '';
-        const slug = item.productId || item.code || '';
-        return {
-          id: slugify(`${STORE_KEY}-${name}`),
-          store: STORE_NAME,
-          storeKey: STORE_KEY,
-          name,
-          url: `https://www.uniqlo.com/ca/en/products/${slug}/`,
-          image: item.images?.main?.url || '',
-          price, originalPrice, discount,
-          tags: tag({ name, category: item.subCategory?.displayName || '', gender: item.gender || '' }),
-          scrapedAt: new Date().toISOString(),
-        };
-      }).filter(Boolean);
+      onProgress(`Uniqlo: captured ${intercepted.length} products from XHR`);
+      const deals = intercepted.map(item => mapUniqloItem(item)).filter(Boolean);
       return deals;
     }
 
-    // Last resort: DOM scrape
+    // Last resort DOM scrape
     onProgress('Uniqlo: falling back to DOM scrape…');
-    await loadAllProductsScroll(page, onProgress);
-
     const deals = await page.evaluate(({ storeName, storeKey }) => {
-      const cards = document.querySelectorAll('[class*="ProductTile"], [class*="product-tile"], [class*="fr-product"]');
-      return [...cards].map(card => {
+      const selectors = [
+        '[class*="ProductTile"]',
+        '[class*="product-tile"]',
+        '[class*="fr-product"]',
+        'li[class*="product"]',
+        'article[class*="product"]',
+      ];
+      let cards = [];
+      for (const sel of selectors) {
+        cards = [...document.querySelectorAll(sel)];
+        if (cards.length) break;
+      }
+      const parsePrice = el => el ? parseFloat(el.textContent.replace(/[^0-9.]/g, '')) : null;
+      const seen = new Set();
+      return cards.map(card => {
         const link = card.querySelector('a[href]');
-        const nameEl = card.querySelector('[class*="ProductName"], [class*="product-name"]');
+        const url = link?.href || '';
+        if (!url || seen.has(url)) return null;
+        seen.add(url);
+        const nameEl = card.querySelector('[class*="ProductName"], [class*="product-name"], h2, h3');
         const salePriceEl = card.querySelector('[class*="sale"], [class*="promo"], [class*="discount"]');
         const origPriceEl = card.querySelector('s, del, [class*="original"], [class*="was"]');
         const imgEl = card.querySelector('img');
         const name = nameEl?.textContent?.trim() || '';
-        const url = link?.href || '';
-        const image = imgEl?.src || '';
-        const parsePrice = el => el ? parseFloat(el.textContent.replace(/[^0-9.]/g, '')) : null;
+        const image = imgEl?.src || imgEl?.dataset?.src || '';
         const price = parsePrice(salePriceEl);
         const originalPrice = parsePrice(origPriceEl);
-        if (!name || !url || !price || !originalPrice || price >= originalPrice) return null;
+        if (!name || !price || !originalPrice || price >= originalPrice) return null;
         const discount = Math.round((1 - price / originalPrice) * 100);
         if (discount <= 0) return null;
         return { store: storeName, storeKey, name, url, image, price, originalPrice, discount, tags: [] };
@@ -193,27 +214,29 @@ async function scrapViaBrowser(browser, onProgress) {
   }
 }
 
-// Scroll until page height stabilizes (handles both lazy-load and infinite scroll)
-async function loadAllProductsScroll(page, onProgress) {
+// Scroll until page height stabilizes (handles lazy-load + infinite scroll)
+async function loadAllProductsScroll(page, intercepted, onProgress) {
   let lastHeight = 0;
+  let lastCount = 0;
   let stableRounds = 0;
-  const MAX_ROUNDS = 25;
+  const MAX_ROUNDS = 30;
 
   for (let i = 0; i < MAX_ROUNDS; i++) {
     const currentHeight = await page.evaluate(() => document.body.scrollHeight);
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
     await page.waitForTimeout(1200);
 
-    if (currentHeight === lastHeight) {
+    const stable = (currentHeight === lastHeight) && (intercepted.length === lastCount);
+    if (stable) {
       stableRounds++;
       if (stableRounds >= 3) break;
     } else {
       stableRounds = 0;
       lastHeight = currentHeight;
-      onProgress(`Uniqlo: loading more products…`);
+      lastCount = intercepted.length;
+      if (intercepted.length > 0) onProgress(`Uniqlo: loading more… (${intercepted.length} so far)`);
     }
   }
-  await page.waitForTimeout(500);
 }
 
 function slugify(str) {

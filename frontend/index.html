@@ -15,6 +15,7 @@
   <div class="refresh-strip" id="refreshStrip">
     <span class="strip-dot" id="stripDot"></span>
     <span id="stripText">Loading…</span>
+    <span class="strip-refresh-btn" id="stripRefreshBtn" onclick="manualRefresh()" title="Refresh now">↻</span>
   </div>
   <div class="topbar-spacer"></div>
   <div class="dark-btn" id="darkBtn" onclick="toggleDark()" title="Toggle dark mode">
@@ -56,11 +57,11 @@
     </div>
 
     <div class="sb-section">
-      <div class="sb-label">Grid size</div>
+      <div class="sb-label">Tile size</div>
       <div class="grid-size-ctrl">
-        <span class="label-txt" id="gridLabel">3 per row</span>
+        <span class="label-txt" id="gridLabel">M</span>
         <div class="gs-btn" onclick="changeGrid(-1)">−</div>
-        <div class="gs-val" id="gsVal">3</div>
+        <div class="gs-val" id="gsVal">4</div>
         <div class="gs-btn" onclick="changeGrid(1)">+</div>
       </div>
     </div>
@@ -91,23 +92,15 @@
 
     <div class="sb-section">
       <div class="sb-label">Price range</div>
-      <div class="pill-group">
+      <div class="pill-group" id="pricePills">
         <div class="pill active" data-filter="price" data-value="all" onclick="togglePill(this)">Any</div>
-        <div class="pill" data-filter="price" data-value="0-25" onclick="togglePill(this)">Under $25</div>
-        <div class="pill" data-filter="price" data-value="25-50" onclick="togglePill(this)">$25–$50</div>
-        <div class="pill" data-filter="price" data-value="50-100" onclick="togglePill(this)">$50–$100</div>
-        <div class="pill" data-filter="price" data-value="100-99999" onclick="togglePill(this)">$100+</div>
       </div>
     </div>
 
     <div class="sb-section">
       <div class="sb-label">Min. discount</div>
-      <div class="pill-group">
+      <div class="pill-group" id="discountPills">
         <div class="pill active" data-filter="discount" data-value="0" onclick="togglePill(this)">Any</div>
-        <div class="pill" data-filter="discount" data-value="20" onclick="togglePill(this)">20%+</div>
-        <div class="pill" data-filter="discount" data-value="30" onclick="togglePill(this)">30%+</div>
-        <div class="pill" data-filter="discount" data-value="40" onclick="togglePill(this)">40%+</div>
-        <div class="pill" data-filter="discount" data-value="50" onclick="togglePill(this)">50%+</div>
       </div>
     </div>
   </aside>
@@ -118,14 +111,26 @@
       <span class="results-count" id="resultsCount">—</span>
       <div id="activeFilters" class="active-filters"></div>
     </div>
-    <div class="grid cols-3" id="grid"></div>
+    <div class="grid" id="grid"></div>
     <div class="empty-state" id="emptyState" style="display:none">
       <div class="empty-icon">🌿</div>
       <div class="empty-title">No deals match your filters</div>
       <div class="empty-sub">Try adjusting your filters or wait for the scrape to complete</div>
     </div>
+    <div class="pagination" id="pagination"></div>
   </main>
 </div>
+
+<!-- ── HOVER SPINNER ── -->
+<div class="hover-spinner" id="hoverSpinner">
+  <svg viewBox="0 0 40 40" fill="none">
+    <circle class="hs-track" cx="20" cy="20" r="17"/>
+    <circle class="hs-fill" cx="20" cy="20" r="17"/>
+  </svg>
+</div>
+
+<!-- ── PREVIEW CARD ── -->
+<div class="preview-card" id="previewCard"></div>
 
 <script src="app.js"></script>
 </body>

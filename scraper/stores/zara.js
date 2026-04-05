@@ -32,23 +32,23 @@ async function scrape(browser, onProgress = () => {}) {
   const rawProducts = [];
   const seenIds = new Set();
 
-  // Intercept ALL JSON responses — Zara fires several catalog API calls on page load
+  // Capture ALL JSON responses from Zara's domain — their internal API paths
+  // change frequently, but the response structures are consistent
   page.on('response', async response => {
     const url = response.url();
     const ct = response.headers()['content-type'] || '';
     if (!ct.includes('application/json')) return;
+    if (!url.includes('zara.com') && !url.includes('inditex.com')) return;
 
-    // Zara API URLs contain these patterns
-    if (
-      url.includes('/api/catalog') ||
-      url.includes('/api/product') ||
-      url.includes('zara.com') && (url.includes('product') || url.includes('catalog') || url.includes('search'))
-    ) {
-      try {
-        const json = await response.json();
-        extractZaraProducts(json, rawProducts, seenIds);
-      } catch (_) {}
-    }
+    try {
+      const json = await response.json();
+      const before = rawProducts.length;
+      extractZaraProducts(json, rawProducts, seenIds);
+      // Debug: log when we find products
+      if (rawProducts.length > before) {
+        // products found from this response — captured silently
+      }
+    } catch (_) {}
   });
 
   try {
@@ -155,31 +155,44 @@ async function scrape(browser, onProgress = () => {}) {
 
 /**
  * Walk a Zara API response JSON tree and pull out product objects.
- * Zara nests products under different keys depending on the endpoint version.
+ * Handles multiple known response structures from different API versions.
  */
 function extractZaraProducts(json, out, seenIds) {
   if (!json || typeof json !== 'object') return;
 
-  // Known top-level containers
-  const containers = [
-    json.productGroups,   // catalog API
-    json.products,        // search API
-    json.elements,        // some versions
-    json.catalog,         // older versions
-    json.items,
-  ].filter(Boolean);
+  // Structure 1: { sections: [{ elements: [{ type, commercialComponents: [...] }] }] }
+  // Most common in current Zara SPA
+  if (Array.isArray(json.sections)) {
+    for (const section of json.sections) {
+      for (const el of (section.elements || [])) {
+        for (const p of (el.commercialComponents || [])) pushProduct(p, out, seenIds);
+        // Some sections nest deeper
+        for (const group of (el.productGroups || [])) {
+          for (const p of (group.elements || [])) pushProduct(p, out, seenIds);
+        }
+      }
+    }
+  }
 
-  for (const container of containers) {
-    const arr = Array.isArray(container) ? container : [container];
-    for (const item of arr) {
-      if (!item) continue;
-      // ProductGroup has a nested .products array
-      if (Array.isArray(item.products)) {
-        for (const p of item.products) pushProduct(p, out, seenIds);
-      } else if (Array.isArray(item.elements)) {
-        for (const p of item.elements) pushProduct(p, out, seenIds);
-      } else {
-        pushProduct(item, out, seenIds);
+  // Structure 2: { productGroups: [{ type, elements: [...] }] }
+  if (Array.isArray(json.productGroups)) {
+    for (const group of json.productGroups) {
+      for (const el of (group.elements || [])) {
+        for (const p of (el.commercialComponents || [])) pushProduct(p, out, seenIds);
+        pushProduct(el, out, seenIds);
+      }
+    }
+  }
+
+  // Structure 3: { products: [...] } or { elements: [...] }
+  for (const key of ['products', 'elements', 'items', 'catalog']) {
+    if (Array.isArray(json[key])) {
+      for (const item of json[key]) {
+        if (Array.isArray(item.commercialComponents)) {
+          for (const p of item.commercialComponents) pushProduct(p, out, seenIds);
+        } else {
+          pushProduct(item, out, seenIds);
+        }
       }
     }
   }
@@ -199,15 +212,20 @@ function mapZaraProducts(raw) {
   for (const item of raw) {
     try {
       const name = item.name || '';
+      if (!name) continue;
+
       const colors = item.detail?.colors || item.colors || [{}];
       const firstColor = Array.isArray(colors) ? (colors[0] || {}) : {};
 
-      const priceObj = firstColor.price || item.price || {};
-      // Zara prices are in cents in some API versions, whole numbers in others
-      // If value > 1000, assume cents
-      const rawPrice = priceObj.value ?? null;
-      const rawOrig = priceObj.originalValue ?? priceObj.oldValue ?? null;
-      if (rawPrice === null || rawOrig === null || rawPrice >= rawOrig) continue;
+      // Price can be in firstColor.price, item.price, or item.detail.price
+      const priceObj = firstColor.price || item.price || item.detail?.price || {};
+      // Zara prices are in cents in some API versions (value > 1000), whole numbers in others
+      const rawPrice = priceObj.value ?? priceObj.current?.value ?? null;
+      const rawOrig = priceObj.originalValue ?? priceObj.old?.value ?? priceObj.oldValue ?? null;
+
+      if (rawPrice === null) continue;
+      // If no original price, this item isn't on sale
+      if (rawOrig === null || rawPrice >= rawOrig) continue;
 
       const factor = rawPrice > 1000 ? 0.01 : 1;
       const price = Math.round(rawPrice * factor * 100) / 100;
