@@ -167,8 +167,8 @@ function hideGridOverlay() {
 function startRefreshStream() {
   if (currentSSE) { currentSSE.close(); currentSSE = null; }
   refreshInProgress = true;
-  // Only show overlay if we already have deals (otherwise skeletons show)
-  if (allDeals.length > 0) showGridOverlay('Connecting…');
+  // Don't cover cached deals with the overlay — only show overlay when there's nothing to display
+  if (allDeals.length === 0) showGridOverlay('Connecting…');
   if (lastScrapedAt) updateStripText();
   else setStrip('cached', 'Scraping…');
 
