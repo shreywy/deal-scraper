@@ -32,9 +32,16 @@ async function scrape(browser, onProgress = () => {}) {
     const url = response.url();
     const ct = response.headers()['content-type'] || '';
     if (!ct.includes('application/json')) return;
-    if (!url.includes('clubmonaco') && !url.includes('ralphlauren')) return;
+    if (!url.includes('nosto.com') && !url.includes('clubmonaco')) return;
     try {
       const json = await response.json();
+      // Nosto GraphQL API response
+      const hits = json?.data?.search?.products?.hits || [];
+      for (const p of hits) {
+        const id = p.productId;
+        if (id && !seenIds.has(id)) { seenIds.add(id); rawProducts.push(p); }
+      }
+      // Fallback for other APIs
       const products = json?.products || json?.data?.products || json?.results || json?.items || [];
       for (const p of (Array.isArray(products) ? products : [])) {
         const id = p.id || p.productId || p.code;
@@ -129,16 +136,18 @@ function mapXHRProduct(p, seen) {
   try {
     const name = p.name || p.displayName || p.title || '';
     if (!name) return null;
-    const price = parseFloat(p.salePrice || p.price?.sale || 0);
-    const originalPrice = parseFloat(p.regularPrice || p.price?.list || p.listPrice || 0);
+    // Nosto API uses "price" for sale price and "listPrice" for original
+    const price = parseFloat(p.price || p.salePrice || p.price?.sale || 0);
+    const originalPrice = parseFloat(p.listPrice || p.regularPrice || p.price?.list || 0);
     if (!price || !originalPrice || price >= originalPrice) return null;
     const discount = Math.round((1 - price / originalPrice) * 100);
     if (discount <= 0) return null;
-    const slug = p.slug || p.url || p.handle || p.id || '';
-    const url = slug.startsWith('http') ? slug : `https://www.clubmonaco.ca/en/p/${slug}`;
+    // Nosto provides full URL
+    const url = p.url || (p.slug?.startsWith('http') ? p.slug : `https://www.clubmonaco.ca/en/p/${p.slug || p.id}`);
     if (seen.has(url)) return null;
     seen.add(url);
-    const image = p.imageUrl || p.images?.[0]?.url || '';
+    // Nosto uses thumbUrl
+    const image = p.thumbUrl || p.imageUrl || p.images?.[0]?.url || '';
     return {
       id: slugify(`${STORE_KEY}-${name}`),
       store: STORE_NAME,

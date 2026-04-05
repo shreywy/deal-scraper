@@ -8,7 +8,7 @@ const STORE_KEY = 'roots';
 const CURRENCY = 'CAD';
 
 const SALE_URLS = [
-  'https://www.roots.com/en-ca/sale?sz=120',
+  'https://www.roots.com/on/demandware.store/Sites-Roots_CA-Site/en_CA/Search-Show?q=sale&srule=sale-items&sz=120',
 ];
 
 /**

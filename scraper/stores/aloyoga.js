@@ -5,13 +5,13 @@ const { getUSDtoCAD } = require('../currency');
 
 const STORE_NAME = 'Alo Yoga';
 const STORE_KEY = 'aloyoga';
-const CURRENCY = 'USD';
+const CURRENCY = 'CAD';
 
-// Alo Yoga sale pages
+// Alo Yoga sale pages - using subcategory URLs that actually work
 const SALE_URLS = [
-  { url: 'https://www.aloyoga.com/collections/sale-womens', gender: 'Women', label: "women's" },
-  { url: 'https://www.aloyoga.com/collections/sale-mens', gender: 'Men', label: "men's" },
-  { url: 'https://www.aloyoga.com/collections/sale', gender: '', label: 'all' },
+  { url: 'https://www.aloyoga.com/collections/womens-sale-tops', gender: 'Women', label: "women's tops" },
+  { url: 'https://www.aloyoga.com/collections/womens-sale-bottoms', gender: 'Women', label: "women's bottoms" },
+  { url: 'https://www.aloyoga.com/collections/mens-sale-bottoms', gender: 'Men', label: "men's bottoms" },
 ];
 
 /**
@@ -23,7 +23,7 @@ const SALE_URLS = [
  * @returns {Promise<import('../index').Deal[]>}
  */
 async function scrape(browser, onProgress = () => {}) {
-  const rate = await getUSDtoCAD();
+  const rate = 1; // Alo Yoga shows CAD prices for Canadian visitors
 
   const context = await browser.newContext({
     userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
@@ -74,40 +74,44 @@ async function scrape(browser, onProgress = () => {}) {
           const n = parseFloat((el?.textContent || '').replace(/[^0-9.]/g, ''));
           return isNaN(n) ? null : n;
         };
-        const cards = document.querySelectorAll(
-          '[class*="product-card"], [class*="ProductCard"], [data-testid="product-card"], [class*="product-item"]'
-        );
+        // Alo uses product cards with specific price classes
+        const cards = document.querySelectorAll('[class*="product"]');
         const seen = new Set();
-        return [...cards].map(card => {
-          const link = card.querySelector('a[href]');
+        const results = [];
+
+        for (const card of cards) {
+          const link = card.querySelector('a[href*="/products/"]');
           const url = link?.href || '';
-          if (!url || seen.has(url)) return null;
+          if (!url || seen.has(url)) continue;
+
+          // Get the first product card price set (each card has multiple variants)
+          const redPrice = card.querySelector('.currency-formatting.product-price.red');
+          const regularPrice = card.querySelector('.product-price.regular__price');
+
+          if (!redPrice || !regularPrice) continue;
+
+          const price = parsePrice(redPrice);
+          const originalPrice = parsePrice(regularPrice);
+
+          if (!price || !originalPrice || price >= originalPrice) continue;
+
           seen.add(url);
-          const name = card.querySelector('[class*="name"], [class*="title"], h2, h3')?.textContent?.trim() || '';
-          const origEl = card.querySelector('del, s, [class*="compare"], [class*="original"], [class*="was"]');
-          const saleEl = card.querySelector('[class*="sale"], [class*="Sale"], [class*="markdown"]');
+
+          // Extract name from URL or link text
+          const name = link?.textContent?.trim() || url.split('/').pop().replace(/-/g, ' ');
           const imgEl = card.querySelector('img');
-          let price = parsePrice(saleEl);
-          let originalPrice = parsePrice(origEl);
-          // If no explicit sale element, look for two price elements
-          if (!price || !originalPrice) {
-            const priceEls = [...card.querySelectorAll('[class*="price"], [class*="Price"]')]
-              .filter(el => !el.querySelector('[class*="price"]')); // avoid nested containers
-            const vals = priceEls.map(el => parsePrice(el)).filter(Boolean).sort((a, b) => a - b);
-            if (vals.length >= 2) {
-              price = vals[0];
-              originalPrice = vals[vals.length - 1];
-            }
-          }
-          if (!name || !price || !originalPrice || price >= originalPrice) return null;
           const discount = Math.round((1 - price / originalPrice) * 100);
-          if (discount <= 0) return null;
-          return {
+
+          if (discount <= 0) continue;
+
+          results.push({
             store: storeName, storeKey, name, url,
             image: imgEl?.src || imgEl?.dataset?.src || '',
             price, originalPrice, discount, gender: defaultGender, tags: [],
-          };
-        }).filter(Boolean);
+          });
+        }
+
+        return results;
       }, { storeName: STORE_NAME, storeKey: STORE_KEY, defaultGender: gender });
 
       for (const d of domDeals) {
@@ -121,8 +125,6 @@ async function scrape(browser, onProgress = () => {}) {
     } finally {
       await page.close();
     }
-    // Only need one successful collection; stop if we have deals
-    if (allDeals.length > 0 && label === 'all') break;
   }
 
   // Also process any XHR-intercepted Shopify products

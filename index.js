@@ -1,5 +1,17 @@
 'use strict';
 
+// Suppress unhandled promise rejections from playwright-extra's stealth CDP
+// session after browser close (harmless noise from internal response handlers).
+process.on('unhandledRejection', (reason) => {
+  const msg = reason?.message || String(reason);
+  if (msg.includes('Target page, context or browser has been closed') ||
+      msg.includes('cdpSession') ||
+      msg.includes('Target closed')) {
+    return; // expected playwright noise after browser.close()
+  }
+  console.error('Unhandled rejection:', reason);
+});
+
 const { start } = require('./server/index');
 const { loadCache } = require('./scraper/index');
 const open = require('open');

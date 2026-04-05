@@ -8,8 +8,8 @@ const CURRENCY = 'CAD';
 
 // Lululemon CA sale pages
 const SALE_URLS = [
-  'https://www.lululemon.com/en-ca/c/womens-sale/',
-  'https://www.lululemon.com/en-ca/c/mens-sale/',
+  'https://shop.lululemon.com/c/sale',
+  'https://shop.lululemon.com/c/mens-sale',
 ];
 
 /**

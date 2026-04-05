@@ -7,10 +7,10 @@ const STORE_NAME = 'ASOS';
 const STORE_KEY = 'asos';
 const CURRENCY = 'USD'; // ASOS uses USD for Canadian customers
 
-// ASOS sale category pages
+// ASOS sale search URLs (category URLs no longer work, using search instead)
 const SALE_PAGES = [
-  { url: 'https://www.asos.com/men/sale/cat/?cid=8799', label: "men's sale", gender: 'Men' },
-  { url: 'https://www.asos.com/women/sale/cat/?cid=8801', label: "women's sale", gender: 'Women' },
+  { url: 'https://www.asos.com/us/search/?q=sale&gender=Men', label: "men's sale", gender: 'Men' },
+  { url: 'https://www.asos.com/us/search/?q=sale&gender=Women', label: "women's sale", gender: 'Women' },
 ];
 
 /**
@@ -43,19 +43,17 @@ async function scrape(browser, onProgress = () => {}) {
     const url = response.url();
     const ct = response.headers()['content-type'] || '';
 
-    // Look for JSON responses from ASOS
+    // Look for ASOS product search API responses
     if (!ct.includes('application/json') && !ct.includes('json')) return;
-    if (!url.includes('asos')) return;
+    if (!url.includes('/api/product/search/v2/')) return;
 
     try {
       const json = await response.json();
-
-      // ASOS might use different property names
-      const products = json?.products || json?.items || json?.data?.products || [];
+      const products = json?.products || [];
 
       if (Array.isArray(products) && products.length > 0) {
         for (const p of products) {
-          const id = p.id || p.productId || p.variantId;
+          const id = p.id;
           if (id && !seenIds.has(id)) {
             seenIds.add(id);
             rawProducts.push(p);
@@ -74,7 +72,7 @@ async function scrape(browser, onProgress = () => {}) {
       onProgress(`ASOS: loading ${label}…`);
 
       try {
-        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
 
         // Accept cookies if prompt appears
         try {
@@ -83,14 +81,17 @@ async function scrape(browser, onProgress = () => {}) {
           // Cookie banner not present
         }
 
-        // Wait for API calls to be made
-        await page.waitForTimeout(8000);
+        // Wait for initial API calls
+        await page.waitForTimeout(5000);
 
-        // Scroll to trigger lazy loading of products
-        for (let i = 0; i < 6; i++) {
+        // Scroll to trigger lazy loading of more products
+        for (let i = 0; i < 8; i++) {
           await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-          await page.waitForTimeout(3000);
+          await page.waitForTimeout(2500);
         }
+
+        // Wait for final API calls to complete
+        await page.waitForTimeout(3000);
 
         onProgress(`ASOS: intercepted ${rawProducts.length} products from ${label}…`);
       } catch (err) {
