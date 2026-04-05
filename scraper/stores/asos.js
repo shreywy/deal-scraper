@@ -1,5 +1,6 @@
 'use strict';
 
+const fetch = require('node-fetch');
 const { tag } = require('../tagger');
 const { getUSDtoCAD } = require('../currency');
 
@@ -7,33 +8,33 @@ const STORE_NAME = 'ASOS';
 const STORE_KEY = 'asos';
 const CURRENCY = 'USD'; // ASOS uses USD for Canadian customers
 
-// ASOS sale search URLs (category URLs no longer work, using search instead)
+// ASOS sale category IDs
+// attribute_1049=7261,8843 filters to sale items only
 const SALE_PAGES = [
-  { url: 'https://www.asos.com/us/search/?q=sale&gender=Men', label: "men's sale", gender: 'Men' },
-  { url: 'https://www.asos.com/us/search/?q=sale&gender=Women', label: "women's sale", gender: 'Women' },
+  { catId: 27110, url: 'https://www.asos.com/us/men/sale/cat/?cid=27110', label: "men's sale", gender: 'Men' },
+  { catId: 8799, url: 'https://www.asos.com/us/women/sale/cat/?cid=8799', label: "women's sale", gender: 'Women' },
 ];
 
 /**
  * ASOS — global fashion retailer, ships to Canada (USD prices, converted to CAD).
- * Uses Playwright browser XHR interception to capture ASOS internal API calls.
- *
- * NOTE: ASOS has strong anti-bot protection. The old REST API endpoint
- * (api.asos.com/product/search/v2/categories/{id}/products) returns 404.
- * Browser XHR interception works in non-headless mode but headless mode only
- * intercepts initial API call (limit=1) and products don't load fully.
- * May need non-headless browser or more sophisticated bot detection bypass.
+ * Uses Playwright with stealth mode to access the product API directly.
  *
  * @param {import('playwright').Browser} browser
  * @param {function(string):void} [onProgress]
  * @returns {Promise<import('../index').Deal[]>}
  */
 async function scrape(browser, onProgress = () => {}) {
-  onProgress('ASOS: loading sale pages…');
+  onProgress('ASOS: fetching sale products…');
 
   const rate = await getUSDtoCAD();
   const allDeals = [];
   const seen = new Set();
 
+  // Use browser-based API fetching (bypasses bot detection)
+  return scrapeViaApiWithBrowser(browser, rate, onProgress, seen);
+}
+
+async function scrapeViaApiWithBrowser(browser, rate, onProgress, seen) {
   const context = await browser.newContext({
     viewport: { width: 1920, height: 1080 },
     userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
@@ -41,75 +42,67 @@ async function scrape(browser, onProgress = () => {}) {
     extraHTTPHeaders: { 'Accept-Language': 'en-US,en;q=0.9' },
   });
 
-  const rawProducts = [];
-  const seenIds = new Set();
-
-  // Intercept API responses containing product data
-  context.on('response', async response => {
-    const url = response.url();
-    const ct = response.headers()['content-type'] || '';
-
-    // Look for ASOS product search API responses
-    if (!ct.includes('application/json') && !ct.includes('json')) return;
-    if (!url.includes('/api/product/search/v2/')) return;
-
-    try {
-      const json = await response.json();
-      const products = json?.products || [];
-
-      if (Array.isArray(products) && products.length > 0) {
-        for (const p of products) {
-          const id = p.id;
-          if (id && !seenIds.has(id)) {
-            seenIds.add(id);
-            rawProducts.push(p);
-          }
-        }
-      }
-    } catch (_) {
-      // Ignore parsing errors
-    }
-  });
-
   const page = await context.newPage();
+  const allProducts = [];
 
   try {
-    for (const { url, label, gender } of SALE_PAGES) {
+    for (const { catId, url: pageUrl, label, gender } of SALE_PAGES) {
       onProgress(`ASOS: loading ${label}…`);
 
+      // First, visit the page to get cookies and proper session
+      await page.goto(pageUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+
+      // Accept cookies
       try {
-        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+        await page.click('#onetrust-accept-btn-handler', { timeout: 3000 });
+      } catch (_) {}
 
-        // Accept cookies if prompt appears
-        try {
-          await page.click('#onetrust-accept-btn-handler', { timeout: 4000 });
-        } catch (_) {
-          // Cookie banner not present
+      await page.waitForTimeout(2000);
+
+      // Now use page.evaluate to fetch the API with the established session
+      let offset = 0;
+      const limit = 72;
+      const maxProducts = 500;
+
+      while (offset < maxProducts) {
+        const apiUrl = `https://www.asos.com/api/product/search/v2/categories/${catId}?store=US&lang=en-US&currency=USD&country=US&sizeSchema=US&offset=${offset}&limit=${limit}&attribute_1049=7261,8843`;
+
+        onProgress(`ASOS: fetching ${label} at offset ${offset}…`);
+
+        const result = await page.evaluate(async (url) => {
+          try {
+            const res = await fetch(url, {
+              headers: {
+                'Accept': 'application/json',
+              },
+            });
+            if (!res.ok) return { error: `HTTP ${res.status}` };
+            const json = await res.json();
+            return { data: json };
+          } catch (err) {
+            return { error: err.message };
+          }
+        }, apiUrl);
+
+        if (result.error) {
+          onProgress(`ASOS: API error at offset ${offset}: ${result.error}`);
+          break;
         }
 
-        // Wait for initial API calls
-        await page.waitForTimeout(5000);
+        const products = result.data?.products || [];
+        if (!products.length) break;
 
-        // Scroll to trigger lazy loading of more products
-        for (let i = 0; i < 8; i++) {
-          await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-          await page.waitForTimeout(2500);
+        for (const p of products) {
+          const d = mapProduct(p, gender, rate, seen);
+          if (d) allProducts.push(d);
         }
 
-        // Wait for final API calls to complete
-        await page.waitForTimeout(3000);
+        onProgress(`ASOS: fetched ${allProducts.length} deals from ${label}…`);
 
-        onProgress(`ASOS: intercepted ${rawProducts.length} products from ${label}…`);
-      } catch (err) {
-        onProgress(`ASOS: error loading ${label} — ${err.message}`);
+        if (products.length < limit) break;
+        offset += limit;
+        await page.waitForTimeout(500); // Small delay between requests
       }
-    }
-
-    // Process all intercepted products
-    for (const p of rawProducts) {
-      const genderGuess = p.gender || '';
-      const d = mapProduct(p, genderGuess, rate, seen);
-      if (d) allDeals.push(d);
     }
   } catch (err) {
     onProgress(`ASOS: browser error — ${err.message}`);
@@ -118,9 +111,10 @@ async function scrape(browser, onProgress = () => {}) {
     await context.close();
   }
 
-  onProgress(`ASOS: found ${allDeals.length} deals`);
-  return allDeals;
+  onProgress(`ASOS: found ${allProducts.length} deals`);
+  return allProducts;
 }
+
 
 function mapProduct(p, gender, rate, seen) {
   try {

@@ -8,11 +8,12 @@
       "category": "clothing"
     },
     "uniqlo": {
-      "enabled": true,
+      "enabled": false,
       "name": "Uniqlo Canada",
       "domain": "uniqlo.com",
       "currency": "CAD",
-      "category": "clothing"
+      "category": "clothing",
+      "note": "Requires dynamic client-id from browser session - cannot scrape headlessly"
     },
     "zara": {
       "enabled": false,
@@ -37,11 +38,12 @@
       "category": "clothing"
     },
     "adidas": {
-      "enabled": true,
+      "enabled": false,
       "name": "Adidas CA",
       "domain": "adidas.ca",
       "currency": "CAD",
-      "category": "clothing"
+      "category": "clothing",
+      "note": "PerimeterX bot protection - blocks headless browsers"
     },
     "youngla": {
       "enabled": true,
@@ -66,11 +68,12 @@
       "note": "Sale page returns 404 - site structure changed or bot detection"
     },
     "roots": {
-      "enabled": true,
+      "enabled": false,
       "name": "Roots Canada",
       "domain": "roots.com",
       "currency": "CAD",
-      "category": "clothing"
+      "category": "clothing",
+      "note": "SFCC ISML errors on sale pages - site infrastructure issue"
     },
     "frankandoak": {
       "enabled": false,
@@ -81,11 +84,12 @@
       "note": "No compare_at_price in Shopify — cannot detect discounts"
     },
     "northface": {
-      "enabled": true,
+      "enabled": false,
       "name": "The North Face CA",
       "domain": "thenorthface.com",
       "currency": "CAD",
-      "category": "clothing"
+      "category": "clothing",
+      "note": "Akamai bot protection - Access Denied on sale pages"
     },
     "arcteryx": {
       "enabled": false,
@@ -118,11 +122,12 @@
       "category": "clothing"
     },
     "americaneagle": {
-      "enabled": true,
+      "enabled": false,
       "name": "American Eagle CA",
       "domain": "ae.com",
       "currency": "CAD",
-      "category": "clothing"
+      "category": "clothing",
+      "note": "Sale pages redirect to homepage (bot detection)"
     },
     "aloyoga": {
       "enabled": true,
@@ -153,11 +158,12 @@
       "category": "clothing"
     },
     "musinsa": {
-      "enabled": true,
+      "enabled": false,
       "name": "Musinsa Global",
       "domain": "global.musinsa.com",
       "currency": "USD",
-      "category": "clothing"
+      "category": "clothing",
+      "note": "Location chooser blocks automated access - cannot proceed to sale content"
     },
     "asos": {
       "enabled": true,

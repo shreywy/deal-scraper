@@ -6,7 +6,7 @@ const { tag } = require('../tagger');
 // Strategy: scroll + Load More + extract from product cards with DOM scraping.
 // Try window.__NEXT_DATA__ or SFCC window state first, then DOM fallback.
 
-const URLS = ['https://www.levi.com/en-CA/c/sale/?sz=120'];
+const URLS = ['https://www.levi.com/CA/en_CA/sale/c/levi_clothing_sale'];
 const STORE_NAME = "Levi's CA";
 const STORE_KEY = 'levis';
 const CURRENCY = 'CAD';

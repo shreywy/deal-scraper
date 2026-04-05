@@ -96,9 +96,118 @@ async function tryApiEndpoints(onProgress) {
 }
 
 /**
- * Parse API response into deal objects
+ * Parse Sport Chek products from their search API
+ */
+function parseSportChekProducts(products) {
+  const deals = [];
+
+  if (!Array.isArray(products) || products.length === 0) {
+    return null;
+  }
+
+  for (const product of products) {
+    try {
+      // Extract pricing from the first color variant
+      let currentPrice = null;
+      let originalPrice = null;
+      let isOnSale = false;
+
+      if (product.options && product.options.length > 0) {
+        const colorOption = product.options.find(o => o.descriptor === 'COLOUR');
+        if (colorOption && colorOption.values && colorOption.values.length > 0) {
+          const firstColor = colorOption.values[0];
+
+          isOnSale = firstColor.isOnSale || false;
+
+          // Get current price
+          if (firstColor.currentPrice && firstColor.currentPrice.value) {
+            currentPrice = firstColor.currentPrice.value;
+          }
+
+          // Try to get original price from multiple sources
+          if (firstColor.originalPrice && firstColor.originalPrice.value) {
+            originalPrice = firstColor.originalPrice.value;
+          } else if (firstColor.saleCut && firstColor.saleCut.percentage) {
+            // Calculate from percentage discount
+            const discount = firstColor.saleCut.percentage;
+            originalPrice = currentPrice / (1 - discount / 100);
+          } else if (firstColor.priceMessage && firstColor.priceMessage.length > 0) {
+            // Extract discount from priceMessage (e.g., "30% Off* - Discount Applied")
+            const msg = firstColor.priceMessage[0].label || '';
+            const match = msg.match(/(\d+)%\s*Off/i);
+            if (match) {
+              const discount = parseInt(match[1]);
+              originalPrice = currentPrice / (1 - discount / 100);
+            }
+          }
+        }
+      }
+
+      // Skip if not on sale or no valid pricing
+      if (!isOnSale || !currentPrice || !originalPrice || currentPrice >= originalPrice) {
+        continue;
+      }
+
+      const discount = Math.round(((originalPrice - currentPrice) / originalPrice) * 100);
+
+      // Build URL
+      let url = product.url || '';
+      if (url && !url.startsWith('http')) {
+        url = `https://www.sportchek.ca${url}`;
+      }
+
+      // Get image
+      let image = '';
+      if (product.images && product.images.length > 0 && product.images[0].url) {
+        image = product.images[0].url;
+        if (!image.startsWith('http')) {
+          image = `https://www.sportchek.ca${image}`;
+        }
+      }
+
+      const name = product.title || product.name || '';
+      if (!name || !url) continue;
+
+      const deal = {
+        id: slugify(`sportchek-${name}-${product.code}`),
+        store: STORE_NAME,
+        storeKey: STORE_KEY,
+        name: name.trim(),
+        url,
+        image: image || '',
+        price: parseFloat(currentPrice.toFixed(2)),
+        originalPrice: parseFloat(originalPrice.toFixed(2)),
+        discount,
+        currency: CURRENCY,
+        priceCAD: parseFloat(currentPrice.toFixed(2)),
+        originalPriceCAD: parseFloat(originalPrice.toFixed(2)),
+        tags: tag({ name }),
+        scrapedAt: new Date().toISOString(),
+      };
+
+      deals.push(deal);
+    } catch (error) {
+      // Skip malformed products
+      continue;
+    }
+  }
+
+  return deals.length > 0 ? deals : null;
+}
+
+/**
+ * Parse API response into deal objects (fallback for generic APIs)
  */
 function parseApiResponse(data) {
+  // Check if this is Sport Chek API format
+  if (data.products && Array.isArray(data.products) && data.products.length > 0) {
+    const first = data.products[0];
+    if (first.options && first.code) {
+      // This is Sport Chek format
+      return parseSportChekProducts(data.products);
+    }
+  }
+
   const deals = [];
 
   // Try different response structures
@@ -170,26 +279,34 @@ function parseApiResponse(data) {
  * Strategy 2: Browser XHR interception
  */
 async function tryXhrInterception(browser, onProgress) {
-  const page = await browser.newPage();
+  let context = null;
+  let page = null;
   const deals = [];
   let capturedData = null;
 
   try {
-    // Intercept network responses
-    page.on('response', async (response) => {
+    // Create context with proper User-Agent
+    context = await browser.newContext({
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+    });
+
+    page = await context.newPage();
+
+    // Intercept network responses - specifically the search API
+    context.on('response', async (response) => {
       try {
         const url = response.url();
-        const contentType = response.headers()['content-type'] || '';
 
-        // Look for JSON API responses
-        if (contentType.includes('application/json') &&
-            (url.includes('/api/') || url.includes('/search') || url.includes('/products'))) {
-
-          const data = await response.json();
-
-          // Check if response contains products
-          if (data.products || data.items || data.results || data.data) {
-            capturedData = data;
+        // Look for the Sport Chek search API
+        if (url.includes('/api/v1/search/v2/search')) {
+          try {
+            const data = await response.json();
+            if (data && data.products && Array.isArray(data.products)) {
+              capturedData = data;
+              onProgress(`Sport Chek XHR: found ${data.products.length} products (total: ${data.resultCount})`);
+            }
+          } catch (jsonError) {
+            onProgress(`Sport Chek XHR: failed to parse JSON - ${jsonError.message}`);
           }
         }
       } catch (error) {
@@ -197,28 +314,36 @@ async function tryXhrInterception(browser, onProgress) {
       }
     });
 
-    // Navigate to sale page
-    await page.goto('https://www.sportchek.ca/en/sale.html', {
-      waitUntil: 'networkidle',
+    // Navigate to sale page (correct URL without /en/)
+    await page.goto('https://www.sportchek.ca/sale.html', {
+      waitUntil: 'domcontentloaded',
       timeout: 30000,
     });
 
-    // Wait a bit for XHR to complete
-    await page.waitForTimeout(3000);
+    // Wait for initial content
+    await page.waitForTimeout(2000);
+
+    // Scroll to trigger lazy loading
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+
+    // Wait longer for API calls to complete
+    await page.waitForTimeout(4000);
 
     // Parse captured data
-    if (capturedData) {
-      const parsedDeals = parseApiResponse(capturedData);
+    if (capturedData && capturedData.products) {
+      const parsedDeals = parseSportChekProducts(capturedData.products);
       if (parsedDeals && parsedDeals.length > 0) {
         deals.push(...parsedDeals);
       }
     }
 
     await page.close();
+    await context.close();
     return deals.length > 0 ? deals : null;
 
   } catch (error) {
-    await page.close().catch(() => {});
+    if (page) await page.close().catch(() => {});
+    if (context) await context.close().catch(() => {});
     return null;
   }
 }
@@ -227,12 +352,20 @@ async function tryXhrInterception(browser, onProgress) {
  * Strategy 3: DOM scraping with scroll and load more
  */
 async function tryDomScraping(browser, onProgress) {
-  const page = await browser.newPage();
+  let context = null;
+  let page = null;
   const deals = [];
 
   try {
-    await page.goto('https://www.sportchek.ca/en/sale.html', {
-      waitUntil: 'networkidle',
+    // Create context with proper User-Agent
+    context = await browser.newContext({
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+    });
+
+    page = await context.newPage();
+
+    await page.goto('https://www.sportchek.ca/sale.html', {
+      waitUntil: 'domcontentloaded',
       timeout: 30000,
     });
 
@@ -402,10 +535,12 @@ async function tryDomScraping(browser, onProgress) {
     }
 
     await page.close();
+    await context.close();
     return deals.length > 0 ? deals : null;
 
   } catch (error) {
-    await page.close().catch(() => {});
+    if (page) await page.close().catch(() => {});
+    if (context) await context.close().catch(() => {});
     return null;
   }
 }

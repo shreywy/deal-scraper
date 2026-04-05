@@ -150,7 +150,23 @@ async function scrapeViaBrowser(browser, onProgress) {
     for (const url of urls) {
       onProgress(`Adidas: trying ${url}…`);
       try {
-        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 35000 });
+        let response;
+        try {
+          response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 35000 });
+        } catch (err) {
+          if (err.message.includes('Timeout') || err.message.includes('ERR_')) {
+            onProgress(`Adidas: failed to load page - likely blocked by PerimeterX bot protection`);
+            continue;
+          }
+          throw err;
+        }
+
+        // Check for bot blocking (PerimeterX)
+        if (response && (response.status() === 403 || response.status() === 503)) {
+          onProgress(`Adidas: access denied (${response.status()}) - blocked by PerimeterX bot protection`);
+          await context.close();
+          return [];
+        }
 
         try {
           await page.click('#onetrust-accept-btn-handler, button[class*="accept"]', { timeout: 4000 });

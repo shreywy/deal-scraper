@@ -77,27 +77,50 @@ async function scrapeViaApi(baseUrl, onProgress) {
 }
 
 function mapUniqloItem(item) {
-  const prices = item.prices || {};
-  // promoPrice is the sale price; base is the original
-  const price = prices.promoPrice?.value ?? prices.base?.value ?? null;
-  const originalPrice = prices.base?.value ?? null;
+  const prices = item.prices || item.price || {};
+
+  // Try multiple price structure patterns
+  // Pattern 1: prices.priceGroup[0].basePrice / salePrice
+  const priceGroup = prices.priceGroup?.[0];
+  let price = priceGroup?.salePrice?.value ?? priceGroup?.currentPrice?.value;
+  let originalPrice = priceGroup?.basePrice?.value ?? priceGroup?.originalPrice?.value;
+
+  // Pattern 2: prices.promoPrice / base
+  if (!price) {
+    price = prices.promoPrice?.value ?? prices.salePrice?.value ?? prices.current?.value;
+  }
+  if (!originalPrice) {
+    originalPrice = prices.base?.value ?? prices.originalPrice?.value ?? prices.was?.value;
+  }
+
+  // Pattern 3: Direct price fields
+  if (!price) {
+    price = item.salePrice ?? item.currentPrice ?? item.price;
+  }
+  if (!originalPrice) {
+    originalPrice = item.originalPrice ?? item.basePrice ?? item.wasPrice;
+  }
 
   if (!price || !originalPrice || price >= originalPrice) return null;
 
   const discount = Math.round((1 - price / originalPrice) * 100);
   if (discount <= 0) return null;
 
-  const name = item.name || item.displayCode || '';
+  const name = item.name || item.displayCode || item.title || '';
   if (!name) return null;
 
-  const slug = item.productId || item.code || '';
-  const url = `https://www.uniqlo.com/ca/en/products/${slug}/`;
+  const slug = item.productId || item.code || item.id || '';
+  const url = slug
+    ? `https://www.uniqlo.com/ca/en/products/${slug}/`
+    : item.url || item.productUrl || '';
 
   // Best available image
   const image =
     item.images?.main?.url ||
     item.images?.sub?.[0]?.url ||
     (Array.isArray(item.images) ? item.images[0]?.url : '') ||
+    item.imageUrl ||
+    item.image ||
     '';
 
   const gender = item.gender || item.genderCategory || '';
@@ -113,6 +136,9 @@ function mapUniqloItem(item) {
     price,
     originalPrice,
     discount,
+    currency: 'CAD',
+    priceCAD: price,
+    originalPriceCAD: originalPrice,
     tags: tag({ name, category, gender }),
     scrapedAt: new Date().toISOString(),
   };
@@ -136,11 +162,21 @@ async function scrapeViaBrowser(browser, onProgress) {
     if (!ct.includes('application/json')) return;
     if (!url.includes('uniqlo.com')) return;
 
+    // Log intercepted API calls for debugging
+    if (url.includes('/api/') || url.includes('commerce')) {
+      onProgress(`Uniqlo: intercepted API: ${url.substring(0, 100)}…`);
+    }
+
     try {
       const json = await response.json();
       // Enhanced XHR interception - try multiple item container keys and patterns
       // Uniqlo Canada sometimes uses /api/commerce/ endpoints
       const items = json?.result?.items || json?.items || json?.products || json?.payload?.items || [];
+
+      if (Array.isArray(items) && items.length > 0) {
+        onProgress(`Uniqlo: found ${items.length} items in API response`);
+      }
+
       for (const item of items) {
         const itemId = item?.productId || item?.code || item?.id;
         if (itemId && !interceptedIds.has(itemId)) {

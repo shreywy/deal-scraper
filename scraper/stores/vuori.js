@@ -1,5 +1,6 @@
 'use strict';
 
+const fetch = require('node-fetch');
 const { tag } = require('../tagger');
 const { getUSDtoCAD } = require('../currency');
 
@@ -7,15 +8,14 @@ const STORE_NAME = 'Vuori';
 const STORE_KEY = 'vuori';
 const CURRENCY = 'USD';
 
-// Vuori sale collections - corrected URLs
-const SALE_URLS = [
-  { url: 'https://vuoriclothing.com/collections/mens-sale', gender: 'Men', label: "men's" },
-  { url: 'https://vuoriclothing.com/collections/womens-sale', gender: 'Women', label: "women's" },
-];
+// Algolia credentials (from browser network inspection)
+const ALGOLIA_APP_ID = 'P2MLBKGFDS';
+const ALGOLIA_API_KEY = '7825c979763a41aae103633f760004f1';
+const ALGOLIA_INDEX = 'us_products';
 
 /**
  * Vuori — men's + women's activewear, ships to Canada.
- * USD prices converted to CAD. Uses Playwright DOM scraping.
+ * USD prices converted to CAD. Uses Algolia API.
  *
  * @param {import('playwright').Browser} browser
  * @param {function(string):void} [onProgress]
@@ -24,192 +24,138 @@ const SALE_URLS = [
 async function scrape(browser, onProgress = () => {}) {
   const rate = await getUSDtoCAD();
 
-  const context = await browser.newContext({
-    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-    extraHTTPHeaders: { 'Accept-Language': 'en-US,en;q=0.9' },
-  });
+  onProgress('Vuori: querying Algolia for sale products…');
 
-  const rawProducts = [];
-  const seenIds = new Set();
-
-  context.on('response', async response => {
-    const url = response.url();
-    const ct = response.headers()['content-type'] || '';
-    if (!ct.includes('application/json')) return;
-    if (!url.includes('vuoriclothing.com')) return;
-    try {
-      const json = await response.json();
-      const products =
-        json?.collection?.products?.edges?.map(e => e.node) ||
-        json?.products?.edges?.map(e => e.node) ||
-        json?.products || [];
-      for (const p of (Array.isArray(products) ? products : [])) {
-        const id = p.id || p.handle;
-        if (id && !seenIds.has(id)) { seenIds.add(id); rawProducts.push(p); }
-      }
-    } catch (_) {}
-  });
-
-  const seenUrls = new Set();
   const allDeals = [];
+  const seenUrls = new Set();
 
-  for (const { url: saleUrl, gender, label } of SALE_URLS) {
-    onProgress(`Vuori: loading ${label} sale…`);
-    const page = await context.newPage();
+  // Query Algolia for sale products (men's and women's)
+  const collections = [
+    { handle: 'sale', gender: 'Men', label: "men's" },
+    { handle: 'womens-sale', gender: 'Women', label: "women's" },
+  ];
+
+  for (const { handle, gender, label } of collections) {
+    onProgress(`Vuori: fetching ${label} sale from Algolia…`);
+
     try {
-      await page.goto(saleUrl, { waitUntil: 'domcontentloaded', timeout: 35000 });
-      try { await page.click('[id*="onetrust-accept"], [class*="cookie"] button', { timeout: 4000 }); } catch (_) {}
-      await page.waitForTimeout(3000);
+      // Algolia search query (mimicking the browser request)
+      const algoliaUrl = `https://${ALGOLIA_APP_ID}-dsn.algolia.net/1/indexes/*/queries`;
+      const body = {
+        requests: [
+          {
+            indexName: ALGOLIA_INDEX,
+            query: '',
+            hitsPerPage: 250,
+            filters: `collections:${handle}`,
+            attributesToRetrieve: [
+              'title',
+              'handle',
+              'image',
+              'variants',
+              'variants_min_price',
+              'variants_max_price',
+            ],
+          },
+        ],
+      };
 
-      for (let i = 0; i < 4; i++) {
-        await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-        await page.waitForTimeout(1500);
-        try {
-          const btn = await page.$('[class*="load-more"], button[class*="LoadMore"]');
-          if (btn && await btn.isVisible()) { await btn.click(); await page.waitForTimeout(2000); }
-        } catch (_) {}
+      const response = await fetch(algoliaUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Algolia-Application-Id': ALGOLIA_APP_ID,
+          'X-Algolia-API-Key': ALGOLIA_API_KEY,
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        onProgress(`Vuori: Algolia error ${response.status} for ${label}`);
+        continue;
       }
 
-      const domDeals = await page.evaluate(({ storeName, storeKey, defaultGender }) => {
-        const parsePrice = el => {
-          const n = parseFloat((el?.textContent || '').replace(/[^0-9.]/g, ''));
-          return isNaN(n) ? null : n;
-        };
+      const data = await response.json();
+      const hits = data.results?.[0]?.hits || [];
 
-        // Try Next.js SSR data first (Vuori is on Next.js)
-        try {
-          const nextData = window.__NEXT_DATA__?.props?.pageProps;
-          const products =
-            nextData?.collection?.products ||
-            nextData?.products ||
-            nextData?.category?.products || [];
-          if (products.length > 0) {
-            const seen = new Set();
-            return products.map(p => {
-              const name = p.title || p.name || '';
-              if (!name) return null;
-              const handle = p.handle || '';
-              const url = handle ? `https://vuoriclothing.com/products/${handle}` : '';
-              if (!url || seen.has(url)) return null;
-              seen.add(url);
-              const variants = p.variants || [];
-              let priceUSD = null, origUSD = null;
-              for (const v of variants) {
-                const vPrice = parseFloat(v.price || 0);
-                const vCompare = parseFloat(v.compare_at_price || 0);
-                if (vCompare > vPrice && (priceUSD === null || vPrice < priceUSD)) {
-                  priceUSD = vPrice; origUSD = vCompare;
-                }
-              }
-              if (!priceUSD || !origUSD || priceUSD >= origUSD) return null;
-              const discount = Math.round((1 - priceUSD / origUSD) * 100);
-              if (discount <= 0) return null;
-              const image = p.images?.[0]?.src || '';
-              return { store: storeName, storeKey, name, url, image, price: priceUSD, originalPrice: origUSD, discount, gender: defaultGender, tags: [] };
-            }).filter(Boolean);
+      for (const product of hits) {
+        const name = product.title || product.name || '';
+        if (!name) continue;
+
+        const productHandle = product.handle || '';
+        const url = `https://vuoriclothing.com/products/${productHandle}`;
+        if (seenUrls.has(url)) continue;
+
+        // Algolia response has variants with price info
+        const variants = product.variants || [];
+        let priceUSD = null;
+        let origUSD = null;
+
+        // Try to find a variant with both price and compare_at_price
+        for (const v of variants) {
+          let vPrice = parseFloat(v.price || v.variant_price || 0);
+          let vCompare = parseFloat(v.compare_at_price || v.compareAtPrice || v.compare_price || 0);
+
+          if (vCompare > vPrice && vPrice > 0 && (priceUSD === null || vPrice < priceUSD)) {
+            priceUSD = vPrice;
+            origUSD = vCompare;
           }
-        } catch (_) {}
+        }
 
-        const cards = document.querySelectorAll(
-          '[class*="product-card"], [class*="ProductCard"], [data-testid="product-card"], [class*="product-tile"]'
-        );
-        const seen = new Set();
-        return [...cards].map(card => {
-          const link = card.querySelector('a[href]');
-          const url = link?.href || '';
-          if (!url || seen.has(url)) return null;
-          seen.add(url);
-          const name = card.querySelector('[class*="name"], [class*="title"], h2, h3')?.textContent?.trim() || '';
-          const origEl = card.querySelector('del, s, [class*="compare"], [class*="original"], [class*="was"]');
-          const saleEl = card.querySelector('[class*="sale"], [class*="markdown"], [class*="promo"]');
-          const imgEl = card.querySelector('img');
-          let price = parsePrice(saleEl);
-          let originalPrice = parsePrice(origEl);
-          if (!price || !originalPrice) {
-            const priceEls = [...card.querySelectorAll('[class*="price"]')]
-              .filter(el => !el.querySelector('[class*="price"]'));
-            const vals = priceEls.map(el => parsePrice(el)).filter(Boolean).sort((a, b) => a - b);
-            if (vals.length >= 2) { price = vals[0]; originalPrice = vals[vals.length - 1]; }
+        // If no variant-level compare_at_price, check if there's a product-level discount
+        if (!priceUSD || !origUSD) {
+          // Check if variants_min_price exists (this is often the sale price)
+          const minPrice = parseFloat(product.variants_min_price || 0);
+          const maxPrice = parseFloat(product.variants_max_price || 0);
+
+          // If min < max, assume there's a sale (min is sale price, max is original)
+          if (minPrice > 0 && maxPrice > minPrice) {
+            priceUSD = minPrice;
+            origUSD = maxPrice;
           }
-          if (!name || !price || !originalPrice || price >= originalPrice) return null;
-          const discount = Math.round((1 - price / originalPrice) * 100);
-          if (discount <= 0) return null;
-          return {
-            store: storeName, storeKey, name, url,
-            image: imgEl?.src || '', price, originalPrice, discount, gender: defaultGender, tags: [],
-          };
-        }).filter(Boolean);
-      }, { storeName: STORE_NAME, storeKey: STORE_KEY, defaultGender: gender });
+        }
 
-      for (const d of domDeals) {
-        if (!seenUrls.has(d.url)) { seenUrls.add(d.url); allDeals.push(d); }
+        if (!priceUSD || !origUSD || priceUSD >= origUSD) continue;
+
+        const discount = Math.round((1 - priceUSD / origUSD) * 100);
+        if (discount <= 0) continue;
+
+        seenUrls.add(url);
+
+        const image = product.image || product.images?.[0] || '';
+
+        allDeals.push({
+          store: STORE_NAME,
+          storeKey: STORE_KEY,
+          name,
+          url,
+          image,
+          price: priceUSD,
+          originalPrice: origUSD,
+          discount,
+          gender,
+          tags: [],
+        });
       }
+
+      onProgress(`Vuori: ${allDeals.filter(d => d.gender === gender).length} ${label} deals found`);
     } catch (err) {
-      onProgress(`Vuori: error on ${label} — ${err.message}`);
-    } finally {
-      await page.close();
+      onProgress(`Vuori: error fetching ${label} — ${err.message}`);
     }
-    if (allDeals.length > 0 && label === 'all') break;
   }
-
-  // XHR Shopify products
-  for (const p of rawProducts) {
-    const d = mapShopifyProduct(p, seenUrls, rate);
-    if (d) allDeals.push(d);
-  }
-
-  await context.close();
 
   const tagged = allDeals.map(d => ({
     ...d,
-    id: d.id || slugify(`${STORE_KEY}-${d.name}`),
+    id: slugify(`${STORE_KEY}-${d.name}`),
     currency: CURRENCY,
     priceCAD: Math.round(d.price * rate * 100) / 100,
     originalPriceCAD: Math.round(d.originalPrice * rate * 100) / 100,
-    price: Math.round(d.price * rate * 100) / 100,
-    originalPrice: Math.round(d.originalPrice * rate * 100) / 100,
     tags: tag({ name: d.name, gender: d.gender || '' }),
     scrapedAt: new Date().toISOString(),
   }));
 
-  onProgress(`Vuori: found ${tagged.length} deals`);
+  onProgress(`Vuori: found ${tagged.length} total deals`);
   return tagged;
-}
-
-function mapShopifyProduct(p, seen, rate) {
-  try {
-    const name = p.title || '';
-    if (!name) return null;
-    const handle = p.handle || slugify(name);
-    const url = `https://vuoriclothing.com/products/${handle}`;
-    if (seen.has(url)) return null;
-    seen.add(url);
-    const variants = p.variants?.edges?.map(e => e.node) || p.variants || [];
-    let priceUSD = null, origUSD = null;
-    for (const v of variants) {
-      const vPrice = parseFloat(v.priceV2?.amount || v.price || 0);
-      const vCompare = parseFloat(v.compareAtPriceV2?.amount || v.compareAtPrice || 0);
-      if (vCompare > vPrice && (priceUSD === null || vPrice < priceUSD)) {
-        priceUSD = vPrice; origUSD = vCompare;
-      }
-    }
-    if (!priceUSD || !origUSD || priceUSD >= origUSD) return null;
-    const discount = Math.round((1 - priceUSD / origUSD) * 100);
-    if (discount <= 0) return null;
-    const priceCAD = Math.round(priceUSD * rate * 100) / 100;
-    const originalPriceCAD = Math.round(origUSD * rate * 100) / 100;
-    const images = p.images?.edges?.map(e => e.node) || p.images || [];
-    const image = images[0]?.url || images[0]?.src || '';
-    return {
-      id: slugify(`${STORE_KEY}-${name}-${handle}`),
-      store: STORE_NAME, storeKey: STORE_KEY,
-      name, url, image,
-      price: priceCAD, originalPrice: originalPriceCAD, discount,
-      currency: CURRENCY, priceCAD, originalPriceCAD,
-      gender: '', tags: [],
-      scrapedAt: new Date().toISOString(),
-    };
-  } catch (_) { return null; }
 }
 
 function slugify(str) {

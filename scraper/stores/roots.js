@@ -8,6 +8,7 @@ const STORE_KEY = 'roots';
 const CURRENCY = 'CAD';
 
 const SALE_URLS = [
+  'https://www.roots.com/en-ca/c/sale-sale/?sz=120',
   'https://www.roots.com/en-ca/sale?sz=120',
 ];
 
@@ -33,7 +34,25 @@ async function scrape(browser, onProgress = () => {}) {
     onProgress('Roots Canada: loading sale page…');
     const page = await context.newPage();
     try {
-      await page.goto(saleUrl, { waitUntil: 'domcontentloaded', timeout: 35000 });
+      let response;
+      try {
+        response = await page.goto(saleUrl, { waitUntil: 'domcontentloaded', timeout: 35000 });
+      } catch (err) {
+        if (err.message.includes('Timeout') || err.message.includes('ERR_')) {
+          onProgress(`Roots Canada: failed to load page - site may be down or blocking (${err.message.split('\n')[0]})`);
+          await page.close();
+          continue;
+        }
+        throw err;
+      }
+
+      // Check for server errors
+      if (response && (response.status() === 500 || response.status() === 503)) {
+        onProgress(`Roots Canada: server error (${response.status()}) - site may be down or blocking requests`);
+        await page.close();
+        continue;
+      }
+
       try { await page.click('#onetrust-accept-btn-handler', { timeout: 4000 }); } catch (_) {}
       await page.waitForTimeout(3000);
 
@@ -77,13 +96,14 @@ async function scrape(browser, onProgress = () => {}) {
           }
         } catch (_) {}
 
-        // DOM fallback
+        // DOM fallback - Roots uses SFCC
         const cardSels = [
+          '.product',
+          '.product-tile',
+          'div[class*="product"]',
           '[data-testid="product-card"]',
           '[class*="ProductCard"]',
-          '[class*="product-card"]',
           'li[class*="product"]',
-          'article[class*="product"]',
         ];
         let cards = [];
         for (const sel of cardSels) {
@@ -93,17 +113,24 @@ async function scrape(browser, onProgress = () => {}) {
 
         const seen = new Set();
         return cards.map(card => {
-          const link = card.querySelector('a[href]');
+          // SFCC-specific selectors
+          const link = card.querySelector('a.thumb-link, a[href*="/p/"]');
           const url = link?.href || '';
           if (!url || seen.has(url)) return null;
           seen.add(url);
-          const nameEl = card.querySelector('h2, h3, [class*="name"], [class*="title"]');
+
+          // SFCC product name
+          const nameEl = card.querySelector('.tile-body .product-name, .product-name, h2, h3, [class*="name"]');
           const name = nameEl?.textContent?.trim() || '';
-          const origEl = card.querySelector('del, s, [class*="original"], [class*="was"], [class*="compare"]');
-          const saleEl = card.querySelector('[class*="sale"], [class*="Sale"], [class*="promo"], [class*="reduced"]');
+
+          // SFCC price selectors
+          const saleEl = card.querySelector('.price .sales .value, .price-sales, [class*="sale"]');
+          const origEl = card.querySelector('.price .strike-through .value, .price-standard, del, s');
           const imgEl = card.querySelector('img');
+
           let price = parsePrice(saleEl);
           let originalPrice = parsePrice(origEl);
+
           if (!price || !originalPrice) {
             const priceEls = [...card.querySelectorAll('[class*="price"], [class*="Price"]')]
               .filter(el => !el.querySelector('[class*="price"]'));
@@ -120,9 +147,11 @@ async function scrape(browser, onProgress = () => {}) {
       for (const d of deals) {
         if (!seenUrls.has(d.url)) {
           seenUrls.add(d.url);
+          // Extract product ID from URL
+          const productId = d.url.match(/\/([^\/]+)\.html$/)?.[1] || d.url.split('/').pop() || '';
           allDeals.push({
             ...d,
-            id: slugify(`${d.storeKey}-${d.name}`),
+            id: slugify(`${d.storeKey}-${d.name}-${productId}`),
             currency: CURRENCY,
             priceCAD: d.price,
             originalPriceCAD: d.originalPrice,

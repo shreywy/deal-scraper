@@ -64,10 +64,41 @@ async function scrape(browser, onProgress = () => {}) {
     });
 
     try {
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      let response;
+      try {
+        response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      } catch (err) {
+        if (err.message.includes('Timeout') || err.message.includes('ERR_')) {
+          onProgress(`The North Face: failed to load ${label} page - likely bot-blocked or network error`);
+          await page.close();
+          continue;
+        }
+        throw err;
+      }
+
+      // Check for bot blocking
+      if (response && (response.status() === 403 || response.status() === 503)) {
+        onProgress(`The North Face: access denied (${response.status()}) - likely bot-blocked`);
+        await page.close();
+        continue;
+      }
+
       try { await page.click('#onetrust-accept-btn-handler', { timeout: 4000 }); } catch (_) {}
 
       await page.waitForTimeout(3000);
+
+      // Check if page has products
+      const hasProducts = await page.evaluate(() => {
+        const cards = document.querySelectorAll('.product, .product-tile, .grid-tile, [class*="product"]');
+        return cards.length > 0;
+      });
+
+      if (!hasProducts) {
+        onProgress(`The North Face: ${label} page loaded but no products found - possible bot detection or site structure change`);
+        await page.close();
+        continue;
+      }
+
       await loadAll(page, onProgress);
 
       // First, try to map XHR-intercepted products
@@ -109,15 +140,14 @@ async function scrape(browser, onProgress = () => {}) {
             }
           } catch (_) {}
 
-          // DOM fallback
+          // DOM fallback - The North Face uses SFCC
           const cardSels = [
+            '.product',
+            '.product-tile',
+            'div[class*="product"]',
             '[data-testid="product-card"]',
             '[class*="ProductCard"]',
-            '[class*="product-card"]',
             'li[class*="product"]',
-            'article[class*="product"]',
-            '.product-tile',
-            '.product',
           ];
           let cards = [];
           for (const sel of cardSels) {
@@ -127,14 +157,16 @@ async function scrape(browser, onProgress = () => {}) {
 
           const seen = new Set();
           return cards.map(card => {
-            const link = card.querySelector('a[href]');
+            // SFCC-specific selectors
+            const link = card.querySelector('a.thumb-link, a[href*="/p/"]');
             const cardUrl = link?.href || '';
             if (!cardUrl || seen.has(cardUrl)) return null;
             seen.add(cardUrl);
 
-            const nameEl = card.querySelector('h2, h3, [class*="name"], [class*="title"], .product-name');
-            const salePriceEl = card.querySelector('[class*="sale"], [class*="Sale"], [class*="promo"], del ~ *, s ~ *, .sales, .price-sales');
-            const origPriceEl = card.querySelector('del, s, strike, [class*="original"], [class*="was"], .price-standard');
+            // SFCC product name and prices
+            const nameEl = card.querySelector('.tile-body .product-name, .product-name, h2, h3, [class*="name"]');
+            const salePriceEl = card.querySelector('.price .sales .value, .price-sales, [class*="sale"]');
+            const origPriceEl = card.querySelector('.price .strike-through .value, .price-standard, del, s');
             const imgEl = card.querySelector('img');
 
             const name = nameEl?.textContent?.trim() || '';
@@ -153,9 +185,11 @@ async function scrape(browser, onProgress = () => {}) {
       for (const d of deals) {
         if (!seenUrls.has(d.url)) {
           seenUrls.add(d.url);
+          // Extract product ID from URL
+          const productId = d.url.match(/\/([^\/]+)\.html$/)?.[1] || d.url.split('/').pop() || '';
           allDeals.push({
             ...d,
-            id: slugify(`${d.storeKey}-${d.name}`),
+            id: slugify(`${d.storeKey}-${d.name}-${productId}`),
             currency: 'CAD',
             priceCAD: d.price,
             originalPriceCAD: d.originalPrice,

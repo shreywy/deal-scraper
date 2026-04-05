@@ -39,11 +39,6 @@ let refreshInProgress = false;
 let storeProgress = {};
 let popdownHideTimer = null;
 
-// Hover preview state
-let hoverTimer1 = null;
-let hoverTimer2 = null;
-let hoverTarget = null;
-let mousePos = { x: 0, y: 0 };
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 async function init() {
@@ -55,16 +50,6 @@ async function init() {
   if (savedCols >= 1 && savedCols <= 8) cols = savedCols;
   applyGridSize();
 
-  // Track mouse for hover preview
-  document.addEventListener('mousemove', e => {
-    mousePos = { x: e.clientX, y: e.clientY };
-    const spinner = document.getElementById('hoverSpinner');
-    if (spinner.classList.contains('visible')) {
-      spinner.style.left = e.clientX + 'px';
-      spinner.style.top = e.clientY + 'px';
-    }
-  });
-  setupHoverListeners();
 
   try {
     const res = await fetch('/api/config');
@@ -310,12 +295,13 @@ function loadDeals(deals) {
 
 function buildDynamicFilters() {
   // Store pills — built from config (all enabled stores) so they appear even with 0 deals
+  // Use storeKey as value (reliable) and store name as label (display)
   const storePills = document.getElementById('storePills');
   storePills.innerHTML = makePill('store', 'all', 'All', true);
   const configStores = config?.stores
-    ? Object.values(config.stores).filter(s => s.enabled).map(s => s.name).sort()
-    : [...new Set(allDeals.map(d => d.store))].sort();
-  for (const s of configStores) storePills.insertAdjacentHTML('beforeend', makePill('store', s, s));
+    ? Object.entries(config.stores).filter(([, s]) => s.enabled).map(([key, s]) => ({ key, name: s.name })).sort((a, b) => a.name.localeCompare(b.name))
+    : [...new Set(allDeals.map(d => ({ key: d.storeKey || d.store, name: d.store })))];
+  for (const { key, name } of configStores) storePills.insertAdjacentHTML('beforeend', makePill('store', key, name));
 
   // Category pills
   const GENDER_TAGS = new Set(['Men', 'Women', 'Unisex', 'Kids']);
@@ -373,7 +359,7 @@ function syncPillActive(filter, value) {
 function applyFiltersAndRender() {
   let deals = [...allDeals];
 
-  if (filters.store !== 'all') deals = deals.filter(d => d.store === filters.store);
+  if (filters.store !== 'all') deals = deals.filter(d => (d.storeKey || d.store) === filters.store);
   if (filters.gender !== 'all') {
     const GENDER_TAGS = ['Men', 'Women', 'Kids'];
     deals = deals.filter(d => {
@@ -416,7 +402,7 @@ function applyFiltersAndRender() {
 function dealsExcluding(excludeKey) {
   const cadPrice = d => (d.currency === 'USD' && d.priceCAD) ? d.priceCAD : d.price;
   let d = [...allDeals];
-  if (excludeKey !== 'store'    && filters.store !== 'all')    d = d.filter(x => x.store === filters.store);
+  if (excludeKey !== 'store'    && filters.store !== 'all')    d = d.filter(x => (x.storeKey || x.store) === filters.store);
   if (excludeKey !== 'gender' && filters.gender !== 'all') {
     const GENDER_TAGS = ['Men', 'Women', 'Kids'];
     d = d.filter(x => {
@@ -441,7 +427,7 @@ function updatePillAvailability() {
   const cadPrice = d => (d.currency === 'USD' && d.priceCAD) ? d.priceCAD : d.price;
 
   const checks = {
-    store:    (d, v) => d.store === v,
+    store:    (d, v) => (d.storeKey || d.store) === v,
     gender: (d, v) => {
       const GENDER_TAGS = ['Men', 'Women', 'Kids'];
       if (v === 'Unisex') return d.tags.includes('Unisex') || !GENDER_TAGS.some(g => d.tags.includes(g));
@@ -604,101 +590,6 @@ function showSkeletons(n) {
 function clearGrid() { document.getElementById('grid').innerHTML = ''; }
 
 // ── Hover Preview ─────────────────────────────────────────────────────────────
-function setupHoverListeners() {
-  const grid = document.getElementById('grid');
-
-  grid.addEventListener('mouseover', e => {
-    const tile = e.target.closest('[data-idx]');
-    if (!tile) return;
-    if (hoverTarget?.tile === tile) return;
-    cancelHover();
-    const idx = parseInt(tile.dataset.idx);
-    if (!isNaN(idx) && filteredDeals[idx]) {
-      hoverTarget = { tile, deal: filteredDeals[idx] };
-      hoverTimer1 = setTimeout(() => startSpinner(tile, filteredDeals[idx]), 2000);
-    }
-  });
-
-  grid.addEventListener('mouseout', e => {
-    const tile = e.target.closest('[data-idx]');
-    if (!tile) return;
-    if (tile.contains(e.relatedTarget)) return;
-    cancelHover();
-  });
-}
-
-function startSpinner(tile, deal) {
-  const spinner = document.getElementById('hoverSpinner');
-  spinner.style.left = mousePos.x + 'px';
-  spinner.style.top = mousePos.y + 'px';
-  spinner.classList.add('visible');
-  // Force reflow so transition starts from dashoffset=106.8
-  spinner.classList.remove('animating');
-  void spinner.offsetWidth;
-  requestAnimationFrame(() => spinner.classList.add('animating'));
-
-  hoverTimer2 = setTimeout(() => {
-    spinner.classList.remove('visible', 'animating');
-    showPreviewCard(deal, tile);
-  }, 3000);
-}
-
-function cancelHover() {
-  clearTimeout(hoverTimer1);
-  clearTimeout(hoverTimer2);
-  hoverTimer1 = hoverTimer2 = null;
-  hoverTarget = null;
-  const spinner = document.getElementById('hoverSpinner');
-  spinner.classList.remove('visible', 'animating');
-  hidePreviewCard();
-}
-
-function showPreviewCard(deal, tile) {
-  const card = document.getElementById('previewCard');
-  const isUSD = deal.currency === 'USD';
-  const dp = isUSD && deal.priceCAD ? deal.priceCAD : deal.price;
-  const do_ = isUSD && deal.originalPriceCAD ? deal.originalPriceCAD : deal.originalPrice;
-
-  card.innerHTML = `
-    <div class="pc-img">
-      ${deal.image
-        ? `<img src="${escHtml(deal.image)}" alt="${escHtml(deal.name)}" onerror="this.parentNode.innerHTML='<span class=pc-fallback>🛍️</span>'">`
-        : `<span class="pc-fallback">🛍️</span>`}
-    </div>
-    <div class="pc-body">
-      <div class="pc-store">${escHtml(deal.store)}${isUSD ? ' <span class="usd-badge">USD</span>' : ''}</div>
-      <div class="pc-name">${escHtml(deal.name)}</div>
-      <div class="pc-tags">${deal.tags.map(t => `<span class="tag">${escHtml(t)}</span>`).join('')}</div>
-      <div class="pc-price-row">
-        <span class="price-now">${isUSD ? `~$${dp.toFixed(2)} CAD` : `$${dp.toFixed(2)}`}</span>
-        <span class="price-orig">${isUSD ? `~$${do_.toFixed(2)}` : `$${do_.toFixed(2)}`}</span>
-        <span class="discount-badge">−${deal.discount}%</span>
-      </div>
-      ${isUSD ? `<div class="pc-usd-note">USD: $${deal.price.toFixed(2)} → $${dp.toFixed(2)} CAD${deal.exchangeRate ? ` @ ${deal.exchangeRate.toFixed(4)}` : ''}</div>` : ''}
-      <div class="pc-hint">Click tile to open →</div>
-    </div>
-  `;
-
-  const rect = tile.getBoundingClientRect();
-  const cardW = 270;
-  const cardH = 380;
-  const margin = 10;
-
-  let left = rect.right + margin;
-  let top = rect.top;
-  if (left + cardW > window.innerWidth - margin) left = rect.left - cardW - margin;
-  left = Math.max(margin, Math.min(left, window.innerWidth - cardW - margin));
-  top = Math.max(margin, Math.min(top, window.innerHeight - cardH - margin));
-
-  card.style.left = left + 'px';
-  card.style.top = top + 'px';
-  card.classList.add('visible');
-}
-
-function hidePreviewCard() {
-  document.getElementById('previewCard').classList.remove('visible');
-}
-
 // ── Settings Drawer ───────────────────────────────────────────────────────────
 async function renderSettingsDrawer(cfg) {
   const body = document.getElementById('drawerBody');

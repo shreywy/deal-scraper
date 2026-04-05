@@ -7,23 +7,19 @@ const STORE_NAME = 'Alo Yoga';
 const STORE_KEY = 'aloyoga';
 const CURRENCY = 'CAD';
 
-// Alo Yoga sale pages - using subcategory URLs that actually work
-const SALE_URLS = [
-  { url: 'https://www.aloyoga.com/collections/womens-sale-tops', gender: 'Women', label: "women's tops" },
-  { url: 'https://www.aloyoga.com/collections/womens-sale-bottoms', gender: 'Women', label: "women's bottoms" },
-  { url: 'https://www.aloyoga.com/collections/mens-sale-bottoms', gender: 'Men', label: "men's bottoms" },
-];
+// Alo Yoga main sale collection URL
+const SALE_URL = 'https://www.aloyoga.com/collections/sale';
 
 /**
- * Alo Yoga — ships to Canada. USD prices converted to CAD.
- * Uses Shopify Storefront XHR interception + DOM fallback.
+ * Alo Yoga — shows CAD prices for Canadian visitors.
+ * Uses Playwright browser to scrape Builder.io product cards.
  *
  * @param {import('playwright').Browser} browser
  * @param {function(string):void} [onProgress]
  * @returns {Promise<import('../index').Deal[]>}
  */
 async function scrape(browser, onProgress = () => {}) {
-  const rate = 1; // Alo Yoga shows CAD prices for Canadian visitors
+  const rate = 1; // Site already shows CAD prices
 
   const context = await browser.newContext({
     userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
@@ -33,6 +29,7 @@ async function scrape(browser, onProgress = () => {}) {
   const rawProducts = [];
   const seenIds = new Set();
 
+  // Intercept XHR/API responses for product data
   context.on('response', async response => {
     const url = response.url();
     const ct = response.headers()['content-type'] || '';
@@ -40,11 +37,12 @@ async function scrape(browser, onProgress = () => {}) {
     if (!url.includes('aloyoga.com')) return;
     try {
       const json = await response.json();
-      // Shopify Storefront API response format
+      // Shopify Storefront API or custom API response formats
       const products =
         json?.collection?.products?.edges?.map(e => e.node) ||
         json?.products?.edges?.map(e => e.node) ||
         json?.products ||
+        json?.data?.products ||
         [];
       for (const p of (Array.isArray(products) ? products : [])) {
         const id = p.id || p.handle;
@@ -53,95 +51,140 @@ async function scrape(browser, onProgress = () => {}) {
     } catch (_) {}
   });
 
-  const seenUrls = new Set();
   const allDeals = [];
+  const seenUrls = new Set();
 
-  for (const { url: saleUrl, gender, label } of SALE_URLS) {
-    onProgress(`Alo Yoga: loading ${label} sale…`);
-    const page = await context.newPage();
+  onProgress(`Alo Yoga: loading sale collection…`);
+  const page = await context.newPage();
+
+  try {
+    await page.goto(SALE_URL, { waitUntil: 'domcontentloaded', timeout: 35000 });
+
+    // Dismiss cookie banner
     try {
-      await page.goto(saleUrl, { waitUntil: 'domcontentloaded', timeout: 35000 });
-      try { await page.click('#onetrust-accept-btn-handler', { timeout: 4000 }); } catch (_) {}
-      await page.waitForTimeout(3000);
+      await page.click('#onetrust-accept-btn-handler', { timeout: 3000 });
+    } catch (_) {}
 
-      for (let i = 0; i < 4; i++) {
-        await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-        await page.waitForTimeout(1500);
-      }
+    await page.waitForTimeout(2000);
 
-      const domDeals = await page.evaluate(({ storeName, storeKey, defaultGender }) => {
-        const parsePrice = el => {
-          const n = parseFloat((el?.textContent || '').replace(/[^0-9.]/g, ''));
-          return isNaN(n) ? null : n;
-        };
+    // Scroll to load more products
+    for (let i = 0; i < 5; i++) {
+      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+      await page.waitForTimeout(1500);
+    }
 
-        // Collect all product links with their associated prices
-        const productLinks = [...document.querySelectorAll('a[href*="/products/"]')];
-        const seen = new Set();
-        const results = [];
+    // Extract deals from Builder.io structure
+    const domDeals = await page.evaluate(({ storeName, storeKey }) => {
+      const parsePrice = text => {
+        const n = parseFloat((text || '').replace(/[^0-9.]/g, ''));
+        return isNaN(n) ? null : n;
+      };
 
-        for (const link of productLinks) {
-          const url = link.href;
-          if (!url || seen.has(url)) continue;
+      // Find all product links
+      const productLinks = [...document.querySelectorAll('a[href*="/products/"]')];
+      const seen = new Set();
+      const results = [];
 
-          // Find price elements near this link (within the same card/container)
-          let container = link;
-          for (let i = 0; i < 5; i++) {
-            if (!container.parentElement) break;
-            container = container.parentElement;
-            const redPrice = container.querySelector('.currency-formatting.product-price.red');
-            const regularPrice = container.querySelector('.product-price.regular__price');
+      for (const link of productLinks) {
+        const url = link.href;
+        if (!url || seen.has(url)) continue;
 
-            if (redPrice && regularPrice) {
-              const price = parsePrice(redPrice);
-              const originalPrice = parsePrice(regularPrice);
+        // Extract product name from link text or nearby elements
+        let name = '';
 
-              if (price && originalPrice && price < originalPrice) {
-                seen.add(url);
+        // Try to find name in link's text content
+        const linkText = link.textContent?.trim();
+        if (linkText && !linkText.startsWith('CA$') && !linkText.startsWith('$') && linkText.length > 3) {
+          name = linkText;
+        }
 
-                // Extract name - look for text in link or nearby
-                let name = '';
-                const nameEl = container.querySelector('[class*="name"], [class*="title"]');
-                if (nameEl) {
-                  name = nameEl.textContent?.trim();
+        // Find container with prices - Builder.io uses nested divs
+        let container = link;
+        for (let depth = 0; depth < 10; depth++) {
+          if (!container.parentElement) break;
+          container = container.parentElement;
+
+          // Look for price elements with "builder-text" class and text-decoration
+          const allLinks = [...container.querySelectorAll('a')];
+          const priceLinks = allLinks.filter(a => {
+            const text = a.textContent || '';
+            return text.includes('CA$') || text.includes('$');
+          });
+
+          if (priceLinks.length >= 2) {
+            // Find strikethrough (original) and regular (sale) prices
+            let salePrice = null;
+            let regPrice = null;
+
+            for (const pLink of priceLinks) {
+              const hasLineThrough = pLink.style.textDecoration === 'line-through' ||
+                                    pLink.getAttribute('style')?.includes('line-through');
+              const priceText = pLink.textContent || '';
+              const price = parsePrice(priceText);
+
+              if (price) {
+                if (hasLineThrough) {
+                  regPrice = price;
                 } else {
-                  // Fallback to link text or URL slug
-                  name = link.textContent?.trim() || url.split('/').pop().replace(/-/g, ' ');
+                  salePrice = salePrice || price;
                 }
+              }
+            }
 
-                const imgEl = container.querySelector('img');
-                const discount = Math.round((1 - price / originalPrice) * 100);
+            if (salePrice && regPrice && salePrice < regPrice) {
+              seen.add(url);
 
-                if (discount > 0 && name) {
-                  results.push({
-                    store: storeName, storeKey, name, url,
-                    image: imgEl?.src || imgEl?.dataset?.src || '',
-                    price, originalPrice, discount, gender: defaultGender, tags: [],
-                  });
+              // If we didn't find name in link, look in container
+              if (!name) {
+                const nameSpans = [...container.querySelectorAll('span.builder-text')];
+                for (const span of nameSpans) {
+                  const text = span.textContent?.trim() || '';
+                  if (text && !text.includes('CA$') && !text.includes('$') && text.length > 5) {
+                    name = text;
+                    break;
+                  }
                 }
+              }
+
+              if (!name) {
+                // Fallback to URL slug
+                name = url.split('/').pop().replace(/-/g, ' ');
+              }
+
+              const imgEl = container.querySelector('img');
+              const discount = Math.round((1 - salePrice / regPrice) * 100);
+
+              if (discount > 0 && name) {
+                results.push({
+                  store: storeName, storeKey, name, url,
+                  image: imgEl?.src || imgEl?.dataset?.src || '',
+                  price: salePrice, originalPrice: regPrice, discount,
+                  gender: '', tags: [],
+                });
               }
               break;
             }
           }
         }
-
-        return results;
-      }, { storeName: STORE_NAME, storeKey: STORE_KEY, defaultGender: gender });
-
-      for (const d of domDeals) {
-        if (!seenUrls.has(d.url)) {
-          seenUrls.add(d.url);
-          allDeals.push(d);
-        }
       }
-    } catch (err) {
-      onProgress(`Alo Yoga: error on ${label} — ${err.message}`);
-    } finally {
-      await page.close();
+
+      return results;
+    }, { storeName: STORE_NAME, storeKey: STORE_KEY });
+
+    for (const d of domDeals) {
+      if (!seenUrls.has(d.url)) {
+        seenUrls.add(d.url);
+        allDeals.push(d);
+      }
     }
+
+  } catch (err) {
+    onProgress(`Alo Yoga: error — ${err.message}`);
+  } finally {
+    await page.close();
   }
 
-  // Also process any XHR-intercepted Shopify products
+  // Process any XHR-intercepted products
   for (const p of rawProducts) {
     const d = mapShopifyProduct(p, seenUrls, rate);
     if (d) allDeals.push(d);
@@ -153,8 +196,8 @@ async function scrape(browser, onProgress = () => {}) {
     ...d,
     id: d.id || slugify(`${STORE_KEY}-${d.name}`),
     currency: CURRENCY,
-    priceCAD: d.price,
-    originalPriceCAD: d.originalPrice,
+    priceCAD: Math.round(d.price * rate * 100) / 100,
+    originalPriceCAD: Math.round(d.originalPrice * rate * 100) / 100,
     tags: tag({ name: d.name, gender: d.gender || '' }),
     scrapedAt: new Date().toISOString(),
   }));
@@ -172,23 +215,33 @@ function mapShopifyProduct(p, seen, rate) {
     if (seen.has(url)) return null;
     seen.add(url);
 
-    // Shopify Storefront API variant prices
+    // Extract variants - handle different API formats
     const variants = p.variants?.edges?.map(e => e.node) || p.variants || [];
     let priceUSD = null, origUSD = null;
+
     for (const v of variants) {
-      const vPrice = parseFloat(v.priceV2?.amount || v.price?.amount || v.price || 0);
-      const vCompare = parseFloat(v.compareAtPriceV2?.amount || v.compareAtPrice?.amount || v.compareAtPrice || 0);
-      if (vCompare > vPrice && (priceUSD === null || vPrice < priceUSD)) {
+      // Try different price field formats
+      let vPrice = parseFloat(v.priceV2?.amount || v.price?.amount || v.price || 0);
+      let vCompare = parseFloat(v.compareAtPriceV2?.amount || v.compareAtPrice?.amount || v.compareAtPrice || v.compare_at_price || 0);
+
+      // Some APIs store prices in cents
+      if (vPrice > 1000) vPrice = vPrice / 100;
+      if (vCompare > 1000) vCompare = vCompare / 100;
+
+      if (vCompare > vPrice && vPrice > 0 && (priceUSD === null || vPrice < priceUSD)) {
         priceUSD = vPrice;
         origUSD = vCompare;
       }
     }
+
     if (!priceUSD || !origUSD || priceUSD >= origUSD) return null;
+
     const discount = Math.round((1 - priceUSD / origUSD) * 100);
     if (discount <= 0) return null;
 
     const priceCAD = Math.round(priceUSD * rate * 100) / 100;
     const originalPriceCAD = Math.round(origUSD * rate * 100) / 100;
+
     const images = p.images?.edges?.map(e => e.node) || p.images || [];
     const image = images[0]?.url || images[0]?.src || '';
 
