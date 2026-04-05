@@ -151,12 +151,22 @@ async function browserScrape(browser, rate, onProgress) {
       const json = await response.json();
       // Enhanced XHR interception - look for goods/products in multiple locations
       const products = json?.data?.goods || json?.goods || json?.products || json?.data?.list || [];
+
       if (Array.isArray(products) && products.length > 0) {
         onProgress(`Musinsa: found ${products.length} products in API response`);
+
+        // Log sample product structure for debugging
+        if (products[0] && rawProducts.length === 0) {
+          onProgress(`Musinsa: sample product has keys: ${Object.keys(products[0]).slice(0, 10).join(', ')}`);
+        }
       }
+
       for (const p of (Array.isArray(products) ? products : [])) {
         const id = p.goodsNo || p.id || p.goodsId;
-        if (id && !seenIds.has(id)) { seenIds.add(id); rawProducts.push(p); }
+        if (id && !seenIds.has(id)) {
+          seenIds.add(id);
+          rawProducts.push(p);
+        }
       }
     } catch (_) {}
   });
@@ -166,48 +176,71 @@ async function browserScrape(browser, rate, onProgress) {
   const allDeals = [];
 
   try {
-    // Try navigating directly with location param
+    // Navigate to sale page
     onProgress('Musinsa: navigating to sale page…');
-    await page.goto('https://global.musinsa.com/en/sale?location=US', { waitUntil: 'domcontentloaded', timeout: 45000 });
-    await page.waitForTimeout(4000);
+    const response = await page.goto('https://global.musinsa.com/en/sale', { waitUntil: 'domcontentloaded', timeout: 45000 });
+    await page.waitForTimeout(3000);
 
-    // Check if we hit location chooser
-    let pageText = await page.textContent('body').catch(() => '');
-    if (pageText.includes('CHOOSE YOUR LOCATION')) {
-      onProgress('Musinsa: detected location chooser, attempting bypass…');
+    const finalUrl = page.url();
+    onProgress(`Musinsa: landed on ${finalUrl}`);
 
-      // Strategy 1: Try to find and click any location button by DOM inspection
+    // If redirected to location chooser, handle it
+    if (finalUrl.includes('choose-location')) {
+      onProgress('Musinsa: on location chooser page, selecting location…');
+
       try {
-        const clicked = await page.evaluate(() => {
-          // Look for buttons or links containing country names
-          const countryNames = ['United States', 'USA', 'Japan', 'Hong Kong', 'Korea'];
-          for (const country of countryNames) {
-            const buttons = Array.from(document.querySelectorAll('button, a'));
-            const target = buttons.find(el => el.textContent?.includes(country));
-            if (target) {
-              target.click();
+        // Wait for location buttons to appear
+        await page.waitForSelector('button, a', { timeout: 5000 });
+
+        // Try to click US/United States button
+        const clickResult = await page.evaluate(() => {
+          const allElements = Array.from(document.querySelectorAll('button, a, div[role="button"]'));
+          const countries = ['United States', 'USA', 'US', 'Japan', 'Hong Kong'];
+
+          for (const country of countries) {
+            const el = allElements.find(e => {
+              const text = e.textContent || e.innerText || '';
+              return text.includes(country);
+            });
+            if (el) {
+              el.click();
               return country;
             }
           }
           return null;
         });
 
-        if (clicked) {
-          onProgress(`Musinsa: clicked ${clicked} location button`);
+        if (clickResult) {
+          onProgress(`Musinsa: clicked ${clickResult}, waiting for redirect…`);
+          await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {});
           await page.waitForTimeout(3000);
+
+          // After location selection, we're redirected to main page
+          // The URL format is /XX/en/ where XX is country code
+          // Navigate to the sale page using the proper country-specific URL
+          onProgress('Musinsa: navigating to sale page after location selection…');
+
+          // Musinsa uses country-specific paths: /us/main, /jp/main, etc.
+          // Sale page should be under the same country path
+          const currentUrl = page.url();
+          const countryMatch = currentUrl.match(/musinsa\.com\/([a-z]{2})\//i);
+          const countryCode = countryMatch ? countryMatch[1] : 'us';
+
+          const saleUrl = `https://global.musinsa.com/${countryCode}/sale`;
+          onProgress(`Musinsa: trying sale URL: ${saleUrl}`);
+
+          await page.goto(saleUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+          await page.waitForTimeout(3000);
+
+          const newUrl = page.url();
+          onProgress(`Musinsa: now at ${newUrl}`);
         } else {
-          // Strategy 2: Direct navigation bypass
-          onProgress('Musinsa: no location button found, forcing navigation…');
-          await context.addCookies([
-            { name: 'location_selected', value: '1', domain: '.musinsa.com', path: '/' },
-            { name: 'force_location', value: 'US', domain: '.musinsa.com', path: '/' },
-          ]);
-          // Try the JP site which is less restrictive
-          await page.goto('https://global.musinsa.com/en/sale?currency=USD', { waitUntil: 'domcontentloaded' });
-          await page.waitForTimeout(3000);
+          onProgress('Musinsa: could not find location button');
+          return []; // Give up if we can't bypass
         }
       } catch (e) {
-        onProgress(`Musinsa: location bypass failed: ${e.message}`);
+        onProgress(`Musinsa: error clicking location: ${e.message}`);
+        return [];
       }
     }
 

@@ -65,7 +65,7 @@ async function scrapeViaApiWithBrowser(browser, rate, onProgress, seen) {
       const maxProducts = 500;
 
       while (offset < maxProducts) {
-        const apiUrl = `https://www.asos.com/api/product/search/v2/categories/${catId}?store=US&lang=en-US&currency=USD&country=US&sizeSchema=US&offset=${offset}&limit=${limit}&attribute_1049=7261,8843`;
+        const apiUrl = `https://www.asos.com/api/product/search/v2/categories/${catId}?store=US&lang=en-US&currency=USD&country=US&sizeSchema=US&offset=${offset}&limit=${limit}`;
 
         onProgress(`ASOS: fetching ${label} at offset ${offset}…`);
 

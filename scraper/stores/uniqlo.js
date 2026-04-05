@@ -162,26 +162,27 @@ async function scrapeViaBrowser(browser, onProgress) {
     if (!ct.includes('application/json')) return;
     if (!url.includes('uniqlo.com')) return;
 
-    // Log intercepted API calls for debugging
-    if (url.includes('/api/') || url.includes('commerce')) {
-      onProgress(`Uniqlo: intercepted API: ${url.substring(0, 100)}…`);
-    }
-
     try {
       const json = await response.json();
       // Enhanced XHR interception - try multiple item container keys and patterns
-      // Uniqlo Canada sometimes uses /api/commerce/ endpoints
       const items = json?.result?.items || json?.items || json?.products || json?.payload?.items || [];
 
       if (Array.isArray(items) && items.length > 0) {
-        onProgress(`Uniqlo: found ${items.length} items in API response`);
-      }
+        // Only log if it looks like product data (has price-related fields)
+        const seemsLikeProducts = items.some(item =>
+          item.prices || item.price || item.productId || item.productCode
+        );
 
-      for (const item of items) {
-        const itemId = item?.productId || item?.code || item?.id;
-        if (itemId && !interceptedIds.has(itemId)) {
-          interceptedIds.add(itemId);
-          intercepted.push(item);
+        if (seemsLikeProducts) {
+          onProgress(`Uniqlo: found ${items.length} product items in API (${url.substring(0, 60)}…)`);
+
+          for (const item of items) {
+            const itemId = item?.productId || item?.code || item?.id;
+            if (itemId && !interceptedIds.has(itemId)) {
+              interceptedIds.add(itemId);
+              intercepted.push(item);
+            }
+          }
         }
       }
     } catch (_) {}

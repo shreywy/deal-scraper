@@ -67,11 +67,14 @@ async function scrape(browser, onProgress = () => {}) {
 
     await page.waitForTimeout(2000);
 
-    // Scroll to load more products
-    for (let i = 0; i < 5; i++) {
+    // Scroll to load more products - Builder.io uses lazy loading
+    for (let i = 0; i < 8; i++) {
       await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-      await page.waitForTimeout(1500);
+      await page.waitForTimeout(2000);
     }
+
+    // Final wait for any remaining products to load
+    await page.waitForTimeout(2000);
 
     // Extract deals from Builder.io structure
     const domDeals = await page.evaluate(({ storeName, storeKey }) => {

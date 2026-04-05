@@ -36,12 +36,13 @@ async function scrape(_browser, onProgress = () => {}) {
       },
       body: JSON.stringify({
         query: '',
-        filters: 'compareAtPrice > 0',
+        filters: 'compareAtPrice > 0 AND inStock: true',
         hitsPerPage: HITS_PER_PAGE,
         page,
         attributesToRetrieve: [
           'title', 'price', 'compareAtPrice', 'handle',
           'featuredMedia', 'media', 'gender', 'division', 'category',
+          'inStock', 'percentInStock',
         ],
       }),
     });
