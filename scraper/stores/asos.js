@@ -17,6 +17,12 @@ const SALE_PAGES = [
  * ASOS — global fashion retailer, ships to Canada (USD prices, converted to CAD).
  * Uses Playwright browser XHR interception to capture ASOS internal API calls.
  *
+ * NOTE: ASOS has strong anti-bot protection. The old REST API endpoint
+ * (api.asos.com/product/search/v2/categories/{id}/products) returns 404.
+ * Browser XHR interception works in non-headless mode but headless mode only
+ * intercepts initial API call (limit=1) and products don't load fully.
+ * May need non-headless browser or more sophisticated bot detection bypass.
+ *
  * @param {import('playwright').Browser} browser
  * @param {function(string):void} [onProgress]
  * @returns {Promise<import('../index').Deal[]>}
