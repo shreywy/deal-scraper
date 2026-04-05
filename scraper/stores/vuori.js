@@ -7,11 +7,10 @@ const STORE_NAME = 'Vuori';
 const STORE_KEY = 'vuori';
 const CURRENCY = 'USD';
 
-// Vuori sale collections
+// Vuori sale collections - corrected URLs
 const SALE_URLS = [
-  { url: 'https://vuoriclothing.com/collections/sale-men', gender: 'Men', label: "men's" },
-  { url: 'https://vuoriclothing.com/collections/sale-women', gender: 'Women', label: "women's" },
-  { url: 'https://vuoriclothing.com/collections/sale', gender: '', label: 'all' },
+  { url: 'https://vuoriclothing.com/collections/mens-sale', gender: 'Men', label: "men's" },
+  { url: 'https://vuoriclothing.com/collections/womens-sale', gender: 'Women', label: "women's" },
 ];
 
 /**

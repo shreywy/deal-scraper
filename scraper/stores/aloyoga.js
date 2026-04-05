@@ -139,10 +139,8 @@ async function scrape(browser, onProgress = () => {}) {
     ...d,
     id: d.id || slugify(`${STORE_KEY}-${d.name}`),
     currency: CURRENCY,
-    priceCAD: d.priceCAD || Math.round(d.price * rate * 100) / 100,
-    originalPriceCAD: d.originalPriceCAD || Math.round(d.originalPrice * rate * 100) / 100,
-    price: d.priceCAD || Math.round(d.price * rate * 100) / 100,
-    originalPrice: d.originalPriceCAD || Math.round(d.originalPrice * rate * 100) / 100,
+    priceCAD: d.price,
+    originalPriceCAD: d.originalPrice,
     tags: tag({ name: d.name, gender: d.gender || '' }),
     scrapedAt: new Date().toISOString(),
   }));

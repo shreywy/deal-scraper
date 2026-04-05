@@ -88,18 +88,20 @@
       "category": "clothing"
     },
     "arcteryx": {
-      "enabled": true,
+      "enabled": false,
       "name": "Arc'teryx CA",
       "domain": "arcteryx.com",
       "currency": "CAD",
-      "category": "clothing"
+      "category": "clothing",
+      "note": "Sale page moved to outlet.arcteryx.com (times out); main sale page returns 404"
     },
     "hm": {
-      "enabled": true,
+      "enabled": false,
       "name": "H&M Canada",
       "domain": "hm.com",
       "currency": "CAD",
-      "category": "clothing"
+      "category": "clothing",
+      "note": "Akamai bot protection - Access Denied (403) on both API and browser with stealth"
     },
     "hollister": {
       "enabled": true,
