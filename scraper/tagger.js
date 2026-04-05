@@ -57,7 +57,8 @@ function tag({ name = '', description = '', category = '', gender = '' } = {}) {
     }
   }
 
-  if (tags.size === 0) tags.add('Unisex');
+  // Don't default to Unisex — leave items with no gender hint untagged.
+  // The frontend treats "Unisex" filter as "truly unisex + unknown gender".
 
   // Category — can match multiple
   const catHaystack = [name, category].join(' ').toLowerCase();

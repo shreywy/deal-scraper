@@ -15,7 +15,7 @@
     "zara": {
       "enabled": true,
       "name": "Zara Canada",
-      "domain": "zara.com",
+      "domain": "zara.com/ca",
       "currency": "CAD"
     },
     "gymshark": {
@@ -40,6 +40,103 @@
       "enabled": true,
       "name": "YoungLA",
       "domain": "youngla.com",
+      "currency": "USD"
+    },
+    "lululemon": {
+      "enabled": true,
+      "name": "Lululemon CA",
+      "domain": "lululemon.com",
+      "currency": "CAD"
+    },
+    "aritzia": {
+      "enabled": true,
+      "name": "Aritzia",
+      "domain": "aritzia.com",
+      "currency": "CAD"
+    },
+    "roots": {
+      "enabled": true,
+      "name": "Roots Canada",
+      "domain": "roots.com",
+      "currency": "CAD"
+    },
+    "frankandoak": {
+      "enabled": false,
+      "name": "Frank And Oak",
+      "domain": "frankandoak.com",
+      "currency": "CAD",
+      "note": "No compare_at_price in Shopify — cannot detect discounts"
+    },
+    "northface": {
+      "enabled": true,
+      "name": "The North Face CA",
+      "domain": "thenorthface.com",
+      "currency": "CAD"
+    },
+    "arcteryx": {
+      "enabled": true,
+      "name": "Arc'teryx CA",
+      "domain": "arcteryx.com",
+      "currency": "CAD"
+    },
+    "hm": {
+      "enabled": true,
+      "name": "H&M Canada",
+      "domain": "hm.com",
+      "currency": "CAD"
+    },
+    "hollister": {
+      "enabled": true,
+      "name": "Hollister CA",
+      "domain": "hollisterco.com",
+      "currency": "CAD"
+    },
+    "abercrombie": {
+      "enabled": true,
+      "name": "Abercrombie & Fitch CA",
+      "domain": "abercrombie.com",
+      "currency": "CAD"
+    },
+    "americaneagle": {
+      "enabled": true,
+      "name": "American Eagle CA",
+      "domain": "ae.com",
+      "currency": "CAD"
+    },
+    "aloyoga": {
+      "enabled": true,
+      "name": "Alo Yoga",
+      "domain": "aloyoga.com",
+      "currency": "USD"
+    },
+    "vuori": {
+      "enabled": true,
+      "name": "Vuori",
+      "domain": "vuoriclothing.com",
+      "currency": "USD"
+    },
+    "clubmonaco": {
+      "enabled": true,
+      "name": "Club Monaco CA",
+      "domain": "clubmonaco.ca",
+      "currency": "CAD"
+    },
+    "bananarepublic": {
+      "enabled": true,
+      "name": "Banana Republic CA",
+      "domain": "bananarepublic.gap.com",
+      "currency": "CAD"
+    },
+    "musinsa": {
+      "enabled": true,
+      "name": "Musinsa Global",
+      "domain": "global.musinsa.com",
+      "currency": "USD"
+    },
+    "asos": {
+      "enabled": true,
+      "name": "ASOS",
+      "domain": "asos.com",
       "currency": "USD"
     }
   },

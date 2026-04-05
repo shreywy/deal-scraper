@@ -350,7 +350,16 @@ function applyFiltersAndRender() {
   let deals = [...allDeals];
 
   if (filters.store !== 'all') deals = deals.filter(d => d.store === filters.store);
-  if (filters.gender !== 'all') deals = deals.filter(d => d.tags.includes(filters.gender));
+  if (filters.gender !== 'all') {
+    const GENDER_TAGS = ['Men', 'Women', 'Kids'];
+    deals = deals.filter(d => {
+      if (filters.gender === 'Unisex') {
+        // Unisex pill: truly Unisex items + items with no gender tag (unknown)
+        return d.tags.includes('Unisex') || !GENDER_TAGS.some(g => d.tags.includes(g));
+      }
+      return d.tags.includes(filters.gender);
+    });
+  }
   if (filters.category !== 'all') deals = deals.filter(d => d.tags.includes(filters.category));
   if (filters.price !== 'all') {
     const [lo, hi] = filters.price.split('-').map(Number);
@@ -384,7 +393,13 @@ function dealsExcluding(excludeKey) {
   const cadPrice = d => (d.currency === 'USD' && d.priceCAD) ? d.priceCAD : d.price;
   let d = [...allDeals];
   if (excludeKey !== 'store'    && filters.store !== 'all')    d = d.filter(x => x.store === filters.store);
-  if (excludeKey !== 'gender'   && filters.gender !== 'all')   d = d.filter(x => x.tags.includes(filters.gender));
+  if (excludeKey !== 'gender' && filters.gender !== 'all') {
+    const GENDER_TAGS = ['Men', 'Women', 'Kids'];
+    d = d.filter(x => {
+      if (filters.gender === 'Unisex') return x.tags.includes('Unisex') || !GENDER_TAGS.some(g => x.tags.includes(g));
+      return x.tags.includes(filters.gender);
+    });
+  }
   if (excludeKey !== 'category' && filters.category !== 'all') d = d.filter(x => x.tags.includes(filters.category));
   if (excludeKey !== 'price'    && filters.price !== 'all') {
     const [lo, hi] = filters.price.split('-').map(Number);
@@ -403,7 +418,11 @@ function updatePillAvailability() {
 
   const checks = {
     store:    (d, v) => d.store === v,
-    gender:   (d, v) => d.tags.includes(v),
+    gender: (d, v) => {
+      const GENDER_TAGS = ['Men', 'Women', 'Kids'];
+      if (v === 'Unisex') return d.tags.includes('Unisex') || !GENDER_TAGS.some(g => d.tags.includes(g));
+      return d.tags.includes(v);
+    },
     category: (d, v) => d.tags.includes(v),
     price: (d, v) => {
       const [lo, hi] = v.split('-').map(Number);

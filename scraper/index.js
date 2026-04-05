@@ -6,13 +6,30 @@ const path = require('path');
 const { getUSDtoCAD } = require('./currency');
 
 const SCRAPERS = {
-  underarmour: require('./stores/underarmour'),
-  uniqlo: require('./stores/uniqlo'),
-  zara: require('./stores/zara'),
-  gymshark: require('./stores/gymshark'),
-  youngla: require('./stores/youngla'),
-  nike: require('./stores/nike'),
-  adidas: require('./stores/adidas'),
+  underarmour:    require('./stores/underarmour'),
+  uniqlo:         require('./stores/uniqlo'),
+  zara:           require('./stores/zara'),
+  gymshark:       require('./stores/gymshark'),
+  youngla:        require('./stores/youngla'),
+  nike:           require('./stores/nike'),
+  adidas:         require('./stores/adidas'),
+  // New stores
+  frankandoak:    require('./stores/frankandoak'),
+  roots:          require('./stores/roots'),
+  aloyoga:        require('./stores/aloyoga'),
+  vuori:          require('./stores/vuori'),
+  northface:      require('./stores/northface'),
+  lululemon:      require('./stores/lululemon'),
+  hm:             require('./stores/hm'),
+  aritzia:        require('./stores/aritzia'),
+  arcteryx:       require('./stores/arcteryx'),
+  hollister:      require('./stores/hollister'),
+  abercrombie:    require('./stores/abercrombie'),
+  americaneagle:  require('./stores/americaneagle'),
+  musinsa:        require('./stores/musinsa'),
+  clubmonaco:     require('./stores/clubmonaco'),
+  bananarepublic: require('./stores/bananarepublic'),
+  asos:           require('./stores/asos'),
 };
 
 const CACHE_PATH = path.join(__dirname, '../data/deals.json');
