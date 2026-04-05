@@ -76,6 +76,41 @@ async function scrape(browser, onProgress = () => {}) {
           const n = parseFloat((el?.textContent || '').replace(/[^0-9.]/g, ''));
           return isNaN(n) ? null : n;
         };
+
+        // Try Next.js SSR data first (Vuori is on Next.js)
+        try {
+          const nextData = window.__NEXT_DATA__?.props?.pageProps;
+          const products =
+            nextData?.collection?.products ||
+            nextData?.products ||
+            nextData?.category?.products || [];
+          if (products.length > 0) {
+            const seen = new Set();
+            return products.map(p => {
+              const name = p.title || p.name || '';
+              if (!name) return null;
+              const handle = p.handle || '';
+              const url = handle ? `https://vuoriclothing.com/products/${handle}` : '';
+              if (!url || seen.has(url)) return null;
+              seen.add(url);
+              const variants = p.variants || [];
+              let priceUSD = null, origUSD = null;
+              for (const v of variants) {
+                const vPrice = parseFloat(v.price || 0);
+                const vCompare = parseFloat(v.compare_at_price || 0);
+                if (vCompare > vPrice && (priceUSD === null || vPrice < priceUSD)) {
+                  priceUSD = vPrice; origUSD = vCompare;
+                }
+              }
+              if (!priceUSD || !origUSD || priceUSD >= origUSD) return null;
+              const discount = Math.round((1 - priceUSD / origUSD) * 100);
+              if (discount <= 0) return null;
+              const image = p.images?.[0]?.src || '';
+              return { store: storeName, storeKey, name, url, image, price: priceUSD, originalPrice: origUSD, discount, gender: defaultGender, tags: [] };
+            }).filter(Boolean);
+          }
+        } catch (_) {}
+
         const cards = document.querySelectorAll(
           '[class*="product-card"], [class*="ProductCard"], [data-testid="product-card"], [class*="product-tile"]'
         );
