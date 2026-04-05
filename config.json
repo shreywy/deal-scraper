@@ -132,7 +132,7 @@
       "category": "clothing"
     },
     "vuori": {
-      "enabled": true,
+      "enabled": false,
       "name": "Vuori",
       "domain": "vuoriclothing.com",
       "currency": "USD",

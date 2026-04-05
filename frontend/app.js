@@ -11,13 +11,17 @@ let config = null;
 const TILE_WIDTHS = { 1: 480, 2: 360, 3: 280, 4: 220, 5: 175, 6: 150, 7: 125, 8: 100 };
 const SIZE_LABELS = { 1: 'XL', 2: 'L', 3: 'M-L', 4: 'M', 5: 'M-S', 6: 'S', 7: 'XS', 8: 'XXS' };
 
-const filters = {
-  store: 'all',
-  gender: 'all',
-  category: 'all',
-  price: 'all',
-  discount: '0',
-};
+const FILTER_DEFAULTS = { store: 'all', gender: 'all', category: 'all', price: 'all', discount: '0' };
+const filters = (() => {
+  try {
+    const saved = JSON.parse(localStorage.getItem('dealFilters') || 'null');
+    return saved ? { ...FILTER_DEFAULTS, ...saved } : { ...FILTER_DEFAULTS };
+  } catch (_) { return { ...FILTER_DEFAULTS }; }
+})();
+
+function saveFilters() {
+  try { localStorage.setItem('dealFilters', JSON.stringify(filters)); } catch (_) {}
+}
 
 // Pagination
 const PAGE_SIZE = 100;
@@ -347,8 +351,9 @@ function buildDynamicFilters() {
     }
   }
 
-  // Re-sync active states
+  // Re-sync active states (including gender which has static HTML pills)
   syncPillActive('store', filters.store);
+  syncPillActive('gender', filters.gender);
   syncPillActive('category', filters.category);
   syncPillActive('price', filters.price);
   syncPillActive('discount', filters.discount);
@@ -542,13 +547,10 @@ function renderResultsBar() {
 }
 
 function resetAllFilters() {
-  filters.store = 'all';
-  filters.gender = 'all';
-  filters.category = 'all';
-  filters.price = 'all';
-  filters.discount = '0';
+  Object.assign(filters, FILTER_DEFAULTS);
   ['store', 'gender', 'category', 'price', 'discount'].forEach(k => syncPillActive(k, filters[k]));
   currentPage = 1;
+  saveFilters();
   applyFiltersAndRender();
 }
 
@@ -869,6 +871,7 @@ function togglePill(el) {
     filters[filterKey] = value;
   }
   currentPage = 1;
+  saveFilters();
   applyFiltersAndRender();
 }
 
@@ -876,6 +879,7 @@ function clearFilter(key) {
   filters[key] = key === 'discount' ? '0' : 'all';
   syncPillActive(key, filters[key]);
   currentPage = 1;
+  saveFilters();
   applyFiltersAndRender();
 }
 
