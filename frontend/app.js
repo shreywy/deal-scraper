@@ -288,11 +288,13 @@ function loadDeals(deals) {
 }
 
 function buildDynamicFilters() {
-  // Store pills
-  const stores = [...new Set(allDeals.map(d => d.store))].sort();
+  // Store pills — built from config (all enabled stores) so they appear even with 0 deals
   const storePills = document.getElementById('storePills');
   storePills.innerHTML = makePill('store', 'all', 'All', true);
-  for (const s of stores) storePills.insertAdjacentHTML('beforeend', makePill('store', s, s));
+  const configStores = config?.stores
+    ? Object.values(config.stores).filter(s => s.enabled).map(s => s.name).sort()
+    : [...new Set(allDeals.map(d => d.store))].sort();
+  for (const s of configStores) storePills.insertAdjacentHTML('beforeend', makePill('store', s, s));
 
   // Category pills
   const GENDER_TAGS = new Set(['Men', 'Women', 'Unisex', 'Kids']);

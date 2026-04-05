@@ -18,9 +18,11 @@ const CATEGORY_MAP = [
   { tag: 'Accessories', keywords: ['bag', 'tote', 'backpack', 'wallet', 'belt', 'hat', 'cap', 'beanie', 'glove', 'scarf', 'sunglasses', 'watch', 'jewelry', 'jewellery', 'necklace', 'bracelet', 'earring'] },
 ];
 
+// Women must come before Men — 'mens' is a substring of 'womens', and 'male' of 'female'.
+// Checking Women first ensures "womens shorts" → Women, not Men.
 const GENDER_MAP = [
-  { tag: 'Men',   keywords: ['men\'s', 'mens', ' men ', 'male', 'boy', 'boys'] },
   { tag: 'Women', keywords: ['women\'s', 'womens', ' women ', 'female', 'girl', 'girls', 'ladies'] },
+  { tag: 'Men',   keywords: ['men\'s', 'mens', ' men ', 'male', 'boy', 'boys'] },
   { tag: 'Kids',  keywords: ['kids', 'children', 'toddler', 'infant', 'baby', 'youth'] },
 ];
 
