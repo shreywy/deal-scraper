@@ -7,81 +7,108 @@ const STORE_NAME = 'ASOS';
 const STORE_KEY = 'asos';
 const CURRENCY = 'USD'; // ASOS uses USD for Canadian customers
 
-// ASOS product search API — public, no auth required.
-// Store: 10&Country=CA to get Canadian prices
-const ASOS_API = 'https://api.asos.com/product/search/v2/categories';
-const STORE_ID = '10'; // US/International store
-
-// ASOS sale category IDs
-const SALE_CATEGORIES = [
-  { id: '8799', label: "men's sale", gender: 'Men' },
-  { id: '8801', label: "women's sale", gender: 'Women' },
+// ASOS sale category pages
+const SALE_PAGES = [
+  { url: 'https://www.asos.com/men/sale/cat/?cid=8799', label: "men's sale", gender: 'Men' },
+  { url: 'https://www.asos.com/women/sale/cat/?cid=8801', label: "women's sale", gender: 'Women' },
 ];
 
 /**
  * ASOS — global fashion retailer, ships to Canada (USD prices, converted to CAD).
- * Uses ASOS product search API.
+ * Uses Playwright browser XHR interception to capture ASOS internal API calls.
  *
  * @param {import('playwright').Browser} browser
  * @param {function(string):void} [onProgress]
  * @returns {Promise<import('../index').Deal[]>}
  */
 async function scrape(browser, onProgress = () => {}) {
-  onProgress('ASOS: fetching sale products…');
+  onProgress('ASOS: loading sale pages…');
 
-  const fetch = require('node-fetch');
   const rate = await getUSDtoCAD();
   const allDeals = [];
   const seen = new Set();
 
-  for (const { id: catId, label, gender } of SALE_CATEGORIES) {
-    let offset = 0;
-    const limit = 72;
+  const context = await browser.newContext({
+    viewport: { width: 1920, height: 1080 },
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+    locale: 'en-US',
+    extraHTTPHeaders: { 'Accept-Language': 'en-US,en;q=0.9' },
+  });
 
-    while (true) {
-      // ASOS product search API (reverse-engineered from their site)
-      const params = new URLSearchParams({
-        store:       STORE_ID,
-        lang:        'en-US',
-        currency:    'USD',
-        sizeSchema:  'US',
-        keyStoreDataversion: 'ornjx70-36',
-        offset:      String(offset),
-        limit:       String(limit),
-        attribute_1047: '7',  // sale filter
-      });
+  const rawProducts = [];
+  const seenIds = new Set();
 
-      const url = `${ASOS_API}/${catId}/products?${params}`;
-      try {
-        const res = await fetch(url, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-            'Accept': 'application/json',
-            'Referer': 'https://www.asos.com/',
-            'Origin': 'https://www.asos.com',
-          },
-        });
-        if (!res.ok) break;
-        const data = await res.json();
-        const products = data?.products || [];
-        if (products.length === 0) break;
+  // Intercept API responses containing product data
+  context.on('response', async response => {
+    const url = response.url();
+    const ct = response.headers()['content-type'] || '';
 
+    // Look for JSON responses from ASOS
+    if (!ct.includes('application/json') && !ct.includes('json')) return;
+    if (!url.includes('asos')) return;
+
+    try {
+      const json = await response.json();
+
+      // ASOS might use different property names
+      const products = json?.products || json?.items || json?.data?.products || [];
+
+      if (Array.isArray(products) && products.length > 0) {
         for (const p of products) {
-          const d = mapProduct(p, gender, rate, seen);
-          if (d) allDeals.push(d);
+          const id = p.id || p.productId || p.variantId;
+          if (id && !seenIds.has(id)) {
+            seenIds.add(id);
+            rawProducts.push(p);
+          }
         }
-        onProgress(`ASOS: fetched ${allDeals.length} ${label} products…`);
-
-        const itemCount = data?.itemCount || 0;
-        offset += limit;
-        if (products.length < limit || offset >= itemCount || offset > 500) break;
-      } catch (_) { break; }
+      }
+    } catch (_) {
+      // Ignore parsing errors
     }
-  }
+  });
 
-  if (allDeals.length === 0) {
-    onProgress('ASOS: API unavailable, trying browser…');
-    return await browserScrape(browser, rate, onProgress);
+  const page = await context.newPage();
+
+  try {
+    for (const { url, label, gender } of SALE_PAGES) {
+      onProgress(`ASOS: loading ${label}…`);
+
+      try {
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
+
+        // Accept cookies if prompt appears
+        try {
+          await page.click('#onetrust-accept-btn-handler', { timeout: 4000 });
+        } catch (_) {
+          // Cookie banner not present
+        }
+
+        // Wait for API calls to be made
+        await page.waitForTimeout(8000);
+
+        // Scroll to trigger lazy loading of products
+        for (let i = 0; i < 6; i++) {
+          await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+          await page.waitForTimeout(3000);
+        }
+
+        onProgress(`ASOS: intercepted ${rawProducts.length} products from ${label}…`);
+      } catch (err) {
+        onProgress(`ASOS: error loading ${label} — ${err.message}`);
+      }
+    }
+
+    // Process all intercepted products
+    for (const p of rawProducts) {
+      const genderGuess = p.gender || '';
+      const d = mapProduct(p, genderGuess, rate, seen);
+      if (d) allDeals.push(d);
+    }
+  } catch (err) {
+    onProgress(`ASOS: browser error — ${err.message}`);
+  } finally {
+    await page.close();
+    await context.close();
   }
 
   onProgress(`ASOS: found ${allDeals.length} deals`);
@@ -133,58 +160,6 @@ function mapProduct(p, gender, rate, seen) {
       scrapedAt: new Date().toISOString(),
     };
   } catch (_) { return null; }
-}
-
-async function browserScrape(browser, rate, onProgress) {
-  const context = await browser.newContext({
-    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-    locale: 'en-CA',
-    extraHTTPHeaders: { 'Accept-Language': 'en-CA,en;q=0.9' },
-  });
-
-  const rawProducts = [];
-  const seenIds = new Set();
-
-  context.on('response', async response => {
-    const url = response.url();
-    const ct = response.headers()['content-type'] || '';
-    if (!ct.includes('application/json')) return;
-    if (!url.includes('asos.com') && !url.includes('asos-media')) return;
-    try {
-      const json = await response.json();
-      const products = json?.products || [];
-      for (const p of (Array.isArray(products) ? products : [])) {
-        const id = p.id || p.productId;
-        if (id && !seenIds.has(id)) { seenIds.add(id); rawProducts.push({ p, gender: '' }); }
-      }
-    } catch (_) {}
-  });
-
-  const page = await context.newPage();
-  const seen = new Set();
-  const allDeals = [];
-
-  try {
-    await page.goto('https://www.asos.com/men/sale/cat/?cid=8799', { waitUntil: 'domcontentloaded', timeout: 30000 });
-    try { await page.click('#onetrust-accept-btn-handler', { timeout: 4000 }); } catch (_) {}
-    await page.waitForTimeout(3000);
-    for (let i = 0; i < 3; i++) {
-      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-      await page.waitForTimeout(1500);
-    }
-    for (const { p, gender } of rawProducts) {
-      const d = mapProduct(p, gender, rate, seen);
-      if (d) allDeals.push(d);
-    }
-  } catch (err) {
-    onProgress(`ASOS: browser error — ${err.message}`);
-  } finally {
-    await page.close();
-    await context.close();
-  }
-
-  onProgress(`ASOS: found ${allDeals.length} deals`);
-  return allDeals;
 }
 
 function slugify(str) {

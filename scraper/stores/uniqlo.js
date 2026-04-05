@@ -17,6 +17,7 @@ const API_CANDIDATES = [
   'https://www.uniqlo.com/ca/api/commerce/v5/en/products?path=/sale&limit=100&offset=0',
   'https://www.uniqlo.com/ca/api/commerce/v5/en/products?path=%2Fsale-and-special-offers&limit=100&offset=0&httpFailure=true',
   'https://www.uniqlo.com/ca/api/commerce/v3/en/products?path=%2Fsale&limit=100&offset=0',
+  'https://www.uniqlo.com/ca/api/commerce/v5/en/products?path=/sale&limit=100',
 ];
 
 /**
@@ -137,11 +138,13 @@ async function scrapeViaBrowser(browser, onProgress) {
 
     try {
       const json = await response.json();
-      // Try multiple item container keys
-      const items = json?.result?.items || json?.items || json?.products || [];
+      // Enhanced XHR interception - try multiple item container keys and patterns
+      // Uniqlo Canada sometimes uses /api/commerce/ endpoints
+      const items = json?.result?.items || json?.items || json?.products || json?.payload?.items || [];
       for (const item of items) {
-        if (item?.productId && !interceptedIds.has(item.productId)) {
-          interceptedIds.add(item.productId);
+        const itemId = item?.productId || item?.code || item?.id;
+        if (itemId && !interceptedIds.has(itemId)) {
+          interceptedIds.add(itemId);
           intercepted.push(item);
         }
       }

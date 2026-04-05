@@ -32,6 +32,12 @@ const SCRAPERS = {
   clubmonaco:     require('./stores/clubmonaco'),
   bananarepublic: require('./stores/bananarepublic'),
   asos:           require('./stores/asos'),
+  // New stores
+  patagonia:      require('./stores/patagonia'),
+  gap:            require('./stores/gap'),
+  levis:          require('./stores/levis'),
+  reigningchamp:  require('./stores/reigningchamp'),
+  sportchek:      require('./stores/sportchek'),
 };
 
 const CACHE_PATH = path.join(__dirname, '../data/deals.json');

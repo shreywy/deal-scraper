@@ -46,14 +46,16 @@ async function fetchFromAPI(rate, onProgress) {
 
   while (true) {
     // Musinsa's sale/outlet product listing API (global English store)
-    const url = `https://global.musinsa.com/api/goods/lists?page=${page}&sortCode=discount_rate&onSale=true&perPage=60`;
+    // Updated to use SALE sortCode and salePriceFilter
+    const url = `https://global.musinsa.com/api/goods/lists?page=${page}&sortCode=SALE&salePriceFilter=true&perPage=60`;
     const res = await fetch(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
         'Accept': 'application/json, text/plain, */*',
         'Accept-Language': 'en-US,en;q=0.9',
         'Origin': 'https://global.musinsa.com',
-        'Referer': 'https://global.musinsa.com/sale',
+        'Referer': 'https://global.musinsa.com/en/sale',
+        'Cookie': 'country_code=US; language=en',
       },
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -122,6 +124,12 @@ async function browserScrape(browser, rate, onProgress) {
     extraHTTPHeaders: { 'Accept-Language': 'en-US,en;q=0.9' },
   });
 
+  // Add location cookies before navigation to avoid redirect
+  await context.addCookies([
+    { name: 'country_code', value: 'US', domain: '.musinsa.com', path: '/' },
+    { name: 'language', value: 'en', domain: '.musinsa.com', path: '/' }
+  ]);
+
   const rawProducts = [];
   const seenIds = new Set();
 
@@ -130,11 +138,21 @@ async function browserScrape(browser, rate, onProgress) {
     const ct = response.headers()['content-type'] || '';
     if (!ct.includes('application/json')) return;
     if (!url.includes('musinsa.com')) return;
+
+    // Log intercepted API calls for debugging
+    if (url.includes('/api/') || url.includes('goods') || url.includes('product')) {
+      onProgress(`Musinsa: intercepted API call: ${url.substring(0, 80)}…`);
+    }
+
     try {
       const json = await response.json();
-      const products = json?.data?.goods || json?.goods || json?.products || [];
+      // Enhanced XHR interception - look for goods/products in multiple locations
+      const products = json?.data?.goods || json?.goods || json?.products || json?.data?.list || [];
+      if (Array.isArray(products) && products.length > 0) {
+        onProgress(`Musinsa: found ${products.length} products in API response`);
+      }
       for (const p of (Array.isArray(products) ? products : [])) {
-        const id = p.goodsNo || p.id;
+        const id = p.goodsNo || p.id || p.goodsId;
         if (id && !seenIds.has(id)) { seenIds.add(id); rawProducts.push(p); }
       }
     } catch (_) {}
@@ -145,12 +163,44 @@ async function browserScrape(browser, rate, onProgress) {
   const allDeals = [];
 
   try {
-    await page.goto('https://global.musinsa.com/en/sale', { waitUntil: 'domcontentloaded', timeout: 35000 });
+    // Navigate directly to /en/ path with location info in URL if possible
+    onProgress('Musinsa: navigating to sale page…');
+    await page.goto('https://global.musinsa.com/en/sale', { waitUntil: 'domcontentloaded', timeout: 45000 });
     await page.waitForTimeout(3000);
 
-    for (let i = 0; i < 4; i++) {
+    // Check if we hit location chooser - if so, try to select USA
+    const pageText = await page.textContent('body');
+    if (pageText && pageText.includes('CHOOSE YOUR LOCATION')) {
+      onProgress('Musinsa: bypassing location chooser…');
+
+      // Try multiple strategies to select location
+      try {
+        // Strategy 1: Click visible USA/US button
+        await page.click('text=/United States|USA|US/i', { timeout: 5000 });
+        await page.waitForTimeout(2000);
+      } catch (_) {
+        try {
+          // Strategy 2: Click any location to proceed (e.g., first available)
+          await page.click('button:has-text("Japan"), button:has-text("Hong Kong"), a:has-text("Japan")', { timeout: 3000 });
+          await page.waitForTimeout(2000);
+        } catch (__) {
+          // Strategy 3: Use context addCookies and reload
+          await context.addCookies([
+            { name: 'isShownLocation', value: 'true', domain: '.musinsa.com', path: '/' },
+            { name: 'selectedCountry', value: 'US', domain: '.musinsa.com', path: '/' },
+          ]);
+          await page.reload({ waitUntil: 'domcontentloaded' });
+          await page.waitForTimeout(3000);
+        }
+      }
+    }
+
+    await page.waitForTimeout(3000);
+
+    onProgress('Musinsa: scrolling to load products…');
+    for (let i = 0; i < 6; i++) {
       await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-      await page.waitForTimeout(1500);
+      await page.waitForTimeout(2000);
     }
 
     for (const p of rawProducts) {
@@ -158,33 +208,66 @@ async function browserScrape(browser, rate, onProgress) {
       if (d) allDeals.push(d);
     }
 
-    if (allDeals.length === 0) {
-      const domDeals = await page.evaluate(({ storeName, storeKey }) => {
+    onProgress(`Musinsa: captured ${allDeals.length} deals from XHR, trying DOM scrape…`);
+
+    // Debug: check page content
+    const pageTitle = await page.title();
+    const bodyText = await page.evaluate(() => document.body?.textContent?.substring(0, 200));
+    onProgress(`Musinsa: page title="${pageTitle}", body preview="${bodyText}"`);
+
+    const domDeals = await page.evaluate(({ storeName, storeKey }) => {
         const parsePrice = el => {
-          const n = parseFloat((el?.textContent || '').replace(/[^0-9.]/g, ''));
+          if (!el) return null;
+          const text = el.textContent || '';
+          const n = parseFloat(text.replace(/[^0-9.]/g, ''));
           return isNaN(n) ? null : n;
         };
-        const cards = document.querySelectorAll('[class*="goods-item"], [class*="product-item"], [class*="GoodsCard"]');
+
+        // Try multiple selector patterns
+        const selectors = [
+          '[class*="goods-item"]',
+          '[class*="product-item"]',
+          '[class*="GoodsCard"]',
+          '[class*="ProductCard"]',
+          '[class*="product-card"]',
+          'article[class*="product"]',
+          'li[class*="product"]',
+          '[data-goods-no]'
+        ];
+
+        let cards = [];
+        for (const sel of selectors) {
+          cards = [...document.querySelectorAll(sel)];
+          if (cards.length > 0) break;
+        }
+
         const seen = new Set();
         return [...cards].map(card => {
           const link = card.querySelector('a[href]');
           const url = link?.href || '';
           if (!url || seen.has(url)) return null;
           seen.add(url);
-          const name = card.querySelector('[class*="name"], [class*="title"]')?.textContent?.trim() || '';
-          const origEl = card.querySelector('del, s, [class*="origin"], [class*="normal-price"]');
-          const saleEl = card.querySelector('[class*="sale-price"], [class*="discount-price"], [class*="special-price"]');
+
+          const nameEl = card.querySelector('[class*="name"], [class*="title"], h2, h3, h4, p[class*="name"]');
+          const name = nameEl?.textContent?.trim() || '';
+
+          // Try multiple price selectors
+          const origEl = card.querySelector('del, s, [class*="origin"], [class*="normal"], [class*="before"], [class*="was"]');
+          const saleEl = card.querySelector('[class*="sale"], [class*="discount"], [class*="special"], [class*="current"], strong');
+
           const imgEl = card.querySelector('img');
           const price = parsePrice(saleEl);
           const originalPrice = parsePrice(origEl);
+
           if (!name || !price || !originalPrice || price >= originalPrice) return null;
           const discount = Math.round((1 - price / originalPrice) * 100);
           if (discount <= 0) return null;
+
           return { store: storeName, storeKey, name, url, image: imgEl?.src || '', price, originalPrice, discount, tags: [] };
         }).filter(Boolean);
       }, { storeName: STORE_NAME, storeKey: STORE_KEY });
       allDeals.push(...domDeals);
-    }
+
   } catch (err) {
     onProgress(`Musinsa: browser error — ${err.message}`);
   } finally {

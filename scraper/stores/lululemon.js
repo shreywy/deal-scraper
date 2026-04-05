@@ -8,7 +8,7 @@ const CURRENCY = 'CAD';
 
 // Lululemon CA sale pages
 const SALE_URLS = [
-  'https://www.lululemon.com/en-ca/c/sale/',
+  'https://www.lululemon.com/en-ca/c/womens-sale/',
   'https://www.lululemon.com/en-ca/c/mens-sale/',
 ];
 
@@ -51,7 +51,14 @@ async function scrape(browser, onProgress = () => {}) {
     try {
       await page.goto(saleUrl, { waitUntil: 'domcontentloaded', timeout: 35000 });
       try { await page.click('[data-testid="accept-cookies"], #onetrust-accept-btn-handler', { timeout: 4000 }); } catch (_) {}
-      await page.waitForTimeout(3000);
+      await page.waitForTimeout(5000);
+
+      // Wait for product grid to load
+      try {
+        await page.waitForSelector('[data-testid="product-card"], [class*="ProductCard"]', { timeout: 10000 });
+      } catch (_) {
+        onProgress(`Lululemon: no product cards found on ${saleUrl}`);
+      }
 
       // Scroll to trigger lazy loading
       for (let i = 0; i < 5; i++) {

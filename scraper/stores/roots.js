@@ -8,7 +8,7 @@ const STORE_KEY = 'roots';
 const CURRENCY = 'CAD';
 
 const SALE_URLS = [
-  'https://www.roots.com/en-ca/c/sale/?sz=120',
+  'https://www.roots.com/en-ca/sale?sz=120',
 ];
 
 /**
@@ -35,7 +35,15 @@ async function scrape(browser, onProgress = () => {}) {
     try {
       await page.goto(saleUrl, { waitUntil: 'domcontentloaded', timeout: 35000 });
       try { await page.click('#onetrust-accept-btn-handler', { timeout: 4000 }); } catch (_) {}
-      await page.waitForTimeout(2000);
+      await page.waitForTimeout(3000);
+
+      // Wait for product grid to load
+      try {
+        await page.waitForSelector('[data-testid="product-card"], [class*="ProductCard"], [class*="product-card"], li[class*="product"]', { timeout: 10000 });
+      } catch (_) {
+        onProgress('Roots Canada: no product cards found');
+      }
+
       await loadAll(page, onProgress);
 
       const deals = await page.evaluate(({ storeName, storeKey }) => {

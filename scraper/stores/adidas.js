@@ -110,7 +110,12 @@ async function scrapeViaBrowser(browser, onProgress) {
   const context = await browser.newContext({
     userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
     locale: 'en-CA',
-    extraHTTPHeaders: { 'Accept-Language': 'en-CA,en;q=0.9' },
+    extraHTTPHeaders: {
+      'Accept-Language': 'en-CA,en;q=0.9',
+      'sec-ch-ua': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
+      'sec-ch-ua-mobile': '?0',
+      'sec-ch-ua-platform': '"Windows"',
+    },
   });
   const page = await context.newPage();
 
@@ -125,42 +130,58 @@ async function scrapeViaBrowser(browser, onProgress) {
 
     try {
       const json = await response.json();
-      const items = json?.plpState?.products || json?.items || json?.products || [];
+      // Look for plpState.products in various response shapes
+      const items = json?.plpState?.products || json?.itemList?.items || json?.items || json?.products || [];
       for (const p of items) {
-        const id = p.productId || p.id || Math.random();
+        const id = p.productId || p.id || p.modelId || Math.random();
         if (!seenIds.has(id)) { seenIds.add(id); rawProducts.push(p); }
       }
     } catch (_) {}
   });
 
   try {
-    onProgress('Adidas: navigating to sale page…');
-    await page.goto(SALE_URL, { waitUntil: 'domcontentloaded', timeout: 35000 });
+    // Try multiple sale URLs
+    const urls = [
+      SALE_URL,
+      'https://www.adidas.ca/en/mens-sale',
+      'https://www.adidas.ca/en/womens-sale',
+    ];
 
-    try {
-      await page.click('#onetrust-accept-btn-handler, button[class*="accept"]', { timeout: 4000 });
-    } catch (_) {}
-
-    await page.waitForTimeout(2000);
-
-    // Click "Show More" until exhausted
-    let round = 0;
-    while (round < 25) {
-      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-      await page.waitForTimeout(1500);
+    for (const url of urls) {
+      onProgress(`Adidas: trying ${url}…`);
       try {
-        const btn = await page.$('button[data-auto-id="plp-show-more-button"], [class*="show-more"], [class*="ShowMore"]');
-        if (!btn || !(await btn.isVisible())) break;
-        await btn.click();
-        round++;
-        onProgress(`Adidas: loading more (batch ${round + 1})…`);
-        await page.waitForTimeout(2000);
-      } catch (_) { break; }
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 35000 });
+
+        try {
+          await page.click('#onetrust-accept-btn-handler, button[class*="accept"]', { timeout: 4000 });
+        } catch (_) {}
+
+        await page.waitForTimeout(3000);
+
+        // Click "Show More" until exhausted
+        let round = 0;
+        while (round < 25) {
+          await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+          await page.waitForTimeout(1500);
+          try {
+            const btn = await page.$('button[data-auto-id="plp-show-more-button"], [class*="show-more"], [class*="ShowMore"]');
+            if (!btn || !(await btn.isVisible())) break;
+            await btn.click();
+            round++;
+            onProgress(`Adidas: loading more (batch ${round + 1})…`);
+            await page.waitForTimeout(2000);
+          } catch (_) { break; }
+        }
+
+        if (rawProducts.length > 0) break;
+      } catch (err) {
+        onProgress(`Adidas: ${url} failed — ${err.message}`);
+      }
     }
 
     if (rawProducts.length > 0) {
       const deals = rawProducts.map(p => mapAdidasProduct(p)).filter(Boolean);
-      onProgress(`Adidas: found ${deals.length} deals (browser)`);
+      onProgress(`Adidas: found ${deals.length} deals (XHR)`);
       return deals;
     }
 
@@ -169,6 +190,7 @@ async function scrapeViaBrowser(browser, onProgress) {
       const cards = [
         ...document.querySelectorAll('[data-auto-id="product-card"]'),
         ...document.querySelectorAll('[class*="product-card"]'),
+        ...document.querySelectorAll('div[class*="grid-item"]'),
       ];
       const parsePrice = el => el ? parseFloat(el.textContent.replace(/[^0-9.]/g, '')) : null;
       const seen = new Set();
@@ -177,9 +199,9 @@ async function scrapeViaBrowser(browser, onProgress) {
         const url = link?.href || '';
         if (!url || seen.has(url)) return null;
         seen.add(url);
-        const nameEl = card.querySelector('[class*="name"], [data-auto-id="glass-hanger-title"], h2, h3');
-        const salePriceEl = card.querySelector('[class*="sale-price"], [aria-label*="sale"], [class*="SalePrice"]');
-        const origPriceEl = card.querySelector('[class*="original"], s, del');
+        const nameEl = card.querySelector('[class*="name"], [data-auto-id="glass-hanger-title"], h2, h3, [class*="title"]');
+        const salePriceEl = card.querySelector('[class*="sale-price"], [aria-label*="sale"], [class*="SalePrice"], [class*="gl-price-item--sale"]');
+        const origPriceEl = card.querySelector('[class*="original"], s, del, [class*="strikethrough"]');
         const imgEl = card.querySelector('img[src]');
         const name = nameEl?.textContent?.trim() || '';
         const price = parsePrice(salePriceEl);
