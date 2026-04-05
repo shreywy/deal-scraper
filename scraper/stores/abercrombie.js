@@ -175,7 +175,7 @@ async function browserScrape(browser, onProgress) {
           seen.add(url);
           const li = link.closest('li');
           if (!li) return null;
-          const nameEl = li.querySelector('h2, h3, [class*="name"]');
+          const nameEl = li.querySelector('.product-name h2, .product-name h3');
           const name = nameEl?.textContent?.trim() || '';
           const priceTexts = li.querySelectorAll('.product-price-text');
           if (priceTexts.length < 2) return null;
