@@ -108,9 +108,14 @@ deal-scraper/
 - `package.json` — npm project, scripts: `npm start`, `npm run scrape`
 - `config.json` — store toggles + settings
 - `scraper/tagger.js` — auto-tags products by gender + category from name keywords
-- `scraper/stores/underarmour.js` — Playwright DOM scraper (SFCC site, scrapes /sale/ + /outlet/, tries window.__STORE_STATE__ first then DOM)
-- `scraper/stores/uniqlo.js` — tries JSON API first (`/api/commerce/v5/en/products?path=/sale`), falls back to XHR intercept, then DOM
-- `scraper/stores/zara.js` — Playwright + XHR intercept (multiple sale URLs), falls back to DOM
+- `scraper/stores/underarmour.js` — SFCC, scrapes /sale/?sz=120 + /outlet/?sz=120, tries window.__STORE_STATE__ then DOM
+- `scraper/stores/uniqlo.js` — XHR intercept (API requires client-id so browser-only), then DOM
+- `scraper/stores/zara.js` — XHR intercept (sections→elements→commercialComponents), DOM fallback
+- `scraper/stores/gymshark.js` — XHR intercept + Next.js __NEXT_DATA__ + DOM fallback (CAD)
+- `scraper/stores/nike.js` — api.nike.com XHR intercept + Load More loop + DOM fallback (CAD)
+- `scraper/stores/adidas.js` — plp/content-engine API (paginated, public) + browser fallback (CAD)
+- `scraper/stores/youngla.js` — XHR intercept + DOM, USD prices → converted to CAD via live rate
+- `scraper/currency.js` — fetches live USD→CAD rate from open.er-api.com (cached 1h)
 - `scraper/index.js` — orchestrator, runs all scrapers in parallel, caches to `data/deals.json`
 - `server/index.js` — Express server: `/api/deals`, `/api/refresh` (SSE), `/api/config` GET+PATCH
 - `index.js` — entry point, starts server + auto-opens browser (scrape triggered by frontend SSE connection)
@@ -119,13 +124,17 @@ deal-scraper/
 - `frontend/app.js` — full frontend JS: SSE refresh stream, filtering, sorting, settings drawer, dark mode, grid resize
 
 ### TODO 🔲
-- Test each scraper against live sites (scrapers may need selector tuning once we see real page structure)
-- Test end-to-end: `npm start` → browser opens → deals load → refresh completes
+- Test each scraper against live sites and tune selectors based on actual page structure
+- Gymshark/Nike/Adidas selectors need validation after first live run
+- Add more Canadian retailers (Aritzia, Lululemon, Arc'teryx, etc.)
 
 ### Known issues / next steps
-- Scraping research agents hit rate limits mid-run — selectors in scrapers are best-guess from public knowledge. Run `npm run scrape` and check what each site actually returns, then tune selectors.
-- Zara's API paths change periodically — XHR intercept is the most resilient approach
-- Uniqlo API URL might need adjustment — the scraper tries the JSON API first then falls back to DOM
+- Uniqlo API requires `x-fr-clientid` header — browser XHR intercept is the only working approach
+- Zara API paths change periodically — XHR intercept with broad pattern matching is the right approach
+- YoungLA/Gymshark products.json blocked — Playwright browser scraping required
+- Adidas plp API sometimes returns 403 depending on IP/headers — browser fallback handles this
+- Cached items don't auto-remove when they go off-sale: they stay until next scrape completes
+  (by design — the strip shows "X ago" and turns orange if cache is >12h old)
 
 ## How to run
 
