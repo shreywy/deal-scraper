@@ -28,13 +28,13 @@ app.get('/api/deals', (req, res) => {
 });
 
 // ── GET /api/status ──────────────────────────────────────────────────────────
-// Returns last scrape metadata without the full deals array
 app.get('/api/status', (req, res) => {
   const cache = loadCache();
-  if (!cache) return res.json({ scrapedAt: null, dealCount: 0, storeResults: {}, scrapeInProgress });
+  if (!cache) return res.json({ scrapedAt: null, dealCount: 0, storeResults: {}, usdToCAD: null, scrapeInProgress });
   res.json({
     scrapedAt: cache.scrapedAt,
     dealCount: cache.deals.length,
+    usdToCAD: cache.usdToCAD || null,
     storeResults: cache.storeResults || {},
     scrapeInProgress,
   });

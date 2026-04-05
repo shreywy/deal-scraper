@@ -3,11 +3,16 @@
 const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
+const { getUSDtoCAD } = require('./currency');
 
 const SCRAPERS = {
   underarmour: require('./stores/underarmour'),
   uniqlo: require('./stores/uniqlo'),
   zara: require('./stores/zara'),
+  gymshark: require('./stores/gymshark'),
+  youngla: require('./stores/youngla'),
+  nike: require('./stores/nike'),
+  adidas: require('./stores/adidas'),
 };
 
 const CACHE_PATH = path.join(__dirname, '../data/deals.json');
@@ -45,6 +50,13 @@ async function runAll(config, onProgress = () => {}) {
   }
 
   onProgress(`Starting scrape for: ${enabledStores.join(', ')}`);
+
+  // Fetch exchange rate upfront for USD stores
+  let usdToCAD = 1.38;
+  try {
+    usdToCAD = await getUSDtoCAD();
+    onProgress(`Currency: 1 USD = ${usdToCAD.toFixed(4)} CAD`);
+  } catch (_) {}
 
   const browser = await chromium.launch({
     headless: true,
@@ -90,6 +102,7 @@ async function runAll(config, onProgress = () => {}) {
     fs.mkdirSync(path.dirname(CACHE_PATH), { recursive: true });
     fs.writeFileSync(CACHE_PATH, JSON.stringify({
       scrapedAt: new Date().toISOString(),
+      usdToCAD,
       storeResults,
       deals: filtered,
     }, null, 2));

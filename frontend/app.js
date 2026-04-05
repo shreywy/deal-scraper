@@ -203,20 +203,21 @@ function buildDynamicFilters() {
   catPills.innerHTML = makePill('category', 'all', 'All', true);
   for (const c of cats) catPills.insertAdjacentHTML('beforeend', makePill('category', c, c));
 
-  // Dynamic price range pills — only show ranges where deals exist
+  // Dynamic price range pills — use CAD price for consistency
+  const cadPrice = d => (d.currency === 'USD' && d.priceCAD) ? d.priceCAD : d.price;
   const PRICE_BREAKS = [25, 50, 100, 200, 500];
   const pricePills = document.getElementById('pricePills');
   pricePills.innerHTML = makePill('price', 'all', 'Any', true);
   let prev = 0;
   for (const bp of PRICE_BREAKS) {
-    const count = allDeals.filter(d => d.price > prev && d.price <= bp).length;
+    const count = allDeals.filter(d => cadPrice(d) > prev && cadPrice(d) <= bp).length;
     if (count > 0) {
       const label = prev === 0 ? `Under $${bp}` : `$${prev}–$${bp}`;
       pricePills.insertAdjacentHTML('beforeend', makePill('price', `${prev}-${bp}`, label));
     }
     prev = bp;
   }
-  const above = allDeals.filter(d => d.price > prev).length;
+  const above = allDeals.filter(d => cadPrice(d) > prev).length;
   if (above > 0) pricePills.insertAdjacentHTML('beforeend', makePill('price', `${prev}-99999`, `$${prev}+`));
 
   // Dynamic discount pills — only show thresholds where deals exist
@@ -255,7 +256,11 @@ function applyFiltersAndRender() {
   if (filters.category !== 'all') deals = deals.filter(d => d.tags.includes(filters.category));
   if (filters.price !== 'all') {
     const [lo, hi] = filters.price.split('-').map(Number);
-    deals = deals.filter(d => d.price >= lo && d.price <= hi);
+    // Use priceCAD for USD items so price filter works consistently in CAD
+    deals = deals.filter(d => {
+      const p = d.currency === 'USD' && d.priceCAD ? d.priceCAD : d.price;
+      return p >= lo && p <= hi;
+    });
   }
   const minDiscount = parseInt(filters.discount) || 0;
   if (minDiscount > 0) deals = deals.filter(d => d.discount >= minDiscount);
@@ -290,7 +295,21 @@ function renderGrid() {
   const start = (currentPage - 1) * PAGE_SIZE;
   const pageDeals = filteredDeals.slice(start, start + PAGE_SIZE);
 
-  grid.innerHTML = pageDeals.map((d, i) => `
+  grid.innerHTML = pageDeals.map((d, i) => {
+    const isUSD = d.currency === 'USD';
+    const displayPrice = isUSD && d.priceCAD ? d.priceCAD : d.price;
+    const displayOrig = isUSD && d.originalPriceCAD ? d.originalPriceCAD : d.originalPrice;
+    const priceLabel = isUSD
+      ? `~$${displayPrice.toFixed(2)} <span class="price-cad-note">CAD</span>`
+      : `$${displayPrice.toFixed(2)}`;
+    const origLabel = isUSD
+      ? `~$${displayOrig.toFixed(2)}`
+      : `$${displayOrig.toFixed(2)}`;
+    const usdNote = isUSD
+      ? `<span class="usd-badge">USD $${d.price.toFixed(2)}</span>`
+      : '';
+
+    return `
     <a class="tile" href="${escHtml(d.url)}" target="_blank" rel="noopener"
        data-idx="${start + i}" style="animation-delay:${Math.min(i * 0.03, 0.3)}s">
       <div class="tile-img">
@@ -299,17 +318,17 @@ function renderGrid() {
           : `<span class="img-fallback">🛍️</span>`}
       </div>
       <div class="tile-body">
-        <div class="tile-store">${escHtml(d.store)}</div>
+        <div class="tile-store">${escHtml(d.store)}${usdNote}</div>
         <div class="tile-name" title="${escHtml(d.name)}">${escHtml(d.name)}</div>
         <div class="tile-tags">${d.tags.map(t => `<span class="tag">${escHtml(t)}</span>`).join('')}</div>
         <div class="tile-price-row">
-          <span class="price-now">$${d.price.toFixed(2)}</span>
-          <span class="price-orig">$${d.originalPrice.toFixed(2)}</span>
+          <span class="price-now">${priceLabel}</span>
+          <span class="price-orig">${origLabel}</span>
           <span class="discount-badge">−${d.discount}%</span>
         </div>
       </div>
-    </a>
-  `).join('');
+    </a>`;
+  }).join('');
 }
 
 function renderResultsBar() {
@@ -431,6 +450,10 @@ function cancelHover() {
 
 function showPreviewCard(deal, tile) {
   const card = document.getElementById('previewCard');
+  const isUSD = deal.currency === 'USD';
+  const dp = isUSD && deal.priceCAD ? deal.priceCAD : deal.price;
+  const do_ = isUSD && deal.originalPriceCAD ? deal.originalPriceCAD : deal.originalPrice;
+
   card.innerHTML = `
     <div class="pc-img">
       ${deal.image
@@ -438,14 +461,15 @@ function showPreviewCard(deal, tile) {
         : `<span class="pc-fallback">🛍️</span>`}
     </div>
     <div class="pc-body">
-      <div class="pc-store">${escHtml(deal.store)}</div>
+      <div class="pc-store">${escHtml(deal.store)}${isUSD ? ' <span class="usd-badge">USD</span>' : ''}</div>
       <div class="pc-name">${escHtml(deal.name)}</div>
       <div class="pc-tags">${deal.tags.map(t => `<span class="tag">${escHtml(t)}</span>`).join('')}</div>
       <div class="pc-price-row">
-        <span class="price-now">$${deal.price.toFixed(2)}</span>
-        <span class="price-orig">$${deal.originalPrice.toFixed(2)}</span>
+        <span class="price-now">${isUSD ? `~$${dp.toFixed(2)} CAD` : `$${dp.toFixed(2)}`}</span>
+        <span class="price-orig">${isUSD ? `~$${do_.toFixed(2)}` : `$${do_.toFixed(2)}`}</span>
         <span class="discount-badge">−${deal.discount}%</span>
       </div>
+      ${isUSD ? `<div class="pc-usd-note">USD: $${deal.price.toFixed(2)} → $${dp.toFixed(2)} CAD${deal.exchangeRate ? ` @ ${deal.exchangeRate.toFixed(4)}` : ''}</div>` : ''}
       <div class="pc-hint">Click tile to open →</div>
     </div>
   `;
@@ -519,6 +543,13 @@ async function renderSettingsDrawer(cfg) {
           <div class="ds-sub">Display discount percentage on tiles</div>
         </div>
         <div class="toggle ${settings.showDiscountBadges !== false ? 'on' : ''}" onclick="toggleSetting('showDiscountBadges', this)"></div>
+      </div>
+      <div class="ds-row">
+        <div class="ds-row-text">
+          <div class="ds-name">Auto-convert USD to CAD</div>
+          <div class="ds-sub">Show ~CAD price for USD stores${status.usdToCAD ? ` · Rate: 1 USD = ${status.usdToCAD.toFixed(4)} CAD` : ''}</div>
+        </div>
+        <div class="toggle ${settings.autoCurrencyConvert !== false ? 'on' : ''}" onclick="toggleSetting('autoCurrencyConvert', this)"></div>
       </div>
     </div>
     <div class="ds-section">

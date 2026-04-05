@@ -3,12 +3,12 @@
 const { tag } = require('../tagger');
 
 // Under Armour CA uses Salesforce Commerce Cloud (SFCC).
-// Products are rendered client-side. We scrape both the /sale/ and /outlet/
-// pages and deduplicate by URL.
+// SFCC supports ?sz=N to request N products per page — use a large value to
+// avoid multiple Load More clicks. We scrape both /sale/ and /outlet/.
 
 const URLS = [
-  'https://www.underarmour.ca/en-ca/c/sale/',
-  'https://www.underarmour.ca/en-ca/c/outlet/',
+  'https://www.underarmour.ca/en-ca/c/sale/?sz=120',
+  'https://www.underarmour.ca/en-ca/c/outlet/?sz=120',
 ];
 const STORE_NAME = 'Under Armour';
 const STORE_KEY = 'underarmour';
