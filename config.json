@@ -207,6 +207,34 @@
       "domain": "sportchek.ca",
       "currency": "CAD",
       "category": "clothing"
+    },
+    "simons": {
+      "enabled": true,
+      "name": "Simons",
+      "domain": "simons.ca",
+      "currency": "CAD",
+      "category": "clothing"
+    },
+    "marks": {
+      "enabled": true,
+      "name": "Mark's",
+      "domain": "marks.com",
+      "currency": "CAD",
+      "category": "clothing"
+    },
+    "alphalete": {
+      "enabled": true,
+      "name": "Alphalete",
+      "domain": "alphaleteathletics.com",
+      "currency": "USD",
+      "category": "clothing"
+    },
+    "nobull": {
+      "enabled": true,
+      "name": "Nobull",
+      "domain": "nobullproject.com",
+      "currency": "USD",
+      "category": "clothing"
     }
   },
   "settings": {
