@@ -8,12 +8,12 @@
       "category": "clothing"
     },
     "uniqlo": {
-      "enabled": false,
+      "enabled": true,
       "name": "Uniqlo Canada",
       "domain": "uniqlo.com",
       "currency": "CAD",
       "category": "clothing",
-      "note": "Requires dynamic client-id from browser session - cannot scrape headlessly"
+      "note": "Direct API with fixed x-fr-clientid=uq.ca.web-spa — 0 deals currently (no active sales on site)"
     },
     "zara": {
       "enabled": false,
