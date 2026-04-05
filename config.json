@@ -235,6 +235,52 @@
       "domain": "nobullproject.com",
       "currency": "USD",
       "category": "clothing"
+    },
+    "carhartt": {
+      "enabled": true,
+      "name": "Carhartt",
+      "domain": "carhartt.com",
+      "currency": "CAD",
+      "category": "clothing"
+    },
+    "columbia": {
+      "enabled": false,
+      "name": "Columbia CA",
+      "domain": "columbia.com/ca",
+      "currency": "CAD",
+      "category": "clothing",
+      "note": "Bot protection - shows CAPTCHA (verify you are human) on sale pages, returns 404"
+    },
+    "puma": {
+      "enabled": true,
+      "name": "Puma",
+      "domain": "puma.com",
+      "currency": "USD",
+      "category": "clothing"
+    },
+    "newbalance": {
+      "enabled": false,
+      "name": "New Balance",
+      "domain": "newbalance.com",
+      "currency": "USD",
+      "category": "clothing",
+      "note": "Bot protection (Akamai) blocks headless browsers - returns error codes on all sale/outlet URLs"
+    },
+    "marks": {
+      "enabled": false,
+      "name": "Mark's",
+      "domain": "marks.com",
+      "currency": "CAD",
+      "category": "clothing",
+      "note": "Sale URL returns 404; investigating FGL API approach"
+    },
+    "simons": {
+      "enabled": false,
+      "name": "Simons",
+      "domain": "simons.ca",
+      "currency": "CAD",
+      "category": "clothing",
+      "note": "Finds product elements but price selectors don't match — fixing"
     }
   },
   "settings": {

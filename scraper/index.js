@@ -38,6 +38,15 @@ const SCRAPERS = {
   levis:          require('./stores/levis'),
   reigningchamp:  require('./stores/reigningchamp'),
   sportchek:      require('./stores/sportchek'),
+  // Gymwear + menswear additions
+  alphalete:      require('./stores/alphalete'),
+  nobull:         require('./stores/nobull'),
+  carhartt:       require('./stores/carhartt'),
+  columbia:       require('./stores/columbia'),
+  puma:           require('./stores/puma'),
+  newbalance:     require('./stores/newbalance'),
+  marks:          require('./stores/marks'),
+  simons:         require('./stores/simons'),
 };
 
 const CACHE_PATH = path.join(__dirname, '../data/deals.json');
