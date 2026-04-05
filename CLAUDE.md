@@ -50,29 +50,34 @@ deal-scraper/
 ├── scraper/
 │   ├── index.js          # Orchestrator — parallel scrape, partial SSE streaming, 3-min per-store timeout
 │   ├── stores/
-│   │   ├── underarmour.js   # SFCC DOM scraper — 24 deals ✅
-│   │   ├── uniqlo.js        # Browser XHR intercept — 0 (API requires secret client-id) ❌
-│   │   ├── zara.js          # XHR intercept — 0 (Akamai bot block) ❌
-│   │   ├── gymshark.js      # Algolia CA API — 677 CAD deals ✅
-│   │   ├── nike.js          # DOM scraper — 48 deals ✅
-│   │   ├── adidas.js        # Browser DOM — 0 (PerimeterX bot block) ❌
-│   │   ├── youngla.js       # DOM (Shopify custom elements) — 35 USD deals ✅
-│   │   ├── lululemon.js     # Playwright XHR + DOM — 0 (ERR_HTTP2, needs fix) 🔲
-│   │   ├── aritzia.js       # Playwright XHR + DOM — 0 (Cloudflare block) ❌
-│   │   ├── roots.js         # SFCC Playwright — 0 (ERR_HTTP2 on roots.com) 🔲
-│   │   ├── northface.js     # SFCC Playwright — 0 (Access Denied, bot-blocked) ❌
-│   │   ├── hm.js            # Fetch API + Playwright — 0 (Access Denied) ❌
-│   │   ├── arcteryx.js      # Playwright XHR + DOM — 0 (untested) 🔲
-│   │   ├── hollister.js     # HCo API + DOM — 0 (untested) 🔲
-│   │   ├── abercrombie.js   # HCo API + DOM — 0 (untested) 🔲
-│   │   ├── americaneagle.js # Playwright DOM — 0 (untested) 🔲
-│   │   ├── aloyoga.js       # Playwright DOM — 0 (untested) 🔲
-│   │   ├── vuori.js         # Next.js __NEXT_DATA__ + DOM — 0 (untested) 🔲
-│   │   ├── clubmonaco.js    # Playwright XHR + DOM — 0 (untested) 🔲
-│   │   ├── bananarepublic.js# GAP Inc Playwright — 0 (untested) 🔲
-│   │   ├── musinsa.js       # Global API + DOM — 0 (location redirect issue) 🔲
-│   │   ├── asos.js          # Public API — 0 (API 404, needs endpoint fix) 🔲
-│   │   └── frankandoak.js   # Disabled — no compare_at_price ❌
+│   │   ├── underarmour.js   # SFCC DOM — ~24 deals ✅
+│   │   ├── gymshark.js      # Algolia CA API — ~677 deals (inStock:true filter) ✅
+│   │   ├── nike.js          # DOM (SSR) — ~24 deals ✅
+│   │   ├── youngla.js       # Shopify custom elements — ~35 USD deals ✅
+│   │   ├── clubmonaco.js    # XHR intercept + DOM — ~48 deals ✅
+│   │   ├── hollister.js     # HCo clearance DOM — ~180 deals ✅
+│   │   ├── abercrombie.js   # HCo clearance DOM — ~180 deals ✅
+│   │   ├── bananarepublic.js# GAP Inc XHR — ~594 deals ✅
+│   │   ├── aloyoga.js       # Builder.io DOM — ~31 USD deals ✅
+│   │   ├── lululemon.js     # XHR + DOM — 0 (returned 0, may have no active sale) 🔲
+│   │   ├── asos.js          # Browser XHR intercept — needs live test 🔲
+│   │   ├── patagonia.js     # SFCC XHR + DOM — scraper written, untested 🔲
+│   │   ├── gap.js           # GAP Inc XHR — scraper written, untested 🔲
+│   │   ├── levis.js         # SFCC DOM — scraper written, untested 🔲
+│   │   ├── sportchek.js     # XHR + DOM — scraper written, untested 🔲
+│   │   ├── reigningchamp.js # Shopify API — 0 (no active sales on site) 🔲
+│   │   ├── adidas.js        # PerimeterX blocked — disabled ❌
+│   │   ├── northface.js     # Akamai blocked — disabled ❌
+│   │   ├── uniqlo.js        # Requires live client-id — disabled ❌
+│   │   ├── musinsa.js       # Location chooser blocks — disabled ❌
+│   │   ├── americaneagle.js # Redirects to homepage — disabled ❌
+│   │   ├── roots.js         # SFCC ISML errors — disabled ❌
+│   │   ├── vuori.js         # Disabled per user preference ❌
+│   │   ├── zara.js          # Akamai blocked — disabled ❌
+│   │   ├── aritzia.js       # 404 / Cloudflare — disabled ❌
+│   │   ├── arcteryx.js      # Sale page 404 — disabled ❌
+│   │   ├── hm.js            # Akamai 403 — disabled ❌
+│   │   └── frankandoak.js   # No compare_at_price — disabled ❌
 │   ├── tagger.js         # Auto-tags by gender + category from name keywords
 │   └── currency.js       # Live USD→CAD rate from open.er-api.com (cached 1h)
 ├── server/
@@ -93,33 +98,26 @@ deal-scraper/
 ### Confirmed working ✅
 | Store | Deals | Platform | Notes |
 |-------|-------|----------|-------|
-| Gymshark CA | ~677 | Algolia CA | AppId: `2DEAES0CUO`, Key: `932fd4562e8443c09e3d14fd4ab94295`, index: `production_ca_products_v2` |
+| Gymshark CA | ~677 | Algolia CA | AppId: `2DEAES0CUO`, Key: `932fd4562e8443c09e3d14fd4ab94295`, index: `production_ca_products_v2`; inStock:true filter added |
 | Nike CA | ~24 | DOM (SSR) | sale URL: `/ca/w/sale-3yaep`, price classes: `is--current-price`, `is--striked-out` |
 | YoungLA | ~35 | DOM (Shopify custom elements) | USD → CAD; custom elements: `product-card`, `sale-price`, `compare-at-price` |
 | Under Armour CA | ~24 | SFCC DOM | `/en-ca/c/sale/?sz=120` + outlet |
 | Club Monaco CA | ~48 | XHR intercept + DOM | `clubmonaco.ca/en/sale/` — works with stealth browser |
+| Hollister CA | ~180 | HCo DOM clearance page | `hollisterco.com/shop/sale/` — clearance page DOM scrape works |
+| Abercrombie CA | ~180 | HCo DOM clearance page | `abercrombie.com/shop/ca/mens-sale` — DOM scrape works |
+| Banana Republic CA | ~594 | GAP Inc XHR intercept | `bananarepublic.gap.com` — XHR intercept captures product API |
+| Alo Yoga | ~31 | Builder.io DOM | `aloyoga.com/collections/sale` — Builder.io DOM, scroll to lazy-load |
 
-### Returning 0 — scrapers written, may need tuning 🔲
+### Needs live testing 🔲
 | Store | Platform | Notes |
 |-------|----------|-------|
-| Lululemon CA | XHR + DOM | `--disable-http2` added, still testing |
-| Roots Canada | SFCC DOM | `--disable-http2` added, still testing |
-| Adidas CA | Browser DOM | stealth browser applied, may still be PerimeterX |
-| North Face CA | SFCC DOM | stealth applied, was Access Denied |
-| Hollister CA | HCo API + DOM | `hollisterco.com/api/ecomm/10200/` |
-| Abercrombie CA | HCo API + DOM | `abercrombie.com/api/ecomm/11300/` |
-| American Eagle CA | Playwright DOM | `ae.com/ca/en/` sale page |
-| Alo Yoga | Shopify XHR + DOM | `aloyoga.com/collections/sale` |
-| Vuori | Next.js + DOM | `vuoriclothing.com/collections/sale` — check `__NEXT_DATA__` |
-| Banana Republic CA | GAP Inc XHR + DOM | `bananarepublic.gap.com/browse/category.do` |
-| Musinsa Global | API + DOM | `global.musinsa.com/api/goods/lists` + country_code cookie |
-| ASOS | Browser XHR intercept | Dead REST API replaced — now intercepts live XHR |
-| Uniqlo CA | API candidates + XHR | Multiple API URL patterns tried; may need live client-id |
-| Patagonia CA | SFCC XHR + DOM | New store — `patagonia.com/ca/shop/` |
-| Gap CA | GAP Inc XHR + DOM | New store — same platform as Banana Republic |
-| Levi's CA | SFCC DOM | New store — `levi.com/en-CA/c/sale/` |
-| Reigning Champ | Shopify API + DOM | New store — `reigningchamp.com/collections/sale` |
-| Sport Chek | XHR + DOM | New store — `sportchek.ca/en/sale.html` |
+| Lululemon CA | XHR + DOM | `--disable-http2` added; returned 0 last test (no active sale or blocked) |
+| ASOS | Browser XHR intercept | XHR intercept implemented; needs live run to confirm product key |
+| Patagonia CA | SFCC XHR + DOM | `patagonia.com/ca/shop/` — scraper written, untested |
+| Gap CA | GAP Inc XHR + DOM | Same platform as Banana Republic — scraper written, untested |
+| Levi's CA | SFCC DOM | `levi.com/en-CA/c/sale/` — scraper written, untested |
+| Sport Chek | XHR + DOM | `sportchek.ca/en/sale.html` — scraper written, untested |
+| Reigning Champ | Shopify API | Checked all 697 products — 0 have sale prices; store just has no active sales |
 
 ### Confirmed broken / disabled ❌
 | Store | Reason |
@@ -129,16 +127,25 @@ deal-scraper/
 | Arc'teryx CA | Sale page 404 (moved to outlet.arcteryx.com) — disabled |
 | H&M Canada | Akamai 403 even with stealth — disabled |
 | Frank and Oak | No `compare_at_price` in Shopify — can't detect discounts |
+| Adidas CA | PerimeterX bot protection — disabled |
+| North Face CA | Akamai bot protection — disabled |
+| Uniqlo CA | Requires dynamic client-id from browser session — disabled |
+| Musinsa Global | Location chooser blocks automated access — disabled |
+| American Eagle CA | Sale pages redirect to homepage (bot detection) — disabled |
+| Roots Canada | SFCC ISML errors on sale pages — disabled |
+| Vuori | Disabled per user preference |
 
 ## Known issues / TODO
 
 - **YoungLA timeout**: Occasionally times out when run concurrently with many other stores. Retry usually works.
-- **Uniqlo**: API requires dynamic client-id from browser session. XHR interception approach should work but needs a live test run.
 - **ASOS**: XHR interception implemented — needs live testing to confirm products array key.
-- **Many stores returning 0**: Most scrapers are implemented; need live test scrapes to verify selectors. Run `npm start` and check /api/status.
+- **Untested stores**: Patagonia, Gap, Levi's, Sport Chek scrapers written but not live-tested — run `npm start` and check /api/status.
+- **Lululemon**: Returned 0 last test — may have no active sale, or still being blocked. Try again.
+- **Gymshark price accuracy**: Algolia index can lag behind actual site prices. inStock:true filter now excludes OOS items.
 - **Gender tagging**: FIXED — items no longer default to Unisex.
-- **Store sidebar pills**: FIXED — pills now built from config (all enabled stores show even with 0 deals).
-- **Category field**: All stores now have `"category": "clothing"` in config.json for future tab system.
+- **Store sidebar pills**: FIXED — pills use storeKey (short key from config), matching deals by storeKey field.
+- **Filter persistence**: FIXED — filters saved to localStorage, survive page refresh.
+- **Grid overlay during scrape**: FIXED — overlay only shows when zero cached deals exist.
 
 ## Key behaviours
 
@@ -174,7 +181,7 @@ deal-scraper/
 }
 ```
 
-USD stores (YoungLA, Alo Yoga, Vuori, ASOS, Musinsa) also have `exchangeRate` field. `price` and `originalPrice` are always CAD after conversion.
+USD stores (YoungLA, Alo Yoga, ASOS) also have `exchangeRate` field. `price` and `originalPrice` are always CAD after conversion.
 
 ## How to add a new store
 
