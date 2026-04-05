@@ -24,6 +24,17 @@ let scrapeInProgress = false;
 // Live per-store progress while a scrape runs: { key: { status, count, error } }
 let liveStoreProgress = {};
 
+// ── SSE broadcast ─────────────────────────────────────────────────────────────
+// All connected /api/refresh clients receive every scrape event.
+const sseClients = new Set();
+
+function broadcast(event, data) {
+  const msg = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+  for (const send of sseClients) {
+    try { send(msg); } catch (_) {}
+  }
+}
+
 // ── GET /api/deals ──────────────────────────────────────────────────────────
 app.get('/api/deals', (req, res) => {
   const cache = loadCache();
@@ -72,7 +83,8 @@ app.patch('/api/config', (req, res) => {
 });
 
 // ── GET /api/refresh ─────────────────────────────────────────────────────────
-// SSE stream. Triggers scrape and streams progress + partial results back.
+// SSE stream. If a scrape is already running, subscribe to live events.
+// Otherwise trigger a new scrape and stream its events.
 app.get('/api/refresh', (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -80,27 +92,28 @@ app.get('/api/refresh', (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.flushHeaders();
 
-  let closed = false;
-  const send = (event, data) => {
-    if (closed) return;
-    try {
-      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
-    } catch (_) {}
+  const send = (msg) => {
+    try { res.write(msg); } catch (_) {}
   };
 
-  req.on('close', () => { closed = true; });
+  sseClients.add(send);
+  req.on('close', () => sseClients.delete(send));
 
   if (scrapeInProgress) {
-    // Return current progress snapshot so the client can show the popdown
-    send('progress', { message: 'Scrape already in progress…', liveStoreProgress });
-    setTimeout(() => { if (!closed) res.end(); }, 500);
-    return;
+    // Client joined mid-scrape — send current state snapshot so popdown renders
+    send(`event: started\ndata: ${JSON.stringify({ liveStoreProgress })}\n\n`);
+    return; // will receive future broadcast events as the scrape progresses
   }
 
-  scrapeInProgress = true;
-  const cfg = loadConfig();
+  // Start a new scrape
+  startScrape(loadConfig());
+});
 
-  // Initialise per-store progress to 'pending' for all enabled stores
+// ── Core scrape runner (used by /api/refresh and launch auto-scrape) ──────────
+function startScrape(cfg) {
+  if (scrapeInProgress) return;
+
+  scrapeInProgress = true;
   liveStoreProgress = {};
   Object.entries(cfg.stores)
     .filter(([, s]) => s.enabled)
@@ -108,9 +121,8 @@ app.get('/api/refresh', (req, res) => {
       liveStoreProgress[key] = { name: s.name, status: 'pending', count: 0, error: null };
     });
 
-  send('started', { liveStoreProgress });
+  broadcast('started', { liveStoreProgress });
 
-  // Called by the orchestrator when each store finishes
   const onPartial = (key, deals, errorMsg) => {
     const storeName = cfg.stores[key]?.name || key;
     if (errorMsg) {
@@ -118,76 +130,59 @@ app.get('/api/refresh', (req, res) => {
     } else {
       liveStoreProgress[key] = { name: storeName, status: 'done', count: deals.length, error: null };
     }
-    send('partial', { storeKey: key, count: deals.length, deals, liveStoreProgress });
+    broadcast('partial', { storeKey: key, count: deals.length, deals, liveStoreProgress });
   };
 
-  // Safety: forcibly end the scrape after 20 minutes to prevent permanent hang
+  // Safety: end scrape after 20 minutes
   const safetyTimer = setTimeout(() => {
     if (scrapeInProgress) {
       scrapeInProgress = false;
       liveStoreProgress = {};
-      send('error', { message: 'Scrape timed out after 20 minutes — some stores may not have loaded' });
-      try { res.end(); } catch (_) {}
+      broadcast('error', { message: 'Scrape timed out after 20 minutes' });
+      closeAllClients();
     }
   }, 20 * 60 * 1000);
 
   runAll(cfg,
-    message => send('progress', { message }),
+    message => broadcast('progress', { message }),
     onPartial,
   )
     .then(deals => {
       clearTimeout(safetyTimer);
-      send('complete', { count: deals.length, scrapedAt: new Date().toISOString() });
+      broadcast('complete', { count: deals.length, scrapedAt: new Date().toISOString() });
     })
     .catch(err => {
       clearTimeout(safetyTimer);
-      send('error', { message: err.message });
+      broadcast('error', { message: err.message });
     })
     .finally(() => {
       scrapeInProgress = false;
-      try { res.end(); } catch (_) {}
+      closeAllClients();
     });
-});
+}
 
-// ── Scheduled auto-scrape ─────────────────────────────────────────────────────
-function scheduleAutoScrape(intervalHours) {
-  if (!intervalHours || intervalHours <= 0) return;
-  const ms = intervalHours * 60 * 60 * 1000;
+function closeAllClients() {
+  // Signal clients the stream is done; they'll handle it and close EventSource
+  // Actual response.end() is not accessible here since we only hold send functions,
+  // so clients will naturally disconnect after receiving 'complete' or 'error'.
+  sseClients.clear();
+}
 
-  setInterval(async () => {
-    if (scrapeInProgress) {
-      console.log('⏰ Scheduled scrape skipped — one already in progress');
-      return;
-    }
-    console.log(`\n⏰ Scheduled scrape starting (every ${intervalHours}h)…`);
-    scrapeInProgress = true;
-    liveStoreProgress = {};
-    const cfg = loadConfig();
-    Object.entries(cfg.stores)
-      .filter(([, s]) => s.enabled)
-      .forEach(([key, s]) => {
-        liveStoreProgress[key] = { name: s.name, status: 'pending', count: 0, error: null };
-      });
-    try {
-      const deals = await runAll(cfg,
-        msg => console.log(`  ${msg}`),
-        (key, deals, err) => {
-          const name = cfg.stores[key]?.name || key;
-          liveStoreProgress[key] = err
-            ? { name, status: 'error', count: 0, error: String(err).slice(0, 80) }
-            : { name, status: 'done', count: deals.length, error: null };
-        },
-      );
-      console.log(`✅ Scheduled scrape done — ${deals.length} deals\n`);
-    } catch (err) {
-      console.error(`❌ Scheduled scrape failed: ${err.message}\n`);
-    } finally {
-      scrapeInProgress = false;
-      liveStoreProgress = {};
-    }
-  }, ms);
+// ── Startup cache-age check ───────────────────────────────────────────────────
+// Trigger a background scrape on launch if cache is missing or older than 12 hours.
+function maybeAutoScrapeOnLaunch(cfg) {
+  const cache = loadCache();
+  const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
 
-  console.log(`⏰ Auto-scrape scheduled every ${intervalHours}h`);
+  if (cache && (Date.now() - new Date(cache.scrapedAt)) < TWELVE_HOURS_MS) {
+    const ageMin = Math.round((Date.now() - new Date(cache.scrapedAt)) / 60000);
+    console.log(`📦 Cache is ${ageMin}m old — no scrape needed on launch`);
+    return;
+  }
+
+  const reason = cache ? 'cache is older than 12 hours' : 'no cache found';
+  console.log(`⏰ Auto-scrape on launch: ${reason}…`);
+  startScrape(cfg);
 }
 
 // ── Start ────────────────────────────────────────────────────────────────────
@@ -197,7 +192,7 @@ function start() {
 
   app.listen(port, () => {
     console.log(`\n🌿 dealsco running at http://localhost:${port}\n`);
-    scheduleAutoScrape(cfg.settings?.refreshIntervalHours || 24);
+    maybeAutoScrapeOnLaunch(cfg);
   });
 
   return port;

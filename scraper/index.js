@@ -1,6 +1,8 @@
 'use strict';
 
-const { chromium } = require('playwright');
+const { chromium } = require('playwright-extra');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+chromium.use(StealthPlugin());
 const fs = require('fs');
 const path = require('path');
 const { getUSDtoCAD } = require('./currency');
@@ -64,7 +66,7 @@ async function runAll(config, onProgress = () => {}, onPartial = () => {}) {
 
   const browser = await chromium.launch({
     headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-http2'],
   });
 
   const storeResults = {};

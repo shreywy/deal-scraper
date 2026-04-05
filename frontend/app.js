@@ -71,11 +71,12 @@ async function init() {
   showSkeletons(12);
   setStrip('loading', 'Loading…');
 
+  let hasCache = false;
   try {
     const res = await fetch('/api/deals');
     if (res.status === 204) {
       clearGrid();
-      setStrip('cached', 'No cache yet — scraping now…');
+      setStrip('cached', 'No cache yet…');
     } else {
       const data = await res.json();
       lastScrapedAt = data.scrapedAt;
@@ -84,13 +85,29 @@ async function init() {
       updateStripText();
       startStripTimer();
       loadDeals(data.deals);
+      hasCache = true;
     }
   } catch (_) {
     clearGrid();
-    setStrip('cached', 'Could not load cache — scraping now…');
+    setStrip('cached', 'Could not load cache');
   }
 
-  startRefreshStream();
+  // Check if a background scrape is already running (server launched it due to stale cache)
+  // If so, connect to SSE to stream live progress. Do NOT auto-trigger a new scrape.
+  try {
+    const statusRes = await fetch('/api/status');
+    const status = await statusRes.json();
+    if (status.scrapeInProgress) {
+      // Server is already scraping — attach to the live stream for progress
+      startRefreshStream();
+    } else if (!hasCache) {
+      // No cache and no scrape in progress — shouldn't happen normally, but handle it
+      startRefreshStream();
+    }
+    // Otherwise: cache is fresh, server is idle → do nothing. User can manually refresh.
+  } catch (_) {
+    if (!hasCache) startRefreshStream();
+  }
 }
 
 // ── Strip ─────────────────────────────────────────────────────────────────────
