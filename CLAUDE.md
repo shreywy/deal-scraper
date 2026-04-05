@@ -74,30 +74,48 @@ deal-scraper/
 
 ## Stores & scraper status
 
+### Confirmed working ✅
 | Store | Deals | Platform | Notes |
 |-------|-------|----------|-------|
-| Gymshark | ~677 | Algolia CA (`production_ca_products_v2`) | AppId: `2DEAES0CUO`, Key: `932fd4562e8443c09e3d14fd4ab94295` |
-| Nike CA | ~72 | DOM (SSR) | sale URL: `/ca/w/sale-3yaep` |
-| YoungLA | ~35 | DOM (Shopify custom elements) | USD → CAD conversion via live rate |
-| Under Armour | ~24 | SFCC DOM | `/en-ca/c/sale/?sz=120` + outlet |
-| Adidas CA | 0 | Browser | Blocked by PerimeterX |
-| Zara CA | 0 | XHR intercept | Blocked by Akamai |
-| Uniqlo CA | 0 | Browser | API requires `x-fr-clientid` (secret) |
+| Gymshark CA | ~677 | Algolia CA | AppId: `2DEAES0CUO`, Key: `932fd4562e8443c09e3d14fd4ab94295`, index: `production_ca_products_v2` |
+| Nike CA | ~72 | DOM (SSR) | sale URL: `/ca/w/sale-3yaep`, price classes: `is--current-price`, `is--striked-out` |
+| YoungLA | ~35 | DOM (Shopify custom elements) | USD → CAD; custom elements: `product-card`, `sale-price`, `compare-at-price` |
+| Under Armour CA | ~24 | SFCC DOM | `/en-ca/c/sale/?sz=120` + outlet |
 
-**Total: ~808 deals** (784+ after gender tagging fixes)
+### New stores (need live testing) 🔲
+| Store | Platform | Approach |
+|-------|----------|----------|
+| Lululemon CA | Custom React | XHR intercept + DOM |
+| Aritzia | Custom | XHR intercept + DOM |
+| Roots Canada | SFCC | DOM (same as Under Armour) |
+| The North Face CA | SFCC | DOM (same as Under Armour) |
+| H&M Canada | Custom | Fetch API + browser fallback |
+| Arc'teryx | Custom | XHR intercept + DOM |
+| Hollister CA | HCo platform | API + DOM fallback |
+| Abercrombie CA | HCo platform | API + DOM fallback |
+| American Eagle CA | Custom | XHR intercept + DOM |
+| Alo Yoga | Shopify (browser) | DOM (API blocked) |
+| Vuori | Shopify (browser) | DOM |
+| Club Monaco CA | Custom | DOM |
+| Banana Republic CA | GAP Inc | DOM |
+| Musinsa Global | Custom | API + DOM; USD → CAD |
+| ASOS | Public API | `api.asos.com/product/search/v2`; USD → CAD |
+| Frank and Oak | Shopify | Disabled — no `compare_at_price` |
+
+### Confirmed broken ❌
+| Store | Reason |
+|-------|--------|
+| Adidas CA | PerimeterX bot block |
+| Zara CA | Akamai bot block |
+| Uniqlo CA | `x-fr-clientid` required, not public |
 
 ## Known issues / TODO
 
 - **Adidas/Zara**: Bot-blocked. Try stealth Playwright or different approach.
-- **Uniqlo**: v3 API (from scrapy-pg project) is dead (404). v5 API requires secret client-id. DOM tiles load but prices are injected via JS after load.
-- **Gymshark gender**: Fixed — Algolia returns `["m"]`/`["f"]` arrays, mapped to Men/Women/Unisex
-- **YoungLA**: Only women's sale at `/collections/sale` ("Sale for her"). Men's sale URLs 404.
-- **More stores TODO**: Need to add 15-20 more Canadian/ships-to-Canada retailers. Candidates:
-  - Roots Canada, Lululemon, Aritzia, The North Face CA, Patagonia CA
-  - H&M Canada, Banana Republic CA, Club Monaco, Frank and Oak
-  - Abercrombie CA (sale section exists, Abercrombie platform)
-  - ASOS CA, Reiss, Represent Clothing, Musinsa (international)
-  - Hollister CA, American Eagle CA
+- **Uniqlo**: v3 API (from scrapy-pg project) is dead (404). v5 API requires secret client-id.
+- **YoungLA**: Only women's sale at `/collections/sale`. Men's sale URLs 404.
+- **Gender tagging**: Fixed — items with no gender keyword in name are now untagged (not forced Unisex). Frontend "Unisex" filter shows truly-unisex items + untagged items.
+- **New stores**: All 15 new store scrapers need live testing to validate selectors and confirm deal counts.
 
 ## Key behaviours
 
