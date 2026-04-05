@@ -74,41 +74,55 @@ async function scrape(browser, onProgress = () => {}) {
           const n = parseFloat((el?.textContent || '').replace(/[^0-9.]/g, ''));
           return isNaN(n) ? null : n;
         };
-        // Alo uses product cards with specific price classes
-        const cards = document.querySelectorAll('[class*="product"]');
+
+        // Collect all product links with their associated prices
+        const productLinks = [...document.querySelectorAll('a[href*="/products/"]')];
         const seen = new Set();
         const results = [];
 
-        for (const card of cards) {
-          const link = card.querySelector('a[href*="/products/"]');
-          const url = link?.href || '';
+        for (const link of productLinks) {
+          const url = link.href;
           if (!url || seen.has(url)) continue;
 
-          // Get the first product card price set (each card has multiple variants)
-          const redPrice = card.querySelector('.currency-formatting.product-price.red');
-          const regularPrice = card.querySelector('.product-price.regular__price');
+          // Find price elements near this link (within the same card/container)
+          let container = link;
+          for (let i = 0; i < 5; i++) {
+            if (!container.parentElement) break;
+            container = container.parentElement;
+            const redPrice = container.querySelector('.currency-formatting.product-price.red');
+            const regularPrice = container.querySelector('.product-price.regular__price');
 
-          if (!redPrice || !regularPrice) continue;
+            if (redPrice && regularPrice) {
+              const price = parsePrice(redPrice);
+              const originalPrice = parsePrice(regularPrice);
 
-          const price = parsePrice(redPrice);
-          const originalPrice = parsePrice(regularPrice);
+              if (price && originalPrice && price < originalPrice) {
+                seen.add(url);
 
-          if (!price || !originalPrice || price >= originalPrice) continue;
+                // Extract name - look for text in link or nearby
+                let name = '';
+                const nameEl = container.querySelector('[class*="name"], [class*="title"]');
+                if (nameEl) {
+                  name = nameEl.textContent?.trim();
+                } else {
+                  // Fallback to link text or URL slug
+                  name = link.textContent?.trim() || url.split('/').pop().replace(/-/g, ' ');
+                }
 
-          seen.add(url);
+                const imgEl = container.querySelector('img');
+                const discount = Math.round((1 - price / originalPrice) * 100);
 
-          // Extract name from URL or link text
-          const name = link?.textContent?.trim() || url.split('/').pop().replace(/-/g, ' ');
-          const imgEl = card.querySelector('img');
-          const discount = Math.round((1 - price / originalPrice) * 100);
-
-          if (discount <= 0) continue;
-
-          results.push({
-            store: storeName, storeKey, name, url,
-            image: imgEl?.src || imgEl?.dataset?.src || '',
-            price, originalPrice, discount, gender: defaultGender, tags: [],
-          });
+                if (discount > 0 && name) {
+                  results.push({
+                    store: storeName, storeKey, name, url,
+                    image: imgEl?.src || imgEl?.dataset?.src || '',
+                    price, originalPrice, discount, gender: defaultGender, tags: [],
+                  });
+                }
+              }
+              break;
+            }
+          }
         }
 
         return results;

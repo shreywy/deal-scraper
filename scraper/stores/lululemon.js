@@ -81,24 +81,28 @@ async function scrape(browser, onProgress = () => {}) {
           return isNaN(n) ? null : n;
         };
         const cards = document.querySelectorAll(
-          '[data-testid="product-card"], [class*="ProductCard"], [class*="product-card"]'
+          '[class*="product"] a[href*="/p/"]'
         );
         const seen = new Set();
-        return [...cards].map(card => {
-          const link = card.querySelector('a[href]');
-          const url = link?.href || '';
+        return [...cards].map(link => {
+          const card = link.closest('[class*="product"]');
+          if (!card) return null;
+          const url = link.href || '';
           if (!url || seen.has(url)) return null;
           seen.add(url);
-          const nameEl = card.querySelector('[data-testid="product-tile-title"], h3, h2, [class*="name"]');
+          const nameEl = card.querySelector('[data-lulu-component="productTileTitle"], [class*="title"], h3, h2');
           const name = nameEl?.textContent?.trim() || '';
           // Lululemon shows prices like "$62" and crossed-out "$89"
-          const priceEls = card.querySelectorAll('[data-testid*="price"], [class*="price"]');
+          const priceEls = card.querySelectorAll('[data-lulu-component*="price"], [class*="price"], span[class*="Price"]');
           let price = null, originalPrice = null;
           for (const el of priceEls) {
             const txt = el.textContent || '';
             const n = parsePrice(txt);
             if (!n) continue;
-            if (el.tagName === 'DEL' || el.tagName === 'S' || el.className?.includes?.('was') || el.className?.includes?.('original')) {
+            // Check if this is a strikethrough price
+            const styles = window.getComputedStyle(el);
+            const hasStrikethrough = styles.textDecoration.includes('line-through') || el.tagName === 'DEL' || el.tagName === 'S';
+            if (hasStrikethrough || el.className?.includes?.('was') || el.className?.includes?.('original')) {
               originalPrice = n;
             } else if (price === null) {
               price = n;

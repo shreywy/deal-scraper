@@ -7,8 +7,8 @@ const STORE_KEY = 'bananarepublic';
 const CURRENCY = 'CAD';
 
 const SALE_PAGES = [
-  { url: 'https://bananarepublic.gap.com/browse/category.do?cid=1159728&country=CA', gender: 'Women', label: "women's" },
-  { url: 'https://bananarepublic.gap.com/browse/category.do?cid=1159729&country=CA', gender: 'Men', label: "men's" },
+  { url: 'https://bananarepublic.gap.com/browse/women/womens-sale?cid=26495', gender: 'Women', label: "women's" },
+  { url: 'https://bananarepublic.gap.com/browse/men/mens-sale?cid=26219', gender: 'Men', label: "men's" },
 ];
 
 /**

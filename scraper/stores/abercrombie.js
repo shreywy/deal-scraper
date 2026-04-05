@@ -140,8 +140,8 @@ async function browserScrape(browser, onProgress) {
   });
 
   const SALE_PAGES = [
-    { url: 'https://www.abercrombie.com/shop/ca/mens-sale', gender: 'Men' },
-    { url: 'https://www.abercrombie.com/shop/ca/womens-sale', gender: 'Women' },
+    { url: 'https://www.abercrombie.com/shop/ca/mens-clearance', gender: 'Men' },
+    { url: 'https://www.abercrombie.com/shop/ca/womens-clearance', gender: 'Women' },
   ];
   const seen = new Set();
   const allDeals = [];
@@ -163,26 +163,28 @@ async function browserScrape(browser, onProgress) {
       }
 
       const domDeals = await page.evaluate(({ storeName, storeKey, gender }) => {
-        const parsePrice = el => {
-          const n = parseFloat((el?.textContent || '').replace(/[^0-9.]/g, ''));
-          return isNaN(n) ? null : n;
+        const parsePrice = str => {
+          const match = str.match(/([\d.]+)/);
+          return match ? parseFloat(match[1]) : null;
         };
-        const cards = document.querySelectorAll('[class*="product-grid-item"], [class*="ProductItem"], [data-testid*="product"]');
+        const productLinks = document.querySelectorAll('a[data-testid="catalog-product-card-image-link"]');
         const seen = new Set();
-        return [...cards].map(card => {
-          const link = card.querySelector('a[href]');
-          const url = link?.href || '';
-          if (!url || seen.has(url)) return null;
+        return [...productLinks].map(link => {
+          const url = link.href;
+          if (seen.has(url)) return null;
           seen.add(url);
-          const name = card.querySelector('[class*="name"], h3, h2')?.textContent?.trim() || '';
-          const priceEl = card.querySelector('[class*="sale-price"], [class*="salePrice"]');
-          const origEl = card.querySelector('[class*="original-price"], del, s');
-          const imgEl = card.querySelector('img');
-          const price = parsePrice(priceEl);
-          const originalPrice = parsePrice(origEl);
+          const li = link.closest('li');
+          if (!li) return null;
+          const nameEl = li.querySelector('h2, h3, [class*="name"]');
+          const name = nameEl?.textContent?.trim() || '';
+          const priceTexts = li.querySelectorAll('.product-price-text');
+          if (priceTexts.length < 2) return null;
+          const originalPrice = parsePrice(priceTexts[0]?.textContent || '');
+          const price = parsePrice(priceTexts[1]?.textContent || '');
           if (!name || !price || !originalPrice || price >= originalPrice) return null;
           const discount = Math.round((1 - price / originalPrice) * 100);
           if (discount <= 0) return null;
+          const imgEl = link.querySelector('img');
           return { store: storeName, storeKey, name, url, image: imgEl?.src || '', price, originalPrice, discount, gender, tags: [] };
         }).filter(Boolean);
       }, { storeName: STORE_NAME, storeKey: STORE_KEY, gender });

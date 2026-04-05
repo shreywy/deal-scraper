@@ -94,56 +94,64 @@ deal-scraper/
 | Store | Deals | Platform | Notes |
 |-------|-------|----------|-------|
 | Gymshark CA | ~677 | Algolia CA | AppId: `2DEAES0CUO`, Key: `932fd4562e8443c09e3d14fd4ab94295`, index: `production_ca_products_v2` |
-| Nike CA | ~48 | DOM (SSR) | sale URL: `/ca/w/sale-3yaep`, price classes: `is--current-price`, `is--striked-out` |
+| Nike CA | ~24 | DOM (SSR) | sale URL: `/ca/w/sale-3yaep`, price classes: `is--current-price`, `is--striked-out` |
 | YoungLA | ~35 | DOM (Shopify custom elements) | USD → CAD; custom elements: `product-card`, `sale-price`, `compare-at-price` |
 | Under Armour CA | ~24 | SFCC DOM | `/en-ca/c/sale/?sz=120` + outlet |
+| Club Monaco CA | ~48 | XHR intercept + DOM | `clubmonaco.ca/en/sale/` — works with stealth browser |
 
-### New stores — need selector fixes 🔲
-| Store | Issue | What to try next |
-|-------|-------|-----------------|
-| Lululemon CA | ERR_HTTP2_PROTOCOL_ERROR on `lululemon.com/en-ca/c/sale/` | Try `shop.lululemon.com/c/sale` or intercept XHR from browser session |
-| Roots Canada | ERR_HTTP2 on `roots.com/ca/en/sale/?sz=120` | The URL `roots.com/ca/en/sale/?sz=120` returns 200 in fetch but HTTP2 error in Playwright — add `--disable-http2` flag or try `waitUntil: 'load'` |
-| Arc'teryx | Untested | Try `arcteryx.com/ca/en/c/sale/` with longer wait |
-| Hollister CA | Untested | Try `hollisterco.com/shop/ca/guys-sale` DOM or HCo API with `onSale=true` |
-| Abercrombie CA | Untested | Try `abercrombie.com/shop/ca/mens-sale` DOM |
-| American Eagle CA | Untested | Try `ae.com/ca/en/content/category/mens-clearance-sale` DOM |
-| Alo Yoga | Untested | Try `aloyoga.com/collections/sale` with scroll |
-| Vuori | Untested (Next.js) | Try `vuoriclothing.com/collections/sale` — check `__NEXT_DATA__` first |
-| Club Monaco CA | Untested | Try `clubmonaco.ca/en/sale/` |
-| Banana Republic CA | Untested | Try `bananarepublic.gap.com` sale page |
-| Musinsa Global | Redirects to location chooser | Add cookie `country_code=US` or visit location page first to set session |
-| ASOS | API 404 | `api.asos.com/product/search/v2/categories/8799/products` returns 404 — find correct endpoint by intercepting browser XHR on asos.com/men/sale/cat/?cid=8799 |
+### Returning 0 — scrapers written, may need tuning 🔲
+| Store | Platform | Notes |
+|-------|----------|-------|
+| Lululemon CA | XHR + DOM | `--disable-http2` added, still testing |
+| Roots Canada | SFCC DOM | `--disable-http2` added, still testing |
+| Adidas CA | Browser DOM | stealth browser applied, may still be PerimeterX |
+| North Face CA | SFCC DOM | stealth applied, was Access Denied |
+| Hollister CA | HCo API + DOM | `hollisterco.com/api/ecomm/10200/` |
+| Abercrombie CA | HCo API + DOM | `abercrombie.com/api/ecomm/11300/` |
+| American Eagle CA | Playwright DOM | `ae.com/ca/en/` sale page |
+| Alo Yoga | Shopify XHR + DOM | `aloyoga.com/collections/sale` |
+| Vuori | Next.js + DOM | `vuoriclothing.com/collections/sale` — check `__NEXT_DATA__` |
+| Banana Republic CA | GAP Inc XHR + DOM | `bananarepublic.gap.com/browse/category.do` |
+| Musinsa Global | API + DOM | `global.musinsa.com/api/goods/lists` + country_code cookie |
+| ASOS | Browser XHR intercept | Dead REST API replaced — now intercepts live XHR |
+| Uniqlo CA | API candidates + XHR | Multiple API URL patterns tried; may need live client-id |
+| Patagonia CA | SFCC XHR + DOM | New store — `patagonia.com/ca/shop/` |
+| Gap CA | GAP Inc XHR + DOM | New store — same platform as Banana Republic |
+| Levi's CA | SFCC DOM | New store — `levi.com/en-CA/c/sale/` |
+| Reigning Champ | Shopify API + DOM | New store — `reigningchamp.com/collections/sale` |
+| Sport Chek | XHR + DOM | New store — `sportchek.ca/en/sale.html` |
 
-### Confirmed broken ❌
+### Confirmed broken / disabled ❌
 | Store | Reason |
 |-------|--------|
-| Adidas CA | PerimeterX bot block |
-| Zara CA | Akamai bot block |
-| Uniqlo CA | `x-fr-clientid` required, not public |
-| North Face CA | Access Denied (bot block on headless) |
-| H&M Canada | Access Denied (bot block) |
-| Aritzia | Cloudflare "Just a moment..." (bot block) |
+| Zara CA | Akamai bot block — redirects to homepage |
+| Aritzia | Sale page 404 / Cloudflare — disabled |
+| Arc'teryx CA | Sale page 404 (moved to outlet.arcteryx.com) — disabled |
+| H&M Canada | Akamai 403 even with stealth — disabled |
 | Frank and Oak | No `compare_at_price` in Shopify — can't detect discounts |
 
 ## Known issues / TODO
 
-- **New stores**: Multiple stores returning 0 — see "need selector fixes" table above. Main issues are bot-blocking (TNF, H&M, Aritzia) and wrong URLs/HTTP2 errors (Lululemon, Roots).
-- **Lululemon ERR_HTTP2**: Try adding `args: ['--disable-http2']` to Chromium launch options in scraper/index.js, or use a different URL.
-- **Roots ERR_HTTP2**: Same fix — the URL works in fetch but Playwright gets HTTP2 error. Try `--disable-http2`.
-- **ASOS API**: The `/product/search/v2/categories/{id}/products` endpoint returns 404. Need to intercept the real API from browser session on `asos.com`.
-- **Musinsa redirect**: Visit `global.musinsa.com/choose-location` first to set location cookie, then navigate to sale page.
-- **Gender tagging**: FIXED — items no longer default to Unisex. Result: ~288 Men, ~389 Women, ~22 Unisex, ~84 untagged per scrape.
+- **YoungLA timeout**: Occasionally times out when run concurrently with many other stores. Retry usually works.
+- **Uniqlo**: API requires dynamic client-id from browser session. XHR interception approach should work but needs a live test run.
+- **ASOS**: XHR interception implemented — needs live testing to confirm products array key.
+- **Many stores returning 0**: Most scrapers are implemented; need live test scrapes to verify selectors. Run `npm start` and check /api/status.
+- **Gender tagging**: FIXED — items no longer default to Unisex.
 - **Store sidebar pills**: FIXED — pills now built from config (all enabled stores show even with 0 deals).
+- **Category field**: All stores now have `"category": "clothing"` in config.json for future tab system.
 
 ## Key behaviours
 
-- `npm start` → server starts, auto-triggers scrape via SSE on browser connect
+- `npm start` → server starts; checks if cache is >12h old or missing → auto-scrapes in background
 - Frontend on load: fetches `/api/deals` (cache), shows "Cached X deals" strip
+- If server already scraping, frontend connects to live SSE stream
 - `/api/refresh` SSE: streams `started` → `progress` → `partial` (per store) → `complete`
 - `partial` events carry the store's deals array so grid populates progressively
+- Multi-client SSE: all connected browsers receive scrape events simultaneously
 - Hover refresh strip (while scraping) → popdown shows per-store progress
 - 3-minute timeout per store prevents hung scrapers
 - 20-minute global safety timeout clears `scrapeInProgress` flag
+- `process.unhandledRejection` handler suppresses playwright-extra CDP noise after browser close
 
 ## Deal object schema
 
@@ -172,7 +180,7 @@ USD stores (YoungLA, Alo Yoga, Vuori, ASOS, Musinsa) also have `exchangeRate` fi
 
 1. Create `scraper/stores/<storename>.js` exporting `async function scrape(browser, onProgress)` returning deal array
 2. Add store entry to `config.json`
-3. Test with: `NO_OPEN=1 node -e "const {chromium}=require('playwright');(async()=>{const b=await chromium.launch({headless:true,args:['--no-sandbox']});const d=await require('./scraper/stores/STORE').scrape(b,console.log);console.log(d.length,'deals');await b.close()})()"`
+3. Test with: `NO_OPEN=1 node -e "const {chromium}=require('playwright-extra');const S=require('puppeteer-extra-plugin-stealth');chromium.use(S());(async()=>{const b=await chromium.launch({headless:true,args:['--no-sandbox','--disable-http2']});const d=await require('./scraper/stores/STORE').scrape(b,console.log);console.log(d.length,'deals');await b.close()})()"`
 4. If Shopify: try `products.json` API first — many block it, fall back to Playwright
 5. If Algolia: intercept POST body to find index name, get appId/apiKey, query directly
 6. Restart server and test via SSE
@@ -192,11 +200,15 @@ USD stores (YoungLA, Alo Yoga, Vuori, ASOS, Musinsa) also have `exchangeRate` fi
 
 ```js
 // scraper/index.js key points:
-// 1. All stores run in parallel via Promise.all
-// 2. Each store has 3-min timeout (Promise.race)
-// 3. onPartial(key, deals) called as each store finishes
-// 4. server.js /api/refresh emits 'partial' SSE events per store
-// 5. frontend merges partial deals into allDeals as they arrive
-// 6. Chromium launch: headless:true, args: ['--no-sandbox','--disable-setuid-sandbox','--disable-dev-shm-usage']
-//    Consider adding '--disable-http2' to fix ERR_HTTP2 on roots.com/lululemon.com
+// 1. Uses playwright-extra + puppeteer-extra-plugin-stealth (bypasses PerimeterX/basic bot blocks)
+// 2. Chromium launch: headless:true, args: ['--no-sandbox','--disable-setuid-sandbox','--disable-dev-shm-usage','--disable-http2']
+//    --disable-http2 fixes ERR_HTTP2_PROTOCOL_ERROR on Lululemon and Roots
+// 3. All stores run in parallel via Promise.all
+// 4. Each store has 3-min timeout (Promise.race)
+// 5. onPartial(key, deals, errorMsg) called as each store finishes
+// 6. server.js broadcasts 'partial' SSE events to all connected clients
+// 7. frontend merges partial deals into allDeals as they arrive
+
+// To test a single store:
+// cd deal-scraper && node -e "const {chromium}=require('playwright-extra');const S=require('puppeteer-extra-plugin-stealth');chromium.use(S());(async()=>{const b=await chromium.launch({headless:true,args:['--no-sandbox','--disable-http2']});const d=await require('./scraper/stores/STORE').scrape(b,console.log);console.log(d.length,'deals');await b.close()})()"
 ```
