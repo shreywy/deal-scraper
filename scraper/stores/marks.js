@@ -59,37 +59,39 @@ async function scrape(browser, onProgress = () => {}) {
  * Strategy 1: Try various API endpoints (FGL platform)
  */
 async function tryApiEndpoints(onProgress) {
-  const endpoints = [
-    'https://www.marks.com/api/v1/search/v2/search?lang=en_CA&onSale=true&limit=100',
-    'https://api.marks.com/api/v1/search/v2/search?lang=en_CA&onSale=true&limit=100',
-    'https://www.marks.com/api/v1/products?onSale=true&limit=100',
-    'https://www.marks.com/api/products?onSale=true&category=clothing&limit=96',
-  ];
+  // Mark's uses the FGL platform API (same as Sport Chek)
+  // API requires ocp-apim-subscription-key header
+  const apiUrl = 'https://www.marks.com/api/v1/search/v2/search';
+  const subscriptionKey = 'c01ef3612328420c9f5cd9277e815a0e';
 
-  for (const endpoint of endpoints) {
-    try {
-      const response = await fetch(endpoint, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          'Accept': 'application/json',
-          'Accept-Language': 'en-CA,en;q=0.9',
-        },
-        timeout: 10000,
-      });
+  try {
+    // Fetch multiple pages to get more deals (96 items per page)
+    const response = await fetch(`${apiUrl}?store=179&lang=en_CA&count=96&start=0&q=store+promotion`, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'application/json',
+        'Accept-Language': 'en-CA,en;q=0.9',
+        'ocp-apim-subscription-key': subscriptionKey,
+        'service-client': 'mks/web',
+        'basesiteid': 'MKS',
+      },
+      timeout: 10000,
+    });
 
-      if (!response.ok) continue;
-
-      const data = await response.json();
-      const deals = parseApiResponse(data);
-
-      if (deals && deals.length > 0) {
-        onProgress(`Mark\'s API: found ${deals.length} deals from ${endpoint}`);
-        return deals;
-      }
-    } catch (error) {
-      // Try next endpoint
-      continue;
+    if (!response.ok) {
+      onProgress(`Mark\'s API: received status ${response.status}`);
+      return null;
     }
+
+    const data = await response.json();
+    const deals = parseApiResponse(data);
+
+    if (deals && deals.length > 0) {
+      onProgress(`Mark\'s API: found ${deals.length} deals (total available: ${data.resultCount || 'unknown'})`);
+      return deals;
+    }
+  } catch (error) {
+    onProgress(`Mark\'s API: ${error.message}`);
   }
 
   return null;
@@ -101,8 +103,8 @@ async function tryApiEndpoints(onProgress) {
 function parseApiResponse(data) {
   const deals = [];
 
-  // Try different response structures
-  const products = data.products || data.items || data.results || data.data || [];
+  // Mark's API returns products array
+  const products = data.products || [];
 
   if (!Array.isArray(products) || products.length === 0) {
     return null;
@@ -110,38 +112,11 @@ function parseApiResponse(data) {
 
   for (const product of products) {
     try {
-      // Skip if not on sale
-      const isOnSale = product.onSale || product.inSale || product.salePrice || product.promotionalPrice;
-      if (!isOnSale) continue;
+      // Mark's API structure: currentPrice and originalPrice are at product level
+      const currentPrice = product.currentPrice?.value;
+      const originalPrice = product.originalPrice?.value;
 
-      let currentPrice = null;
-      let originalPrice = null;
-
-      // Try FGL format first (like Sport Chek)
-      if (product.options && product.options.length > 0) {
-        const colorOption = product.options.find(o => o.descriptor === 'COLOUR' || o.descriptor === 'COLOR');
-        if (colorOption && colorOption.values && colorOption.values.length > 0) {
-          const firstColor = colorOption.values[0];
-
-          if (firstColor.currentPrice && firstColor.currentPrice.value) {
-            currentPrice = firstColor.currentPrice.value;
-          }
-
-          if (firstColor.originalPrice && firstColor.originalPrice.value) {
-            originalPrice = firstColor.originalPrice.value;
-          }
-        }
-      }
-
-      // Fallback to simpler formats
-      if (!currentPrice) {
-        currentPrice = product.salePrice || product.promotionalPrice || product.price?.sale || product.price?.current;
-      }
-
-      if (!originalPrice) {
-        originalPrice = product.regularPrice || product.originalPrice || product.price?.regular || product.price?.original;
-      }
-
+      // Skip if no valid pricing or not on sale
       if (!currentPrice || !originalPrice || currentPrice >= originalPrice) {
         continue;
       }
@@ -149,7 +124,7 @@ function parseApiResponse(data) {
       const discount = Math.round(((originalPrice - currentPrice) / originalPrice) * 100);
 
       // Build URL
-      let url = product.url || product.link || product.productUrl;
+      let url = product.url || '';
       if (url && !url.startsWith('http')) {
         url = `https://www.marks.com${url}`;
       }
@@ -158,15 +133,9 @@ function parseApiResponse(data) {
       let image = '';
       if (product.images && product.images.length > 0 && product.images[0].url) {
         image = product.images[0].url;
-      } else {
-        image = product.image || product.imageUrl || product.thumbnail || product.img || '';
       }
 
-      if (image && !image.startsWith('http')) {
-        image = `https://www.marks.com${image}`;
-      }
-
-      const name = product.title || product.name || product.productName;
+      const name = product.title || product.name || '';
       if (!name || !url) continue;
 
       const deal = {
@@ -234,42 +203,19 @@ async function tryXhrInterception(browser, onProgress) {
       }
     });
 
-    // Try multiple sale URLs
-    const saleUrls = [
-      'https://www.marks.com/en/categories/sale',
-      'https://www.marks.com/en/sale',
-      'https://www.marks.com/en',
-    ];
+    // Navigate to the correct sale page
+    const saleUrl = 'https://www.marks.com/en/sale-clearance/sale.html';
 
-    for (const saleUrl of saleUrls) {
-      try {
-        await page.goto(saleUrl, {
-          waitUntil: 'domcontentloaded',
-          timeout: 15000,
-        });
+    await page.goto(saleUrl, {
+      waitUntil: 'domcontentloaded',
+      timeout: 15000,
+    });
 
-        // Check if we got a 404
-        const title = await page.title();
-        if (title.includes('404')) {
-          onProgress(`Mark\'s: ${saleUrl} returned 404, trying next URL`);
-          continue;
-        }
+    await page.waitForTimeout(3000);
 
-        await page.waitForTimeout(3000);
-
-        // Scroll to trigger lazy loading
-        await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-        await page.waitForTimeout(3000);
-
-        // If we captured data, stop trying other URLs
-        if (capturedData && capturedData.products) {
-          break;
-        }
-      } catch (e) {
-        // Try next URL
-        continue;
-      }
-    }
+    // Scroll to trigger lazy loading
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await page.waitForTimeout(3000);
 
     // Parse captured data
     if (capturedData && capturedData.products) {
@@ -305,38 +251,15 @@ async function tryDomScraping(browser, onProgress) {
 
     page = await context.newPage();
 
-    // Try multiple sale URLs
-    const saleUrls = [
-      'https://www.marks.com/en/categories/sale',
-      'https://www.marks.com/en',
-    ];
+    // Navigate to the correct sale page
+    const saleUrl = 'https://www.marks.com/en/sale-clearance/sale.html';
 
-    let pageLoaded = false;
+    await page.goto(saleUrl, {
+      waitUntil: 'domcontentloaded',
+      timeout: 15000,
+    });
 
-    for (const saleUrl of saleUrls) {
-      try {
-        await page.goto(saleUrl, {
-          waitUntil: 'domcontentloaded',
-          timeout: 15000,
-        });
-
-        const title = await page.title();
-        if (!title.includes('404')) {
-          pageLoaded = true;
-          onProgress(`Mark\'s DOM: loaded ${saleUrl}`);
-          break;
-        }
-      } catch (e) {
-        continue;
-      }
-    }
-
-    if (!pageLoaded) {
-      onProgress('Mark\'s DOM: all URLs failed to load');
-      await page.close();
-      await context.close();
-      return null;
-    }
+    onProgress(`Mark\'s DOM: loaded ${saleUrl}`);
 
     await page.waitForTimeout(5000);
 

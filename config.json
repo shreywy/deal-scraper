@@ -208,13 +208,6 @@
       "currency": "CAD",
       "category": "clothing"
     },
-    "simons": {
-      "enabled": true,
-      "name": "Simons",
-      "domain": "simons.ca",
-      "currency": "CAD",
-      "category": "clothing"
-    },
     "marks": {
       "enabled": true,
       "name": "Mark's",
@@ -266,21 +259,13 @@
       "category": "clothing",
       "note": "Bot protection (Akamai) blocks headless browsers - returns error codes on all sale/outlet URLs"
     },
-    "marks": {
-      "enabled": false,
-      "name": "Mark's",
-      "domain": "marks.com",
-      "currency": "CAD",
-      "category": "clothing",
-      "note": "Sale URL returns 404; investigating FGL API approach"
-    },
     "simons": {
       "enabled": false,
       "name": "Simons",
       "domain": "simons.ca",
       "currency": "CAD",
       "category": "clothing",
-      "note": "Finds product elements but price selectors don't match — fixing"
+      "note": "Bot detection - all sale URLs redirect to homepage (tested headless/visible, stealth plugin, multiple URLs)"
     }
   },
   "settings": {
