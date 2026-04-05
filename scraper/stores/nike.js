@@ -78,7 +78,9 @@ async function scrape(browser, onProgress = () => {}) {
         const url = (linkEl || imgLink)?.href || '';
         if (!url || seen.has(url)) return null;
         seen.add(url);
-        const name = (linkEl?.textContent || imgLink?.getAttribute('aria-label') || '').trim();
+        // aria-label has full name with gender e.g. "Nike Air Max 95 Women's Shoes"
+        const fullName = imgLink?.getAttribute('aria-label') || linkEl?.textContent || '';
+        const name = (linkEl?.textContent || fullName).trim();
         const salePriceEl = card.querySelector('[class*="is--current-price"]');
         const origPriceEl = card.querySelector('[class*="is--striked-out"]');
         const imgEl = card.querySelector('img[class*="product-card__image"], img[src]');
@@ -88,7 +90,10 @@ async function scrape(browser, onProgress = () => {}) {
         if (!name || !url || !price || !originalPrice || price >= originalPrice) return null;
         const discount = Math.round((1 - price / originalPrice) * 100);
         if (discount <= 0) return null;
-        return { store: storeName, storeKey, name, url, image, price, originalPrice, discount, currency: 'CAD', tags: [] };
+        // Extract gender from the full aria-label name
+        const fl = fullName.toLowerCase();
+        const gender = fl.includes("women") ? 'Women' : fl.includes("men") ? 'Men' : '';
+        return { store: storeName, storeKey, name, url, image, price, originalPrice, discount, currency: 'CAD', gender, tags: [] };
       }).filter(Boolean);
     }, { storeName: STORE_NAME, storeKey: STORE_KEY });
 
@@ -97,7 +102,7 @@ async function scrape(browser, onProgress = () => {}) {
       id: slugify(`nike-${d.name}`),
       priceCAD: d.price,
       originalPriceCAD: d.originalPrice,
-      tags: tag({ name: d.name }),
+      tags: tag({ name: d.name, gender: d.gender || '' }),
       scrapedAt: new Date().toISOString(),
     }));
     onProgress(`Nike: found ${tagged.length} deals (DOM)`);

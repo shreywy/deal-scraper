@@ -376,6 +376,52 @@ function applyFiltersAndRender() {
   renderGrid();
   renderResultsBar();
   renderPagination();
+  updatePillAvailability();
+}
+
+// Returns deals matching all active filters EXCEPT the given key (for availability check)
+function dealsExcluding(excludeKey) {
+  const cadPrice = d => (d.currency === 'USD' && d.priceCAD) ? d.priceCAD : d.price;
+  let d = [...allDeals];
+  if (excludeKey !== 'store'    && filters.store !== 'all')    d = d.filter(x => x.store === filters.store);
+  if (excludeKey !== 'gender'   && filters.gender !== 'all')   d = d.filter(x => x.tags.includes(filters.gender));
+  if (excludeKey !== 'category' && filters.category !== 'all') d = d.filter(x => x.tags.includes(filters.category));
+  if (excludeKey !== 'price'    && filters.price !== 'all') {
+    const [lo, hi] = filters.price.split('-').map(Number);
+    d = d.filter(x => { const p = cadPrice(x); return p >= lo && p <= hi; });
+  }
+  if (excludeKey !== 'discount') {
+    const md = parseInt(filters.discount) || 0;
+    if (md > 0) d = d.filter(x => x.discount >= md);
+  }
+  return d;
+}
+
+function updatePillAvailability() {
+  // For each filter group, disable pills that would produce 0 results
+  const cadPrice = d => (d.currency === 'USD' && d.priceCAD) ? d.priceCAD : d.price;
+
+  const checks = {
+    store:    (d, v) => d.store === v,
+    gender:   (d, v) => d.tags.includes(v),
+    category: (d, v) => d.tags.includes(v),
+    price: (d, v) => {
+      const [lo, hi] = v.split('-').map(Number);
+      const p = cadPrice(d);
+      return p >= lo && p <= hi;
+    },
+    discount: (d, v) => d.discount >= parseInt(v),
+  };
+
+  for (const filterKey of ['store', 'gender', 'category', 'price', 'discount']) {
+    const base = dealsExcluding(filterKey);
+    document.querySelectorAll(`[data-filter="${filterKey}"]`).forEach(pill => {
+      const val = pill.dataset.value;
+      if (val === 'all' || val === '0') { pill.classList.remove('pill-disabled'); return; }
+      const hasDeals = base.some(d => checks[filterKey](d, val));
+      pill.classList.toggle('pill-disabled', !hasDeals);
+    });
+  }
 }
 
 // ── Rendering ─────────────────────────────────────────────────────────────────
@@ -444,12 +490,28 @@ function renderResultsBar() {
   document.getElementById('resultsCount').textContent = text;
 
   const chips = [];
+  let hasActiveFilter = false;
   for (const [key, val] of Object.entries(filters)) {
     if (val === 'all' || val === '0') continue;
+    hasActiveFilter = true;
     const label = key === 'price' ? `$${val.replace(/-99999$/, '+').replace('-', '–')}` : key === 'discount' ? `${val}%+` : val;
     chips.push(`<div class="active-tag">${escHtml(label)} <span class="active-tag-x" onclick="clearFilter('${key}')">×</span></div>`);
   }
+  if (hasActiveFilter) {
+    chips.push(`<div class="reset-btn" onclick="resetAllFilters()">Reset all</div>`);
+  }
   document.getElementById('activeFilters').innerHTML = chips.join('');
+}
+
+function resetAllFilters() {
+  filters.store = 'all';
+  filters.gender = 'all';
+  filters.category = 'all';
+  filters.price = 'all';
+  filters.discount = '0';
+  ['store', 'gender', 'category', 'price', 'discount'].forEach(k => syncPillActive(k, filters[k]));
+  currentPage = 1;
+  applyFiltersAndRender();
 }
 
 function renderPagination() {
@@ -740,7 +802,6 @@ function applyGridSize() {
   const minW = TILE_WIDTHS[cols] || 220;
   document.getElementById('grid').style.setProperty('--tile-min', `${minW}px`);
   document.getElementById('gsVal').textContent = cols;
-  document.getElementById('gridLabel').textContent = SIZE_LABELS[cols] || cols;
 }
 
 function setSort(el) {
@@ -752,6 +813,7 @@ function setSort(el) {
 }
 
 function togglePill(el) {
+  if (el.classList.contains('pill-disabled')) return;
   const group = el.closest('.pill-group');
   const filterKey = el.dataset.filter;
   const value = el.dataset.value;

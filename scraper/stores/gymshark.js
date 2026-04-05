@@ -41,7 +41,7 @@ async function scrape(_browser, onProgress = () => {}) {
         page,
         attributesToRetrieve: [
           'title', 'price', 'compareAtPrice', 'handle',
-          'featuredImage', 'division', 'category', 'productCategory',
+          'featuredMedia', 'media', 'gender', 'division', 'category',
         ],
       }),
     });
@@ -80,12 +80,13 @@ function mapAlgoliaHit(h, seen) {
     if (seen.has(url)) return null;
     seen.add(url);
 
-    const image = h.featuredImage?.url || h.image?.url || '';
+    const image = h.featuredMedia?.src || h.media?.[0]?.src || '';
 
-    // Gender from division
-    const div = (h.division || '').toLowerCase();
-    const gender = div.includes('female') || div.includes('women') ? 'Women'
-      : div.includes('male') || div.includes('men') ? 'Men' : '';
+    // Gender from Algolia gender array: ['m'] = Men, ['f'] = Women, ['m','f'] = Unisex
+    const genderArr = Array.isArray(h.gender) ? h.gender : [];
+    const hasM = genderArr.includes('m');
+    const hasF = genderArr.includes('f');
+    const gender = hasM && hasF ? 'Unisex' : hasM ? 'Men' : hasF ? 'Women' : '';
 
     return {
       id: slugify(`gymshark-${name}-${handle}`),

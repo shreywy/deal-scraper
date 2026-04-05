@@ -431,6 +431,24 @@ html.dark .dark-icon-sun  { transform: translateY(0) rotate(0deg); opacity: 1; }
 }
 .pill:hover { border-color: var(--border-hover); background: var(--green-light); transform: translateY(-1px); }
 .pill.active { background: var(--green-mid); color: white; border-color: var(--green-mid); }
+.pill.pill-disabled { opacity: 0.35; cursor: not-allowed; pointer-events: none; }
+.pill.pill-disabled:hover { transform: none; background: var(--surface); border-color: var(--border); }
+
+/* Reset all filters button */
+.reset-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 20px;
+  border: 1.5px solid var(--text-muted);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  background: transparent;
+  transition: border-color 0.15s, color 0.15s, background 0.15s !important;
+}
+.reset-btn:hover { border-color: var(--green-dark); color: var(--green-dark); background: var(--green-light); }
 
 /* ── MAIN ── */
 .main {
