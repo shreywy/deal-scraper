@@ -228,12 +228,12 @@
       "note": "FGL platform API returns 400 error; weekly flyer URL returns 404 (URL structure changed)"
     },
     "sportinglife": {
-      "enabled": false,
+      "enabled": true,
       "name": "Sporting Life",
       "domain": "sportinglife.ca",
       "currency": "CAD",
       "category": "clothing",
-      "note": "Returns 0 deals — Shopify API blocked or no active sale"
+      "note": "SFCC DOM scraping — ~36 deals"
     },
     "alphalete": {
       "enabled": true,
@@ -325,12 +325,12 @@
       "category": "clothing"
     },
     "altitudesports": {
-      "enabled": false,
+      "enabled": true,
       "name": "Altitude Sports",
       "domain": "altitude-sports.com",
       "currency": "CAD",
       "category": "clothing",
-      "note": "Shopify API returns 0 — no active sale or collection blocked"
+      "note": "DOM scraping (Chakra UI product cards) — ~48 deals (CAD)"
     },
     "urbanoutfitters": {
       "enabled": false,
