@@ -38,51 +38,55 @@ function migrateFilterValue(key, value) {
   return value;
 }
 
-const filters = (() => {
-  try {
-    const saved = JSON.parse(localStorage.getItem('dealFilters') || 'null');
-    if (!saved) return { ...FILTER_DEFAULTS };
+// ── Per-tab filter state ────────────────────────────────────────────────────
+// Each tab maintains independent filter state saved to localStorage
 
-    // Migrate old format to new
+function _loadSavedFilters(storageKey, legacyKey) {
+  try {
+    // Try tab-specific key first, fall back to legacy key for backward compat
+    const raw = localStorage.getItem(storageKey) || localStorage.getItem(legacyKey || '') || 'null';
+    const saved = JSON.parse(raw);
+    if (!saved) return { ...FILTER_DEFAULTS };
     const migrated = { ...FILTER_DEFAULTS };
     for (const key of ['store', 'gender', 'category']) {
-      if (saved[key] !== undefined) {
-        migrated[key] = migrateFilterValue(key, saved[key]);
-      }
+      if (saved[key] !== undefined) migrated[key] = migrateFilterValue(key, saved[key]);
     }
-    // Handle old price format
     if (saved.price && saved.price !== 'all') {
       const parts = saved.price.split('-').map(Number);
-      if (parts.length === 2) {
-        migrated.priceMin = parts[0];
-        migrated.priceMax = parts[1] === 99999 ? 500 : parts[1];
-      }
+      if (parts.length === 2) { migrated.priceMin = parts[0]; migrated.priceMax = parts[1] === 99999 ? 500 : parts[1]; }
     } else if (saved.priceMin !== undefined && saved.priceMax !== undefined) {
-      migrated.priceMin = saved.priceMin;
-      migrated.priceMax = saved.priceMax;
+      migrated.priceMin = saved.priceMin; migrated.priceMax = saved.priceMax;
     }
-    // Handle discount
-    if (saved.discount !== undefined) {
-      migrated.discount = migrateFilterValue('discount', saved.discount);
-    }
+    if (saved.discount !== undefined) migrated.discount = migrateFilterValue('discount', saved.discount);
     return migrated;
   } catch (_) { return { ...FILTER_DEFAULTS }; }
-})();
+}
 
-const EXCLUDE_KEYS = ['store', 'gender', 'category'];
-const excludedFilters = (() => {
+function _loadExcludedFilters(storageKey) {
   try {
-    const saved = JSON.parse(localStorage.getItem('dealFiltersExcluded') || 'null');
+    const saved = JSON.parse(localStorage.getItem(storageKey) || 'null');
     const base = { store: [], gender: [], category: [] };
-    if (saved) EXCLUDE_KEYS.forEach(k => { if (Array.isArray(saved[k])) base[k] = saved[k]; });
+    if (saved) ['store', 'gender', 'category'].forEach(k => { if (Array.isArray(saved[k])) base[k] = saved[k]; });
     return base;
   } catch (_) { return { store: [], gender: [], category: [] }; }
-})();
+}
+
+const _clothingFilters = _loadSavedFilters('dealFilters_clothing', 'dealFilters');
+const _otherFilters = _loadSavedFilters('dealFilters_other');
+const _clothingExcluded = _loadExcludedFilters('dealFiltersExcluded_clothing');
+const _otherExcluded = _loadExcludedFilters('dealFiltersExcluded_other');
+
+// `filters` and `excludedFilters` are references that swap on tab switch
+let filters = _clothingFilters;
+
+const EXCLUDE_KEYS = ['store', 'gender', 'category'];
+let excludedFilters = _clothingExcluded;
 
 function saveFilters() {
   try {
-    localStorage.setItem('dealFilters', JSON.stringify(filters));
-    localStorage.setItem('dealFiltersExcluded', JSON.stringify(excludedFilters));
+    const tabKey = currentTab === 'clothing' ? 'clothing' : 'other';
+    localStorage.setItem(`dealFilters_${tabKey}`, JSON.stringify(filters));
+    localStorage.setItem(`dealFiltersExcluded_${tabKey}`, JSON.stringify(excludedFilters));
   } catch (_) {}
 }
 
@@ -510,10 +514,15 @@ function switchTab(tab) {
     navContainer.style.display = tab === 'non-clothing' ? 'block' : 'none';
   }
 
-  // Reset category + store filters when switching tabs to avoid cross-tab bleed
-  filters.category = [];
-  filters.store = [];
-  selectedNcCategory = '';
+  // Swap to the appropriate tab's independent filter state
+  if (tab === 'clothing') {
+    filters = _clothingFilters;
+    excludedFilters = _clothingExcluded;
+  } else {
+    filters = _otherFilters;
+    excludedFilters = _otherExcluded;
+  }
+  selectedNcCategory = filters.category.length === 1 ? filters.category[0] : '';
 
   currentPage = 1;
   updateSidebarForTab(tab);

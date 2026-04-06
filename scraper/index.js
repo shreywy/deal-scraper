@@ -91,7 +91,6 @@ const SCRAPERS = {
   indigo:         require('./stores/indigo'),
   lego:           require('./stores/lego'),
   samsung:        require('./stores/samsung'),
-  londondrugs:    require('./stores/londondrugs'),
   microsoft:      require('./stores/microsoft'),
   ikea:           require('./stores/ikea'),
   costco:         require('./stores/costco'),
@@ -100,6 +99,14 @@ const SCRAPERS = {
   gamestop:       require('./stores/gamestop'),
   toysrus:        require('./stores/toysrus'),
   bestbuyoutlet:  require('./stores/bestbuyoutlet'),
+  leons:          require('./stores/leons'),
+  thebrick:       require('./stores/thebrick'),
+  visions:        require('./stores/visions'),
+  structube:      require('./stores/structube'),
+  cb2:            require('./stores/cb2'),
+  factorydirect:  require('./stores/factorydirect'),
+  dyson:          require('./stores/dyson'),
+  samsungoutlet:  require('./stores/samsungoutlet'),
 };
 
 const CACHE_PATH = path.join(__dirname, '../data/deals.json');

@@ -575,11 +575,12 @@
       "category": "non-clothing"
     },
     "londondrugs": {
-      "enabled": true,
+      "enabled": false,
       "name": "London Drugs",
       "domain": "londondrugs.com",
       "currency": "CAD",
-      "category": "non-clothing"
+      "category": "non-clothing",
+      "note": "Removed per user preference"
     },
     "microsoft": {
       "enabled": true,
@@ -637,6 +638,63 @@
       "currency": "CAD",
       "category": "non-clothing",
       "note": "Open-box and refurbished deals from Best Buy Canada"
+    },
+    "leons": {
+      "enabled": true,
+      "name": "Leon's",
+      "domain": "leons.ca",
+      "currency": "CAD",
+      "category": "non-clothing"
+    },
+    "thebrick": {
+      "enabled": true,
+      "name": "The Brick",
+      "domain": "thebrick.com",
+      "currency": "CAD",
+      "category": "non-clothing"
+    },
+    "visions": {
+      "enabled": true,
+      "name": "Visions Electronics",
+      "domain": "visions.ca",
+      "currency": "CAD",
+      "category": "non-clothing"
+    },
+    "cb2": {
+      "enabled": true,
+      "name": "CB2 Canada",
+      "domain": "cb2.ca",
+      "currency": "CAD",
+      "category": "non-clothing"
+    },
+    "structube": {
+      "enabled": true,
+      "name": "Structube",
+      "domain": "structube.com",
+      "currency": "CAD",
+      "category": "non-clothing"
+    },
+    "factorydirect": {
+      "enabled": true,
+      "name": "Factory Direct",
+      "domain": "factorydirect.ca",
+      "currency": "CAD",
+      "category": "non-clothing"
+    },
+    "dyson": {
+      "enabled": true,
+      "name": "Dyson CA",
+      "domain": "dyson.ca",
+      "currency": "CAD",
+      "category": "non-clothing"
+    },
+    "samsungoutlet": {
+      "enabled": true,
+      "name": "Samsung Outlet",
+      "domain": "samsung.com/ca",
+      "currency": "CAD",
+      "category": "non-clothing",
+      "note": "Certified Re-Newed (refurbished) products"
     }
   },
   "settings": {

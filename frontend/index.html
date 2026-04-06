@@ -12,11 +12,6 @@
 <div class="topbar">
   <div class="logo">🌿 dealsco</div>
   <div class="topbar-divider"></div>
-  <div class="topbar-tabs" id="topbarTabs">
-    <button class="topbar-tab active" id="tabClothing" onclick="switchTab('clothing')">Clothing</button>
-    <button class="topbar-tab" id="tabNonClothing" onclick="switchTab('non-clothing')">Other <span class="topbar-tab-count" id="nonClothingCount"></span></button>
-  </div>
-  <div class="topbar-divider"></div>
   <div class="refresh-strip" id="refreshStrip"
        onmouseenter="showScrapePopdown()" onmouseleave="hideScrapePopdown()">
     <span class="strip-dot" id="stripDot"></span>
@@ -30,6 +25,10 @@
   <div class="search-wrap" id="searchWrap">
     <input class="search-input" id="searchInput" type="text" placeholder="Search deals…" oninput="onSearchInput()" autocomplete="off">
     <span class="search-clear" id="searchClear" onclick="clearSearch()">×</span>
+  </div>
+  <div class="topbar-tabs" id="topbarTabs">
+    <button class="topbar-tab active" id="tabClothing" onclick="switchTab('clothing')">Clothing</button>
+    <button class="topbar-tab" id="tabNonClothing" onclick="switchTab('non-clothing')">Other <span class="topbar-tab-count" id="nonClothingCount"></span></button>
   </div>
   <div class="topbar-spacer"></div>
   <div class="dark-btn" id="darkBtn" onclick="toggleDark()" title="Toggle dark mode">
