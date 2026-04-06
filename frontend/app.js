@@ -19,12 +19,14 @@ const filters = (() => {
   } catch (_) { return { ...FILTER_DEFAULTS }; }
 })();
 
-const EXCLUDE_DEFAULTS = { store: [], gender: [], category: [], price: [], discount: [] };
+const EXCLUDE_KEYS = ['store', 'gender', 'category', 'price', 'discount'];
 const excludedFilters = (() => {
   try {
     const saved = JSON.parse(localStorage.getItem('dealFiltersExcluded') || 'null');
-    return saved ? { ...EXCLUDE_DEFAULTS, ...saved } : { ...EXCLUDE_DEFAULTS };
-  } catch (_) { return { ...EXCLUDE_DEFAULTS }; }
+    const base = { store: [], gender: [], category: [], price: [], discount: [] };
+    if (saved) EXCLUDE_KEYS.forEach(k => { if (Array.isArray(saved[k])) base[k] = saved[k]; });
+    return base;
+  } catch (_) { return { store: [], gender: [], category: [], price: [], discount: [] }; }
 })();
 
 function saveFilters() {
