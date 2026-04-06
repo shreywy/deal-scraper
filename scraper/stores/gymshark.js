@@ -89,6 +89,9 @@ function mapAlgoliaHit(h, seen) {
     const hasF = genderArr.includes('f');
     const gender = hasM && hasF ? 'Unisex' : hasM ? 'Men' : hasF ? 'Women' : '';
 
+    // Category from Algolia (may help with Kids detection if product name doesn't include it)
+    const category = h.category || h.division || '';
+
     return {
       id: slugify(`gymshark-${name}-${handle}`),
       store: STORE_NAME,
@@ -102,7 +105,7 @@ function mapAlgoliaHit(h, seen) {
       currency: CURRENCY,
       priceCAD: price,
       originalPriceCAD: originalPrice,
-      tags: tag({ name, gender }),
+      tags: tag({ name, gender, category }),
       scrapedAt: new Date().toISOString(),
     };
   } catch (_) { return null; }

@@ -226,6 +226,10 @@ function mapProduct(p, seen) {
       p.imageUrl ||
       '';
 
+    // Extract category/gender from API if available (for better Kids detection)
+    const category = p.category || p.categoryName || p.productType || '';
+    const gender = p.gender || p.ageGroup || '';
+
     return {
       id: slugify(`${STORE_KEY}-${name}-${id}`),
       store: STORE_NAME,
@@ -239,7 +243,7 @@ function mapProduct(p, seen) {
       currency: CURRENCY,
       priceCAD: price,
       originalPriceCAD: originalPrice,
-      tags: tag({ name }),
+      tags: tag({ name, category, gender }),
       scrapedAt: new Date().toISOString(),
     };
   } catch (_) {

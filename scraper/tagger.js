@@ -62,10 +62,16 @@ const NON_CLOTHING_KEYWORDS = [
 
 // Women must come before Men — 'mens' is a substring of 'womens', and 'male' of 'female'.
 // Checking Women first ensures "womens shorts" → Women, not Men.
+// Kids includes all age groups: toddlers, grade school, little kids, big kids, etc.
 const GENDER_MAP = [
-  { tag: 'Women', keywords: ['women\'s', 'womens', ' women ', 'female', 'girl', 'girls', 'ladies', 'w\'s ', ' w\'s'] },
-  { tag: 'Men',   keywords: ['men\'s', 'mens', ' men ', 'male', 'boy', 'boys', 'm\'s ', ' m\'s'] },
-  { tag: 'Kids',  keywords: ['kids', 'children', 'toddler', 'infant', 'baby', 'youth'] },
+  { tag: 'Women', keywords: ['women\'s', 'womens', ' women ', 'female', 'ladies', 'w\'s ', ' w\'s'] },
+  { tag: 'Men',   keywords: ['men\'s', 'mens', ' men ', 'male', 'm\'s ', ' m\'s'] },
+  { tag: 'Kids',  keywords: [
+    'kids', 'children', 'toddler', 'infant', 'baby', 'youth',
+    'grade school', 'little kids', 'big kids', 'preschool',
+    ' gs ', ' ps ', ' td ', ' bg ', ' lg ', ' gg ',
+    'junior ', ' boys ', ' girls ', ' boy ', ' girl ',
+  ]},
 ];
 
 /**
@@ -94,7 +100,14 @@ function tag({ name = '', description = '', category = '', gender = '' } = {}) {
     if (g.includes('men') && !g.includes('women')) tags.add('Men');
     else if (g.includes('women') || g.includes('woman')) tags.add('Women');
     else if (g.includes('unisex')) tags.add('Unisex');
-    else if (g.includes('kid') || g.includes('child') || g.includes('boy') || g.includes('girl')) tags.add('Kids');
+    else if (
+      g.includes('kid') || g.includes('child') || g.includes('boy') || g.includes('girl') ||
+      g.includes('youth') || g.includes('infant') || g.includes('toddler') ||
+      g.includes('grade school') || g.includes('little kid') || g.includes('big kid') ||
+      g.includes('preschool') || g.includes('junior')
+    ) {
+      tags.add('Kids');
+    }
   }
 
   if (tags.size === 0) {

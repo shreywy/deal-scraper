@@ -98,7 +98,9 @@ async function scrapePage(page, url, onProgress) {
             const slug = p.productId || p.masterId || p.id || '';
             const prodUrl = p.url || `https://www.underarmour.ca/en-ca/p/${slug}`;
             const image = p.images?.[0]?.url || p.imageUrl || '';
-            return { store: storeName, storeKey, name, url: prodUrl, image, price, originalPrice, discount, tags: [] };
+            const category = p.category || p.primaryCategory || '';
+            const gender = p.gender || p.ageGroup || '';
+            return { store: storeName, storeKey, name, url: prodUrl, image, price, originalPrice, discount, category, gender, tags: [] };
           }).filter(Boolean);
         }
       }
@@ -191,7 +193,7 @@ async function scrapePage(page, url, onProgress) {
   return deals.map(d => ({
     ...d,
     id: slugify(`${d.storeKey}-${d.name}`),
-    tags: tag({ name: d.name }),
+    tags: tag({ name: d.name, category: d.category || '', gender: d.gender || '' }),
     scrapedAt: new Date().toISOString(),
   }));
 }

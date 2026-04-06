@@ -88,6 +88,7 @@
         <div class="pill" data-filter="gender" data-value="Men" onclick="togglePill(this, event)">Men</div>
         <div class="pill" data-filter="gender" data-value="Women" onclick="togglePill(this, event)">Women</div>
         <div class="pill" data-filter="gender" data-value="Unisex" onclick="togglePill(this, event)">Unisex</div>
+        <div class="pill" data-filter="gender" data-value="Kids" onclick="togglePill(this, event)">Kids</div>
       </div>
     </div>
 
@@ -100,9 +101,12 @@
 
     <div class="slider-group">
       <div class="slider-label">Price Range <span class="slider-vals" id="priceSliderVals">$0 – $500+</span></div>
+      <div class="slider-endlabels"><span>$0</span><span>$500+</span></div>
       <div class="dual-slider" id="priceSlider">
         <div class="dual-slider-track"></div>
         <div class="dual-slider-fill" id="priceSliderFill"></div>
+        <div class="slider-thumb-tooltip" id="priceMinTip">$0</div>
+        <div class="slider-thumb-tooltip" id="priceMaxTip">$500+</div>
         <input type="range" id="priceMin" min="0" max="500" value="0" step="10" class="range-input range-min">
         <input type="range" id="priceMax" min="0" max="500" value="500" step="10" class="range-input range-max">
       </div>
@@ -110,7 +114,13 @@
 
     <div class="slider-group">
       <div class="slider-label">Min Discount <span class="slider-vals" id="discountSliderVal">Any</span></div>
-      <input type="range" id="discountSlider" min="0" max="90" value="0" step="5" class="range-input">
+      <div class="slider-endlabels"><span>0%</span><span>90%</span></div>
+      <div class="single-slider" id="discountSliderWrap">
+        <div class="dual-slider-track"></div>
+        <div class="dual-slider-fill" id="discountSliderFill" style="left:0%;width:0%"></div>
+        <div class="slider-thumb-tooltip" id="discountTip">0%</div>
+        <input type="range" id="discountSlider" min="0" max="90" value="0" step="5" class="range-input range-single">
+      </div>
     </div>
     <div class="sb-hint">Shift+click any filter to exclude it</div>
   </aside>

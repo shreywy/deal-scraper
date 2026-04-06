@@ -96,6 +96,7 @@ let currentPage = 1;
 // Search
 let searchQuery = '';
 let searchDebounce = null;
+let searchIsFuzzy = false;
 
 // Strip state
 let lastScrapedAt = null;
@@ -108,6 +109,51 @@ let refreshInProgress = false;
 // { storeKey: { name, status: 'pending'|'done'|'error', count, error } }
 let storeProgress = {};
 let popdownHideTimer = null;
+
+
+// ── Fuzzy Search Helpers ─────────────────────────────────────────────────────
+// Levenshtein distance for fuzzy string matching
+function levenshtein(a, b) {
+  const m = a.length, n = b.length;
+  const dp = Array.from({length: m + 1}, (_, i) => [i, ...Array(n).fill(0)]);
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= n; j++)
+      dp[i][j] = a[i-1] === b[j-1] ? dp[i-1][j-1]
+        : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
+  return dp[m][n];
+}
+
+// Check if a query word fuzzy-matches any word in a target string
+function fuzzyMatchWord(queryWord, targetStr) {
+  if (queryWord.length < 3) return false; // don't fuzzy match very short words
+  const maxDist = queryWord.length <= 4 ? 1 : 2; // 1 typo for short words, 2 for longer
+  const words = targetStr.toLowerCase().split(/\s+/);
+  return words.some(w => {
+    if (Math.abs(w.length - queryWord.length) > maxDist) return false;
+    return levenshtein(queryWord, w) <= maxDist;
+  });
+}
+
+// Compute fuzzy score for a deal
+function fuzzyScore(deal, queryWords) {
+  const name = (deal.name || '').toLowerCase();
+  const store = (deal.store || '').toLowerCase();
+  const tags = (deal.tags || []).join(' ').toLowerCase();
+
+  // All query words must fuzzy-match somewhere
+  const allMatch = queryWords.every(qw =>
+    name.includes(qw) || fuzzyMatchWord(qw, name) ||
+    store.includes(qw) || fuzzyMatchWord(qw, store) ||
+    tags.includes(qw) || fuzzyMatchWord(qw, tags)
+  );
+  if (!allMatch) return 0;
+
+  // Score by where the best match is
+  const nameMatch = queryWords.some(qw => name.includes(qw) || fuzzyMatchWord(qw, name));
+  const storeMatch = queryWords.some(qw => store.includes(qw) || fuzzyMatchWord(qw, store));
+  return nameMatch ? 2 : storeMatch ? 1 : 0; // lower than exact (exact = 3,2,1)
+}
 
 
 // ── Init ─────────────────────────────────────────────────────────────────────
@@ -454,6 +500,12 @@ function applyFiltersAndRender() {
     return;
   }
 
+  // Kids filter — hide Kids items by default unless explicitly selected
+  const showKids = filters.gender.includes('Kids');
+  if (!showKids) {
+    deals = deals.filter(d => !d.tags.includes('Kids'));
+  }
+
   // Multi-select filters (OR logic)
   if (filters.store.length > 0) {
     deals = deals.filter(d => filters.store.includes(d.storeKey || d.store));
@@ -505,27 +557,41 @@ function applyFiltersAndRender() {
 
   // Search filter with relevance scoring
   if (searchQuery) {
-    // Compute relevance score for each deal
-    deals = deals.map(d => {
+    const queryWords = searchQuery.split(/\s+/).filter(w => w.length > 0);
+
+    // First try exact matching
+    let scored = deals.map(d => {
       let score = 0;
       const name = d.name.toLowerCase();
       const store = (d.storeKey || d.store).toLowerCase();
       const tags = d.tags.map(t => t.toLowerCase());
 
-      if (name.includes(searchQuery)) {
+      if (queryWords.every(w => name.includes(w))) {
         score = 3; // Product name match (highest priority)
-      } else if (store.includes(searchQuery)) {
+      } else if (queryWords.every(w => store.includes(w))) {
         score = 2; // Store name match
-      } else if (tags.some(tag => tag.includes(searchQuery))) {
+      } else if (queryWords.every(w => tags.some(tag => tag.includes(w)))) {
         score = 1; // Tag match (lowest priority)
       }
 
       return { ...d, _searchScore: score };
-    }).filter(d => d._searchScore > 0); // Filter out non-matches
+    }).filter(d => d._searchScore > 0);
+
+    // If no exact results, try fuzzy matching
+    if (scored.length === 0) {
+      scored = deals.map(d => ({ ...d, _searchScore: fuzzyScore(d, queryWords) }))
+                    .filter(d => d._searchScore > 0);
+      searchIsFuzzy = true;
+    } else {
+      searchIsFuzzy = false;
+    }
+
+    deals = scored;
 
     // Sort by relevance when search is active
     deals.sort((a, b) => b._searchScore - a._searchScore);
   } else {
+    searchIsFuzzy = false;
     // Normal sort order when no search query
     deals.sort((a, b) => {
       if (currentSort === 'discount') return b.discount - a.discount;
@@ -679,7 +745,13 @@ function renderResultsBar() {
   let text = `${total} deal${total !== 1 ? 's' : ''}`;
   if (allDeals.length !== total) text += ` of ${allDeals.length}`;
   if (total > PAGE_SIZE) text += ` · showing ${start}–${end}`;
-  document.getElementById('resultsCount').textContent = text;
+
+  // Add fuzzy search indicator
+  if (searchIsFuzzy && searchQuery) {
+    text += ` <span class="fuzzy-note">(fuzzy match)</span>`;
+  }
+
+  document.getElementById('resultsCount').innerHTML = text;
 
   const chips = [];
   let hasActiveFilter = false;
@@ -1082,10 +1154,30 @@ function toggleDark() {
 }
 
 // ── Sliders ───────────────────────────────────────────────────────────────────
+// Calculate thumb left-% accounting for browser thumb-radius inset
+function thumbLeft(val, min, max, trackEl) {
+  const pct = (val - min) / (max - min);
+  const trackW = (trackEl && trackEl.offsetWidth) || 192;
+  const thumbR = 8; // half of 16px thumb
+  return ((pct * (trackW - 2 * thumbR) + thumbR) / trackW) * 100;
+}
+
+function setTooltip(id, text, leftPct) {
+  const el = document.getElementById(id);
+  if (el) { el.textContent = text; el.style.left = leftPct + '%'; }
+}
+
+function setFill(fillId, leftPct, widthPct) {
+  const el = document.getElementById(fillId);
+  if (el) { el.style.left = leftPct + '%'; el.style.width = widthPct + '%'; }
+}
+
 function initSliders() {
   const priceMin = document.getElementById('priceMin');
   const priceMax = document.getElementById('priceMax');
   const discountSlider = document.getElementById('discountSlider');
+  const priceTrack = document.getElementById('priceSlider');
+  const discTrack = document.getElementById('discountSliderWrap');
 
   function updatePriceSlider() {
     const lo = parseInt(priceMin.value);
@@ -1095,11 +1187,9 @@ function initSliders() {
     filters.priceMax = hi;
     document.getElementById('priceSliderVals').textContent =
       `$${lo} – ${hi >= 500 ? '$500+' : '$' + hi}`;
-    // Update fill bar
-    const pct1 = (lo / 500) * 100;
-    const pct2 = (hi / 500) * 100;
-    document.getElementById('priceSliderFill').style.left = pct1 + '%';
-    document.getElementById('priceSliderFill').style.width = (pct2 - pct1) + '%';
+    setFill('priceSliderFill', (lo / 500) * 100, ((hi - lo) / 500) * 100);
+    setTooltip('priceMinTip', `$${lo}`, thumbLeft(lo, 0, 500, priceTrack));
+    setTooltip('priceMaxTip', hi >= 500 ? '$500+' : `$${hi}`, thumbLeft(hi, 0, 500, priceTrack));
     currentPage = 1;
     saveFilters();
     applyFiltersAndRender();
@@ -1109,26 +1199,24 @@ function initSliders() {
     const val = parseInt(discountSlider.value);
     filters.discount = val;
     document.getElementById('discountSliderVal').textContent = val === 0 ? 'Any' : val + '%+';
+    setFill('discountSliderFill', 0, (val / 90) * 100);
+    setTooltip('discountTip', val === 0 ? '0%' : val + '%', thumbLeft(val, 0, 90, discTrack));
     currentPage = 1;
     saveFilters();
     applyFiltersAndRender();
   }
 
   if (priceMin && priceMax) {
-    // Restore saved values
     priceMin.value = filters.priceMin;
     priceMax.value = filters.priceMax;
     updatePriceSlider();
-
     priceMin.addEventListener('input', updatePriceSlider);
     priceMax.addEventListener('input', updatePriceSlider);
   }
 
   if (discountSlider) {
-    // Restore saved value
     discountSlider.value = filters.discount;
     updateDiscountSlider();
-
     discountSlider.addEventListener('input', updateDiscountSlider);
   }
 }
@@ -1138,22 +1226,26 @@ function updateSliders() {
   const priceMin = document.getElementById('priceMin');
   const priceMax = document.getElementById('priceMax');
   const discountSlider = document.getElementById('discountSlider');
+  const priceTrack = document.getElementById('priceSlider');
+  const discTrack = document.getElementById('discountSliderWrap');
 
   if (priceMin && priceMax) {
     priceMin.value = filters.priceMin;
     priceMax.value = filters.priceMax;
+    const lo = filters.priceMin, hi = filters.priceMax;
     document.getElementById('priceSliderVals').textContent =
-      `$${filters.priceMin} – ${filters.priceMax >= 500 ? '$500+' : '$' + filters.priceMax}`;
-    const pct1 = (filters.priceMin / 500) * 100;
-    const pct2 = (filters.priceMax / 500) * 100;
-    document.getElementById('priceSliderFill').style.left = pct1 + '%';
-    document.getElementById('priceSliderFill').style.width = (pct2 - pct1) + '%';
+      `$${lo} – ${hi >= 500 ? '$500+' : '$' + hi}`;
+    setFill('priceSliderFill', (lo / 500) * 100, ((hi - lo) / 500) * 100);
+    setTooltip('priceMinTip', `$${lo}`, thumbLeft(lo, 0, 500, priceTrack));
+    setTooltip('priceMaxTip', hi >= 500 ? '$500+' : `$${hi}`, thumbLeft(hi, 0, 500, priceTrack));
   }
 
   if (discountSlider) {
     discountSlider.value = filters.discount;
-    document.getElementById('discountSliderVal').textContent =
-      filters.discount === 0 ? 'Any' : filters.discount + '%+';
+    const val = filters.discount;
+    document.getElementById('discountSliderVal').textContent = val === 0 ? 'Any' : val + '%+';
+    setFill('discountSliderFill', 0, (val / 90) * 100);
+    setTooltip('discountTip', val === 0 ? '0%' : val + '%', thumbLeft(val, 0, 90, discTrack));
   }
 }
 

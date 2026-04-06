@@ -90,9 +90,16 @@ async function scrape(browser, onProgress = () => {}) {
         if (!name || !url || !price || !originalPrice || price >= originalPrice) return null;
         const discount = Math.round((1 - price / originalPrice) * 100);
         if (discount <= 0) return null;
-        // Extract gender from the full aria-label name
+        // Extract gender from the full aria-label name (check kids first to avoid matching "women" in "women's")
         const fl = fullName.toLowerCase();
-        const gender = fl.includes("women") ? 'Women' : fl.includes("men") ? 'Men' : '';
+        let gender = '';
+        if (fl.includes("kid") || fl.includes("youth") || fl.includes("grade school") || fl.includes(" gs ") || fl.includes(" ps ")) {
+          gender = 'Kids';
+        } else if (fl.includes("women")) {
+          gender = 'Women';
+        } else if (fl.includes("men")) {
+          gender = 'Men';
+        }
         return { store: storeName, storeKey, name, url, image, price, originalPrice, discount, currency: 'CAD', gender, tags: [] };
       }).filter(Boolean);
     }, { storeName: STORE_NAME, storeKey: STORE_KEY });
@@ -146,6 +153,10 @@ function mapNikeProduct(p) {
     const url = slug ? `https://www.nike.com/ca/t/${slug}` : 'https://www.nike.com/ca/w/sale-3yaep';
     const image = p.productInfo?.images?.portraitURL || p.images?.[0]?.url || '';
 
+    // Extract gender/category from API data if available
+    const gender = p.productInfo?.gender || p.gender || '';
+    const category = p.productInfo?.category || p.category || '';
+
     return {
       id: slugify(`nike-${name}-${p.id || ''}`),
       store: STORE_NAME,
@@ -159,7 +170,7 @@ function mapNikeProduct(p) {
       currency: CURRENCY,
       priceCAD: price,
       originalPriceCAD: originalPrice,
-      tags: tag({ name }),
+      tags: tag({ name, gender, category }),
       scrapedAt: new Date().toISOString(),
     };
   } catch (_) { return null; }
