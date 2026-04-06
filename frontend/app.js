@@ -496,6 +496,8 @@ function updatePillAvailability() {
     const base = dealsExcluding(filterKey);
     document.querySelectorAll(`[data-filter="${filterKey}"]`).forEach(pill => {
       const val = pill.dataset.value;
+      // Never disable excluded pills — they must stay clickable to allow un-exclusion
+      if (pill.classList.contains('excluded')) { pill.classList.remove('pill-disabled'); return; }
       if (val === 'all' || val === '0') { pill.classList.remove('pill-disabled'); return; }
       const hasDeals = base.some(d => checks[filterKey](d, val));
       pill.classList.toggle('pill-disabled', !hasDeals);
