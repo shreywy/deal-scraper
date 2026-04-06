@@ -56,7 +56,11 @@ const SCRAPERS = {
   altitudesports: require('./stores/altitudesports'),
   canadiantire:   require('./stores/canadiantire'),
   sportinglife:   require('./stores/sportinglife'),
-  // Streetwear
+  // Streetwear / skate
+  volcom:         require('./stores/volcom'),
+  huf:            require('./stores/huf'),
+  rvca:           require('./stores/rvca'),
+  obey:           require('./stores/obey'),
   urbanoutfitters: require('./stores/urbanoutfitters'),
   vans:           require('./stores/vans'),
   pacsun:         require('./stores/pacsun'),

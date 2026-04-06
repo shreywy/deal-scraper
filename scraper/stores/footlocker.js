@@ -95,46 +95,54 @@ async function scrape(browser, onProgress = () => {}) {
     if (allDeals.length === 0) {
       onProgress('Foot Locker: no API products, trying DOM scraping...');
       const domDeals = await page.evaluate(({ storeName, storeKey }) => {
-        const parsePrice = el => {
-          if (!el) return null;
-          const n = parseFloat((el.textContent || '').replace(/[^0-9.]/g, ''));
+        const parsePrice = text => {
+          if (!text) return null;
+          const match = text.match(/\$?([\d,]+\.?\d*)/);
+          if (!match) return null;
+          const n = parseFloat(match[1].replace(/,/g, ''));
           return isNaN(n) ? null : n;
         };
 
-        const cardSels = [
-          '.product, .product-card, .product-grid-item',
-          'div[class*="ProductCard"]',
-          'article[class*="product"]',
-          'li[class*="product"]',
-        ];
-
-        let cards = [];
-        for (const sel of cardSels) {
-          const found = [...document.querySelectorAll(sel)];
-          if (found.length > 0) { cards = found; break; }
-        }
+        const cards = [...document.querySelectorAll('.ProductCard')];
 
         const seen = new Set();
         return cards.map(card => {
-          const link = card.querySelector('a[href*="/product/"], a[href]');
+          const link = card.querySelector('a[href*="/product/"]');
           const url = link?.href || '';
           if (!url || seen.has(url)) return null;
           seen.add(url);
 
-          const name = card.querySelector('.product-title, .product-name, h2, h3, [class*="title"]')?.textContent?.trim() || '';
+          // Name is in .ProductName-primary
+          const nameEl = card.querySelector('.ProductName-primary');
+          const name = nameEl?.textContent?.trim() || '';
 
-          const salePriceEl = card.querySelector('.price-sale, .sale-price, [class*="sale"]');
-          const origPriceEl = card.querySelector('.price-original, .original-price, del, s, [class*="original"]');
+          // Price structure: .ProductPrice contains both sale and original prices
+          const priceContainer = card.querySelector('.ProductPrice');
+          if (!priceContainer) return null;
 
-          const price = parsePrice(salePriceEl);
-          const originalPrice = parsePrice(origPriceEl);
+          const priceText = priceContainer.textContent || '';
+          // Extract prices from text like "Price dropped from $225.00 to $168.75"
+          const priceMatch = priceText.match(/from\s+\$?([\d,]+\.?\d*)\s+to\s+\$?([\d,]+\.?\d*)/);
 
-          const imgEl = card.querySelector('img[src]');
-          const image = imgEl?.src || '';
+          let price, originalPrice;
+          if (priceMatch) {
+            originalPrice = parseFloat(priceMatch[1].replace(/,/g, ''));
+            price = parseFloat(priceMatch[2].replace(/,/g, ''));
+          } else {
+            // Fallback: look for line-through and sale price
+            const salePriceEl = priceContainer.querySelector('[class*="sale"]');
+            const origPriceEl = priceContainer.querySelector('.line-through');
+            price = parsePrice(salePriceEl?.textContent);
+            originalPrice = parsePrice(origPriceEl?.textContent);
+          }
 
-          if (!name || !price || !originalPrice || price >= originalPrice) return null;
+          if (!price || !originalPrice || price >= originalPrice) return null;
           const discount = Math.round((1 - price / originalPrice) * 100);
           if (discount <= 0) return null;
+
+          // Image
+          const imgEl = card.querySelector('img[src]');
+          const image = imgEl?.src || '';
 
           return {
             store: storeName,

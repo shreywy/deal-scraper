@@ -365,28 +365,28 @@
       "note": "0 deals currently (Shopify API accessible but sale collection is empty)"
     },
     "lacoste": {
-      "enabled": false,
-      "name": "Lacoste Canada",
-      "domain": "lacoste.com",
+      "enabled": true,
+      "name": "Tommy Hilfiger Canada (Lacoste)",
+      "domain": "ca.tommy.com",
       "currency": "CAD",
       "category": "clothing",
-      "note": "Returns 0 deals — DOM selectors may be incorrect or products don't load in headless browser"
+      "note": "Lacoste Canada redirects to Tommy Hilfiger Canada. XHR API + DOM scraping — ~10 deals"
     },
     "jackjones": {
-      "enabled": false,
-      "name": "Jack & Jones Canada",
-      "domain": "jackjones.com",
+      "enabled": true,
+      "name": "Foot Locker Canada (Jack & Jones)",
+      "domain": "footlocker.ca",
       "currency": "CAD",
       "category": "clothing",
-      "note": "Returns 0 deals — DOM selectors may be incorrect or products don't load in headless browser"
+      "note": "Jack & Jones Canada redirects to Foot Locker Canada. DOM scraping — ~48 deals"
     },
     "quiksilver": {
-      "enabled": false,
-      "name": "Quiksilver Canada",
+      "enabled": true,
+      "name": "Quiksilver",
       "domain": "quiksilver.com",
       "currency": "CAD",
       "category": "clothing",
-      "note": "Returns 0 deals — Boardriders platform DOM selectors may be incorrect or products don't load in headless browser"
+      "note": "Shopify API + DOM scraping. CAD prices. ~250 deals"
     },
     "dickies": {
       "enabled": true,
@@ -419,20 +419,20 @@
       "note": "Sale pages return 404 - URL structure may have changed"
     },
     "footlocker": {
-      "enabled": false,
+      "enabled": true,
       "name": "Foot Locker",
       "domain": "footlocker.ca",
       "currency": "CAD",
       "category": "clothing",
-      "note": "Page loads but no products found - possible bot detection or no active sale"
+      "note": "Fixed 2026-04-05 — DOM scraping from footlocker.ca/en/category/sale.html (48+ deals)"
     },
     "tommyhilfiger": {
-      "enabled": false,
+      "enabled": true,
       "name": "Tommy Hilfiger",
-      "domain": "tommy.com",
+      "domain": "ca.tommy.com",
       "currency": "CAD",
       "category": "clothing",
-      "note": "Page loads but no products found - possible bot detection or no active sale"
+      "note": "Fixed 2026-04-05 — Updated to ca.tommy.com/en/sale/mens-sale (57+ deals)"
     },
     "ralphlauren": {
       "enabled": false,
@@ -443,12 +443,44 @@
       "note": "Page loads but no products found - possible bot detection or no active sale"
     },
     "calvinklein": {
-      "enabled": false,
+      "enabled": true,
       "name": "Calvin Klein",
-      "domain": "calvinklein.com",
+      "domain": "calvinklein.ca",
       "currency": "CAD",
       "category": "clothing",
-      "note": "Sale pages return 404 - URL structure may have changed"
+      "note": "Fixed 2026-04-05 — Updated to calvinklein.ca/en/sale/men (41+ deals)"
+    },
+    "volcom": {
+      "name": "Volcom",
+      "domain": "volcom.com",
+      "enabled": true,
+      "currency": "USD",
+      "category": "clothing",
+      "note": "Shopify API — ~416 deals (skate/surf streetwear)"
+    },
+    "huf": {
+      "name": "HUF",
+      "domain": "hufworldwide.com",
+      "enabled": true,
+      "currency": "USD",
+      "category": "clothing",
+      "note": "Shopify API — ~281 deals (streetwear/skate)"
+    },
+    "rvca": {
+      "name": "RVCA",
+      "domain": "rvca.com",
+      "enabled": true,
+      "currency": "USD",
+      "category": "clothing",
+      "note": "Shopify API — ~405 deals (surf/skate lifestyle)"
+    },
+    "obey": {
+      "name": "Obey Clothing",
+      "domain": "obeyclothing.com",
+      "enabled": true,
+      "currency": "USD",
+      "category": "clothing",
+      "note": "Shopify API — 0 deals currently (no active sale)"
     }
   },
   "settings": {

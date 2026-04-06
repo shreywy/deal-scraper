@@ -8,9 +8,8 @@ const CURRENCY = 'CAD';
 
 // Try multiple sale page URLs
 const SALE_URLS = [
-  'https://www.tommy.com/en-ca/t/sale-men',
-  'https://www.tommy.com/en-ca/t/men-sale',
-  'https://www.tommy.com/en-ca/c/sale-men',
+  'https://ca.tommy.com/en/sale/mens-sale',
+  'https://ca.tommy.com/en/sale/mens-sale/clothing',
 ];
 
 /**
@@ -39,7 +38,7 @@ async function scrape(browser, onProgress = () => {}) {
     if (!ct.includes('application/json')) return;
 
     // SFCC API patterns
-    if (!url.includes('tommy.com') && !url.includes('Search-UpdateGrid') && !url.includes('products')) return;
+    if (!url.includes('tommy.com') && !url.includes('Search-UpdateGrid') && !url.includes('products') && !url.includes('dw/shop')) return;
 
     try {
       const json = await response.json();
@@ -127,7 +126,17 @@ async function scrape(browser, onProgress = () => {}) {
             if (!url || seen.has(url)) return null;
             seen.add(url);
 
-            const name = card.querySelector('.product-name, .pdp-link a, h2, h3, [class*="name"]')?.textContent?.trim() || '';
+            const nameEl = card.querySelector('.product-name, .pdp-link, [class*="name"]');
+            let name = '';
+            if (nameEl) {
+              const titleAttr = nameEl.getAttribute('title') || nameEl.querySelector('[title]')?.getAttribute('title');
+              name = titleAttr || nameEl.textContent?.trim() || '';
+            }
+            // Filter out "Quick View" and similar non-product names
+            if (!name || name.toLowerCase().includes('quick view') || name.toLowerCase().includes('add to')) {
+              const fallbackName = card.querySelector('img[alt]')?.getAttribute('alt');
+              name = fallbackName || '';
+            }
 
             // SFCC price selectors
             const salePriceEl = card.querySelector('.price .sales .value, .sales, .sale-price, [class*="sale"]');

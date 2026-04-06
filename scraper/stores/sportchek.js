@@ -98,12 +98,22 @@ async function tryApiEndpoints(onProgress) {
 /**
  * Parse Sport Chek products from their search API
  */
-function parseSportChekProducts(products) {
+function parseSportChekProducts(products, debug = false) {
   const deals = [];
 
   if (!Array.isArray(products) || products.length === 0) {
     return null;
   }
+
+  let skippedReasons = {
+    noOptions: 0,
+    noColorOption: 0,
+    noColorValues: 0,
+    notOnSale: 0,
+    noCurrentPrice: 0,
+    noOriginalPrice: 0,
+    priceNotLower: 0,
+  };
 
   for (const product of products) {
     try {
@@ -112,39 +122,62 @@ function parseSportChekProducts(products) {
       let originalPrice = null;
       let isOnSale = false;
 
-      if (product.options && product.options.length > 0) {
-        const colorOption = product.options.find(o => o.descriptor === 'COLOUR');
-        if (colorOption && colorOption.values && colorOption.values.length > 0) {
-          const firstColor = colorOption.values[0];
+      if (!product.options || product.options.length === 0) {
+        skippedReasons.noOptions++;
+        continue;
+      }
 
-          isOnSale = firstColor.isOnSale || false;
+      const colorOption = product.options.find(o => o.descriptor === 'COLOUR');
+      if (!colorOption) {
+        skippedReasons.noColorOption++;
+        continue;
+      }
 
-          // Get current price
-          if (firstColor.currentPrice && firstColor.currentPrice.value) {
-            currentPrice = firstColor.currentPrice.value;
-          }
+      if (!colorOption.values || colorOption.values.length === 0) {
+        skippedReasons.noColorValues++;
+        continue;
+      }
 
-          // Try to get original price from multiple sources
-          if (firstColor.originalPrice && firstColor.originalPrice.value) {
-            originalPrice = firstColor.originalPrice.value;
-          } else if (firstColor.saleCut && firstColor.saleCut.percentage) {
-            // Calculate from percentage discount
-            const discount = firstColor.saleCut.percentage;
-            originalPrice = currentPrice / (1 - discount / 100);
-          } else if (firstColor.priceMessage && firstColor.priceMessage.length > 0) {
-            // Extract discount from priceMessage (e.g., "30% Off* - Discount Applied")
-            const msg = firstColor.priceMessage[0].label || '';
-            const match = msg.match(/(\d+)%\s*Off/i);
-            if (match) {
-              const discount = parseInt(match[1]);
-              originalPrice = currentPrice / (1 - discount / 100);
-            }
-          }
+      const firstColor = colorOption.values[0];
+      isOnSale = firstColor.isOnSale || false;
+
+      // Get current price
+      if (firstColor.currentPrice && firstColor.currentPrice.value) {
+        currentPrice = firstColor.currentPrice.value;
+      }
+
+      // Try to get original price from multiple sources
+      if (firstColor.originalPrice && firstColor.originalPrice.value) {
+        originalPrice = firstColor.originalPrice.value;
+      } else if (firstColor.saleCut && firstColor.saleCut.percentage) {
+        // Calculate from percentage discount
+        const discount = firstColor.saleCut.percentage;
+        originalPrice = currentPrice / (1 - discount / 100);
+      } else if (firstColor.priceMessage && firstColor.priceMessage.length > 0) {
+        // Extract discount from priceMessage (e.g., "30% Off* - Discount Applied")
+        const msg = firstColor.priceMessage[0].label || '';
+        const match = msg.match(/(\d+)%\s*Off/i);
+        if (match) {
+          const discount = parseInt(match[1]);
+          originalPrice = currentPrice / (1 - discount / 100);
         }
       }
 
       // Skip if not on sale or no valid pricing
-      if (!isOnSale || !currentPrice || !originalPrice || currentPrice >= originalPrice) {
+      if (!isOnSale) {
+        skippedReasons.notOnSale++;
+        continue;
+      }
+      if (!currentPrice) {
+        skippedReasons.noCurrentPrice++;
+        continue;
+      }
+      if (!originalPrice) {
+        skippedReasons.noOriginalPrice++;
+        continue;
+      }
+      if (currentPrice >= originalPrice) {
+        skippedReasons.priceNotLower++;
         continue;
       }
 
@@ -276,13 +309,15 @@ function parseApiResponse(data) {
 }
 
 /**
- * Strategy 2: Browser XHR interception
+ * Strategy 2: Browser XHR interception with API pagination
  */
 async function tryXhrInterception(browser, onProgress) {
   let context = null;
   let page = null;
   const deals = [];
   let capturedData = null;
+  let capturedKey = null;
+  let capturedApiUrl = null;
 
   try {
     // Create context with proper User-Agent
@@ -291,6 +326,34 @@ async function tryXhrInterception(browser, onProgress) {
     });
 
     page = await context.newPage();
+
+    // Intercept network requests to capture API key and headers
+    let capturedHeaders = {};
+    let originalUrl = null;
+    page.on('request', (request) => {
+      try {
+        const url = request.url();
+        if (url.includes('/api/v1/search/v2/search')) {
+          const headers = request.headers();
+          if (headers['ocp-apim-subscription-key']) {
+            capturedKey = headers['ocp-apim-subscription-key'];
+            originalUrl = url; // Capture full URL to extract query params
+            capturedApiUrl = url.split('?')[0]; // Base URL without query params
+            capturedHeaders = {
+              'ocp-apim-subscription-key': headers['ocp-apim-subscription-key'],
+              'accept': headers['accept'] || 'application/json',
+              'accept-language': headers['accept-language'] || 'en-CA,en;q=0.9',
+              'origin': headers['origin'] || 'https://www.sportchek.ca',
+              'referer': headers['referer'] || 'https://www.sportchek.ca/',
+              'user-agent': headers['user-agent'],
+            };
+            onProgress(`Sport Chek: captured API key and headers from ${url.substring(0, 100)}...`);
+          }
+        }
+      } catch (error) {
+        // Ignore request parsing errors
+      }
+    });
 
     // Intercept network responses - specifically the search API
     context.on('response', async (response) => {
@@ -329,8 +392,71 @@ async function tryXhrInterception(browser, onProgress) {
     // Wait longer for API calls to complete
     await page.waitForTimeout(4000);
 
-    // Parse captured data
-    if (capturedData && capturedData.products) {
+    // If we captured the API key and initial data, paginate through remaining products
+    if (capturedKey && capturedApiUrl && capturedData && originalUrl) {
+      const allProducts = [...(capturedData.products || [])];
+      const total = capturedData.resultCount || 0;
+
+      // Parse original URL to extract query parameters
+      const urlObj = new URL(originalUrl);
+      const baseParams = {};
+      urlObj.searchParams.forEach((value, key) => {
+        if (key !== 'start' && key !== 'count') {
+          baseParams[key] = value;
+        }
+      });
+
+      onProgress(`Sport Chek: starting pagination (${allProducts.length}/${total} products)`);
+
+      let start = allProducts.length; // Start after the products we already have
+      const count = 96;
+      const maxDeals = 1000; // Limit to avoid excessive requests
+
+      while (start < Math.min(total, maxDeals)) {
+        try {
+          // Build URL with original query params plus pagination
+          const params = new URLSearchParams(baseParams);
+          params.set('count', count.toString());
+          params.set('start', start.toString());
+
+          const url = `${capturedApiUrl}?${params.toString()}`;
+          const response = await fetch(url, {
+            headers: capturedHeaders,
+          });
+
+          if (!response.ok) {
+            onProgress(`Sport Chek: API request failed at start=${start} (${response.status})`);
+            break;
+          }
+
+          const data = await response.json();
+          if (!data.products || data.products.length === 0) {
+            onProgress(`Sport Chek: no more products at start=${start}`);
+            break;
+          }
+
+          allProducts.push(...data.products);
+          onProgress(`Sport Chek: fetched ${allProducts.length}/${Math.min(total, maxDeals)} products...`);
+          start += count;
+
+          // Small delay to avoid rate limiting
+          await new Promise(resolve => setTimeout(resolve, 500));
+        } catch (err) {
+          onProgress(`Sport Chek: pagination error at start=${start} - ${err.message}`);
+          break;
+        }
+      }
+
+      onProgress(`Sport Chek: finished pagination with ${allProducts.length} products`);
+
+      // Parse all collected products
+      const parsedDeals = parseSportChekProducts(allProducts);
+      if (parsedDeals && parsedDeals.length > 0) {
+        deals.push(...parsedDeals);
+      }
+    } else if (capturedData && capturedData.products) {
+      // Fallback: just use the first page if we couldn't capture the key
+      onProgress(`Sport Chek: using first page only (no API key captured)`);
       const parsedDeals = parseSportChekProducts(capturedData.products);
       if (parsedDeals && parsedDeals.length > 0) {
         deals.push(...parsedDeals);
