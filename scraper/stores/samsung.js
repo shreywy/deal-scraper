@@ -33,69 +33,14 @@ const SALE_URLS = [
  * @returns {Promise<import('../index').Deal[]>}
  */
 async function scrape(browser, onProgress = () => {}) {
-  const allDeals = [];
-  const seenUrls = new Set();
-  const intercepted = [];
-
-  const context = await browser.newContext({
-    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-    locale: 'en-CA',
-  });
-
-  const page = await context.newPage();
-
-  // Intercept API responses
-  page.on('response', async (resp) => {
-    const url = resp.url();
-    if (url.includes('samsung.com') && resp.headers()['content-type']?.includes('json')) {
-      try {
-        const data = await resp.json();
-        const prods = data?.response?.docs ||
-                      data?.results?.productList ||
-                      data?.productsOnSale ||
-                      data?.products ||
-                      [];
-        if (Array.isArray(prods) && prods.length > 0) {
-          intercepted.push(...prods);
-        }
-      } catch (_) {}
-    }
-  });
-
-  try {
-    for (const url of SALE_URLS) {
-      onProgress(`Samsung: loading ${url}…`);
-      try {
-        await page.goto(url, { waitUntil: 'networkidle', timeout: 60000 });
-        await page.waitForTimeout(3000);
-
-        // Scroll to load more products
-        for (let i = 0; i < 3; i++) {
-          await page.evaluate(() => window.scrollBy(0, window.innerHeight));
-          await page.waitForTimeout(1000);
-        }
-      } catch (err) {
-        onProgress(`Samsung: error loading ${url} — ${err.message}`);
-      }
-    }
-
-    onProgress(`Samsung: intercepted ${intercepted.length} products from API`);
-
-    // Map intercepted products to deals
-    for (const prod of intercepted) {
-      const deal = mapSamsungProduct(prod, seenUrls);
-      if (deal) allDeals.push(deal);
-    }
-
-  } finally {
-    await context.close();
-  }
-
-  onProgress(`Samsung: found ${allDeals.length} deals`);
-  return allDeals;
+  onProgress('Samsung CA: bot-blocked (timeout on all sale pages)');
+  console.error(`[${STORE_NAME}] Bot-blocked: Offer pages timeout despite API interception showing product data`);
+  return [];
 }
 
-function mapSamsungProduct(p, seen) {
+// The following functions are preserved for future reference if bot protection is bypassed
+
+function mapSamsungProduct_DISABLED(p, seen) {
   try {
     const name = p.name || p.displayName || p.modelName || p.title || '';
     if (!name) return null;

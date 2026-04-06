@@ -29,40 +29,17 @@ function ncTag(name, cat = '') {
  * @returns {Promise<Array>} Array of deal objects
  */
 async function scrape(browser, onProgress = () => {}) {
-  const deals = [];
-
-  try {
-    onProgress('Best Buy CA: trying XHR interception…');
-    const xhrDeals = await tryXhrInterception(browser, onProgress);
-    if (xhrDeals && xhrDeals.length > 0) {
-      deals.push(...xhrDeals);
-      onProgress(`Best Buy CA: found ${deals.length} deals via XHR`);
-      return deals;
-    }
-
-    // Fallback to DOM if XHR fails
-    onProgress('Best Buy CA: trying DOM scraping…');
-    const domDeals = await tryDomScraping(browser, onProgress);
-    if (domDeals && domDeals.length > 0) {
-      deals.push(...domDeals);
-      onProgress(`Best Buy CA: found ${deals.length} deals via DOM`);
-      return deals;
-    }
-
-    onProgress('Best Buy CA: no deals found');
-    return deals;
-
-  } catch (error) {
-    onProgress(`Best Buy CA: error — ${error.message}`);
-    console.error(`[${STORE_NAME}] Scraping failed:`, error);
-    return deals;
-  }
+  onProgress('Best Buy CA: bot-blocked (403 Access Denied on all sale URLs)');
+  console.error(`[${STORE_NAME}] Bot-blocked: All sale pages return 403 Access Denied regardless of browser configuration`);
+  return [];
 }
 
+// The following functions are preserved for future reference if bot protection is bypassed
+
 /**
- * Strategy 1: XHR interception
+ * Strategy 1: XHR interception (currently blocked)
  */
-async function tryXhrInterception(browser, onProgress) {
+async function tryXhrInterception_DISABLED(browser, onProgress) {
   let context = null;
   let page = null;
   const deals = [];
@@ -152,9 +129,9 @@ async function tryXhrInterception(browser, onProgress) {
 }
 
 /**
- * Strategy 2: DOM scraping fallback
+ * Strategy 2: DOM scraping fallback (currently blocked)
  */
-async function tryDomScraping(browser, onProgress) {
+async function tryDomScraping_DISABLED(browser, onProgress) {
   let context = null;
   let page = null;
   const deals = [];
@@ -315,9 +292,9 @@ async function tryDomScraping(browser, onProgress) {
 }
 
 /**
- * Parse Best Buy products from API response
+ * Parse Best Buy products from API response (currently blocked)
  */
-function parseProducts(products) {
+function parseProducts_DISABLED(products) {
   const deals = [];
   const seen = new Set();
 

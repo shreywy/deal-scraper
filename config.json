@@ -484,11 +484,12 @@
       "note": "Shopify API — 0 deals currently (no active sale)"
     },
     "bestbuy": {
-      "enabled": true,
+      "enabled": false,
       "name": "Best Buy CA",
       "domain": "bestbuy.ca",
       "currency": "CAD",
-      "category": "non-clothing"
+      "category": "non-clothing",
+      "note": "Bot-blocked - 403 Access Denied on all sale URLs (clearance, sale-items)"
     },
     "thesource": {
       "enabled": true,
@@ -498,11 +499,12 @@
       "category": "non-clothing"
     },
     "walmart": {
-      "enabled": true,
+      "enabled": false,
       "name": "Walmart Canada",
       "domain": "walmart.ca",
       "currency": "CAD",
-      "category": "non-clothing"
+      "category": "non-clothing",
+      "note": "Bot-blocked - timeouts on all deal pages, GraphQL endpoints not accessible"
     },
     "staples": {
       "enabled": true,
@@ -568,11 +570,12 @@
       "category": "non-clothing"
     },
     "samsung": {
-      "enabled": true,
+      "enabled": false,
       "name": "Samsung CA",
       "domain": "samsung.com/ca",
       "currency": "CAD",
-      "category": "non-clothing"
+      "category": "non-clothing",
+      "note": "Bot-blocked - offer pages timeout despite API showing product data"
     },
     "londondrugs": {
       "enabled": false,
@@ -583,11 +586,12 @@
       "note": "Removed per user preference"
     },
     "microsoft": {
-      "enabled": true,
+      "enabled": false,
       "name": "Microsoft CA",
       "domain": "microsoft.com/en-ca",
       "currency": "CAD",
-      "category": "non-clothing"
+      "category": "non-clothing",
+      "note": "Sale page loads (200 OK) but products rendered via React SPA - not scrapable via DOM"
     },
     "ikea": {
       "enabled": true,
