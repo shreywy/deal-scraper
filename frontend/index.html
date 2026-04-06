@@ -112,6 +112,10 @@
 
   <!-- ── MAIN ── -->
   <main class="main">
+    <div class="tab-bar">
+      <button class="tab-btn active" id="tabClothing" onclick="switchTab('clothing')">Clothing</button>
+      <button class="tab-btn" id="tabNonClothing" onclick="switchTab('non-clothing')">Non-Clothing <span class="tab-count" id="nonClothingCount"></span></button>
+    </div>
     <div class="results-bar">
       <span class="results-count" id="resultsCount"></span>
       <div id="activeFilters" class="active-filters"></div>

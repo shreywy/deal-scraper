@@ -36,6 +36,9 @@ function saveFilters() {
   } catch (_) {}
 }
 
+// Tabs
+let currentTab = 'clothing'; // 'clothing' | 'non-clothing'
+
 // Pagination
 const PAGE_SIZE = 100;
 let currentPage = 1;
@@ -298,6 +301,15 @@ function hideScrapePopdown() {
   }, 200);
 }
 
+// ── Tabs ──────────────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  currentTab = tab;
+  document.getElementById('tabClothing')?.classList.toggle('active', tab === 'clothing');
+  document.getElementById('tabNonClothing')?.classList.toggle('active', tab === 'non-clothing');
+  currentPage = 1;
+  applyFiltersAndRender();
+}
+
 // ── Data Loading ─────────────────────────────────────────────────────────────
 function loadDeals(deals) {
   allDeals = deals || [];
@@ -386,7 +398,24 @@ function syncPillExcluded() {
 
 // ── Filtering & Sorting ───────────────────────────────────────────────────────
 function applyFiltersAndRender() {
-  let deals = [...allDeals];
+  // Update non-clothing tab badge
+  const nonClothingCount = allDeals.filter(d => d.tags.includes('Non-Clothing')).length;
+  const badge = document.getElementById('nonClothingCount');
+  if (badge) badge.textContent = nonClothingCount > 0 ? `(${nonClothingCount})` : '';
+
+  // Tab split: clothing tab hides Non-Clothing items; non-clothing tab shows only them
+  let deals = allDeals.filter(d =>
+    currentTab === 'non-clothing' ? d.tags.includes('Non-Clothing') : !d.tags.includes('Non-Clothing')
+  );
+
+  // Sidebar filters only apply to clothing tab
+  if (currentTab === 'non-clothing') {
+    filteredDeals = deals;
+    renderGrid();
+    renderResultsBar();
+    renderPagination();
+    return;
+  }
 
   if (filters.store !== 'all') deals = deals.filter(d => (d.storeKey || d.store) === filters.store);
   if (filters.gender !== 'all') {
@@ -454,7 +483,7 @@ function applyFiltersAndRender() {
 // Returns deals matching all active filters EXCEPT the given key (for availability check)
 function dealsExcluding(excludeKey) {
   const cadPrice = d => (d.currency === 'USD' && d.priceCAD) ? d.priceCAD : d.price;
-  let d = [...allDeals];
+  let d = allDeals.filter(x => !x.tags.includes('Non-Clothing'));
   if (excludeKey !== 'store'    && filters.store !== 'all')    d = d.filter(x => (x.storeKey || x.store) === filters.store);
   if (excludeKey !== 'gender' && filters.gender !== 'all') {
     const GENDER_TAGS = ['Men', 'Women', 'Kids'];
@@ -518,8 +547,8 @@ function updatePillAvailability() {
     const base = dealsExcluding(filterKey);
     document.querySelectorAll(`[data-filter="${filterKey}"]`).forEach(pill => {
       const val = pill.dataset.value;
-      // Never disable excluded pills — they must stay clickable to allow un-exclusion
-      if (pill.classList.contains('excluded')) { pill.classList.remove('pill-disabled'); return; }
+      // Never disable excluded pills — check state directly (class may not be set yet)
+      if (excludedFilters[filterKey]?.includes(val)) { pill.classList.remove('pill-disabled'); return; }
       if (val === 'all' || val === '0') { pill.classList.remove('pill-disabled'); return; }
       const hasDeals = base.some(d => checks[filterKey](d, val));
       pill.classList.toggle('pill-disabled', !hasDeals);

@@ -18,6 +18,48 @@ const CATEGORY_MAP = [
   { tag: 'Accessories', keywords: ['bag', 'tote', 'backpack', 'wallet', 'belt', 'hat', 'cap', 'beanie', 'glove', 'scarf', 'sunglasses', 'watch', 'jewelry', 'jewellery', 'necklace', 'bracelet', 'earring'] },
 ];
 
+// Non-clothing items (Marks tools, MEC/SportChek equipment). Checked first — if matched,
+// tagged Non-Clothing and no clothing categories are added.
+const NON_CLOTHING_KEYWORDS = [
+  // Hand tools & hardware
+  'drill bit', 'bit set', 'hex key', 'allen key', 'socket set', 'ratchet', 'wrench', 'torque wrench',
+  'screwdriver', 'pliers', 'cutter', 'tape measure', 'utility knife', 'level ',
+  'caulk', 'fastener', 'rivet', 'staple', 'nail set', 'chisel', 'file set',
+  // Power tools
+  'drill ', 'power drill', 'circular saw', 'jig saw', 'band saw', 'reciprocating saw',
+  'grinder', 'sander ', 'router ', 'impact driver', 'heat gun', 'work light',
+  // Safety & PPE (non-apparel)
+  'safety glasses', 'safety goggle', 'hard hat', 'bump cap', 'face shield',
+  'ear plug', 'ear muff', 'respirator', 'dust mask',
+  // Camping & outdoor gear
+  'tent ', ' tent', 'sleeping bag', 'camp stove', 'camping stove', 'camp chair', 'camping chair',
+  'tarp ', ' tarp', 'ground sheet', 'hammock', 'camp table',
+  'lantern', 'headlamp', 'flashlight', 'torch ',
+  // Water sports equipment
+  'kayak', 'canoe', 'paddleboard', 'stand-up paddle', 'sup board',
+  'life jacket', 'pfd ', ' pfd', 'paddle ', ' paddle',
+  // Winter sports equipment
+  'ski ', ' ski', 'skis', 'snowboard', 'ski boot', 'ski binding', 'ski pole',
+  // Bike & cycle equipment
+  'bicycle', 'bike frame', 'bike wheel', 'handlebar', 'derailleur', 'bike pedal', 'bike chain',
+  // Team & ball sports equipment
+  'hockey stick', 'hockey puck', 'skate blade', 'lacrosse stick',
+  'tennis racket', 'racquet', 'golf club', 'golf ball', 'golf tee',
+  'baseball bat', 'baseball glove', 'softball', 'volleyball', 'basketball', 'soccer ball', 'football',
+  // Fitness equipment
+  'dumbbell', 'barbell', 'kettlebell', 'weight plate', 'weight bench', 'pull-up bar', 'chin-up bar',
+  'foam roller', 'yoga mat', 'resistance band', 'jump rope', 'battle rope',
+  'treadmill', 'rowing machine', 'elliptical', 'stationary bike',
+  // Helmets & hard protective gear
+  'helmet', 'knee pad', 'shin guard', 'elbow pad', 'ankle brace', 'wrist guard',
+  // Hydration & nutrition
+  'water bottle', 'hydration bladder', 'hydration pack', 'thermos', 'insulated bottle',
+  // Other
+  'first aid', 'sunscreen', 'insect repel', 'luggage', 'suitcase',
+  'phone case', 'headphone', 'earphone', 'earbuds', 'power bank',
+  'cooking pot', 'camp cookware', 'cutlery set', 'eating utensil',
+];
+
 // Women must come before Men — 'mens' is a substring of 'womens', and 'male' of 'female'.
 // Checking Women first ensures "womens shorts" → Women, not Men.
 const GENDER_MAP = [
@@ -40,6 +82,11 @@ const GENDER_MAP = [
 function tag({ name = '', description = '', category = '', gender = '' } = {}) {
   const haystack = [name, description, category].join(' ').toLowerCase();
   const tags = new Set();
+
+  // Non-clothing check — if matched, return early with just Non-Clothing tag
+  if (NON_CLOTHING_KEYWORDS.some(k => haystack.includes(k.toLowerCase()))) {
+    return ['Non-Clothing'];
+  }
 
   // Gender
   if (gender) {
