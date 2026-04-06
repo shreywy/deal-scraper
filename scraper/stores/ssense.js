@@ -98,9 +98,31 @@ async function scrape(browser, onProgress = () => {}) {
 
             if (!salePrice || !originalPrice || salePrice >= originalPrice) return;
 
-            // Get image
-            const imgEl = tile.querySelector('img.product-listing-dpr, .product-tile__image img, img');
-            const image = imgEl?.src || imgEl?.dataset?.src || '';
+            // Get image - SSENSE uses <picture> with <source> elements for lazy loading
+            const pictureEl = tile.querySelector('picture.product-tile__image');
+            const sourceEl = pictureEl?.querySelector('source');
+            let image = '';
+
+            if (sourceEl) {
+              // Extract from srcset or data-srcset (lazy loading)
+              const srcset = sourceEl.srcset || sourceEl.dataset?.srcset || '';
+              if (srcset) {
+                // srcset format: "url descriptor, url descriptor"
+                // Cloudinary URLs include commas in params, so match until image extension
+                const urlMatch = srcset.match(/^(https?:\/\/[^\s]+\.(?:jpg|jpeg|png|webp|gif))/i);
+                image = urlMatch ? urlMatch[1] : srcset.split(/\s/)[0]; // fallback to first space-separated token
+              }
+            }
+
+            // Fallback to img src if picture/source not found
+            if (!image) {
+              const imgEl = tile.querySelector('img');
+              image = imgEl?.src || imgEl?.dataset?.src || '';
+              // Skip data: URIs (placeholders)
+              if (image.startsWith('data:')) {
+                image = '';
+              }
+            }
 
             const discount = Math.round((1 - salePrice / originalPrice) * 100);
             if (discount <= 0) return;

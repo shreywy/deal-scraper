@@ -94,7 +94,11 @@ function mapProduct(p, gender, seen) {
       : `https://www.abercrombie.com/shop/ca/p/${productId}`;
     if (seen.has(url)) return null;
     seen.add(url);
-    const image = p.imageUrl || p.images?.[0]?.url || '';
+    let image = p.imageUrl || p.images?.[0]?.url || p.media?.[0]?.url || p.image?.url || p.image?.src || p.defaultImage || p.thumbnail || '';
+    // Handle protocol-relative URLs
+    if (image && image.startsWith('//')) {
+      image = 'https:' + image;
+    }
     return {
       id: slugify(`${STORE_KEY}-${name}-${productId}`),
       store: STORE_NAME,
@@ -185,7 +189,15 @@ async function browserScrape(browser, onProgress) {
           const discount = Math.round((1 - price / originalPrice) * 100);
           if (discount <= 0) return null;
           const imgEl = link.querySelector('img');
-          return { store: storeName, storeKey, name, url, image: imgEl?.src || '', price, originalPrice, discount, gender, tags: [] };
+          let image = imgEl?.src || imgEl?.getAttribute('data-src') || '';
+          // Extract first URL from srcset if src is empty
+          if (!image && imgEl?.srcset) {
+            const srcsetMatch = imgEl.srcset.match(/^([^\s,]+)/);
+            if (srcsetMatch) image = srcsetMatch[1];
+          }
+          // Ensure protocol is added if needed
+          if (image && image.startsWith('//')) image = 'https:' + image;
+          return { store: storeName, storeKey, name, url, image, price, originalPrice, discount, gender, tags: [] };
         }).filter(Boolean);
       }, { storeName: STORE_NAME, storeKey: STORE_KEY, gender });
 

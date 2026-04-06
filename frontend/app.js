@@ -11,22 +11,72 @@ let config = null;
 const TILE_WIDTHS = { 1: 480, 2: 360, 3: 280, 4: 220, 5: 175, 6: 150, 7: 125, 8: 100 };
 const SIZE_LABELS = { 1: 'XL', 2: 'L', 3: 'M-L', 4: 'M', 5: 'M-S', 6: 'S', 7: 'XS', 8: 'XXS' };
 
-const FILTER_DEFAULTS = { store: 'all', gender: 'all', category: 'all', price: 'all', discount: '0' };
+const FILTER_DEFAULTS = {
+  store: [],      // [] = show all stores
+  gender: [],     // [] = show all genders
+  category: [],   // [] = show all categories
+  priceMin: 0,
+  priceMax: 500,  // 500 means "no upper limit"
+  discount: 0     // 0 means "any"
+};
+
+// Migration helper: convert old string format to new array/number format
+function migrateFilterValue(key, value) {
+  if (key === 'store' || key === 'gender' || key === 'category') {
+    if (Array.isArray(value)) return value;
+    if (!value || value === 'all') return [];
+    return [value]; // single value string → single-item array
+  }
+  if (key === 'price') {
+    // Old format was 'all' or '0-100' string, now we have priceMin/priceMax
+    return undefined; // Will be handled separately
+  }
+  if (key === 'discount') {
+    if (typeof value === 'number') return value;
+    return parseInt(value) || 0;
+  }
+  return value;
+}
+
 const filters = (() => {
   try {
     const saved = JSON.parse(localStorage.getItem('dealFilters') || 'null');
-    return saved ? { ...FILTER_DEFAULTS, ...saved } : { ...FILTER_DEFAULTS };
+    if (!saved) return { ...FILTER_DEFAULTS };
+
+    // Migrate old format to new
+    const migrated = { ...FILTER_DEFAULTS };
+    for (const key of ['store', 'gender', 'category']) {
+      if (saved[key] !== undefined) {
+        migrated[key] = migrateFilterValue(key, saved[key]);
+      }
+    }
+    // Handle old price format
+    if (saved.price && saved.price !== 'all') {
+      const parts = saved.price.split('-').map(Number);
+      if (parts.length === 2) {
+        migrated.priceMin = parts[0];
+        migrated.priceMax = parts[1] === 99999 ? 500 : parts[1];
+      }
+    } else if (saved.priceMin !== undefined && saved.priceMax !== undefined) {
+      migrated.priceMin = saved.priceMin;
+      migrated.priceMax = saved.priceMax;
+    }
+    // Handle discount
+    if (saved.discount !== undefined) {
+      migrated.discount = migrateFilterValue('discount', saved.discount);
+    }
+    return migrated;
   } catch (_) { return { ...FILTER_DEFAULTS }; }
 })();
 
-const EXCLUDE_KEYS = ['store', 'gender', 'category', 'price', 'discount'];
+const EXCLUDE_KEYS = ['store', 'gender', 'category'];
 const excludedFilters = (() => {
   try {
     const saved = JSON.parse(localStorage.getItem('dealFiltersExcluded') || 'null');
-    const base = { store: [], gender: [], category: [], price: [], discount: [] };
+    const base = { store: [], gender: [], category: [] };
     if (saved) EXCLUDE_KEYS.forEach(k => { if (Array.isArray(saved[k])) base[k] = saved[k]; });
     return base;
-  } catch (_) { return { store: [], gender: [], category: [], price: [], discount: [] }; }
+  } catch (_) { return { store: [], gender: [], category: [] }; }
 })();
 
 function saveFilters() {
@@ -66,12 +116,14 @@ async function init() {
   if (savedCols >= 1 && savedCols <= 8) cols = savedCols;
   applyGridSize();
 
-
   try {
     const res = await fetch('/api/config');
     config = await res.json();
     renderSettingsDrawer(config);
   } catch (_) {}
+
+  // Initialize sliders
+  initSliders();
 
   showSkeletons(12);
   setStrip('loading', 'Loading…');
@@ -335,39 +387,10 @@ function buildDynamicFilters() {
   catPills.innerHTML = makePill('category', 'all', 'All', true);
   for (const c of cats) catPills.insertAdjacentHTML('beforeend', makePill('category', c, c));
 
-  // Dynamic price range pills — use CAD price for consistency
-  const cadPrice = d => (d.currency === 'USD' && d.priceCAD) ? d.priceCAD : d.price;
-  const PRICE_BREAKS = [25, 50, 100, 200, 500];
-  const pricePills = document.getElementById('pricePills');
-  pricePills.innerHTML = makePill('price', 'all', 'Any', true);
-  let prev = 0;
-  for (const bp of PRICE_BREAKS) {
-    const count = allDeals.filter(d => cadPrice(d) > prev && cadPrice(d) <= bp).length;
-    if (count > 0) {
-      const label = prev === 0 ? `Under $${bp}` : `$${prev}–$${bp}`;
-      pricePills.insertAdjacentHTML('beforeend', makePill('price', `${prev}-${bp}`, label));
-    }
-    prev = bp;
-  }
-  const above = allDeals.filter(d => cadPrice(d) > prev).length;
-  if (above > 0) pricePills.insertAdjacentHTML('beforeend', makePill('price', `${prev}-99999`, `$${prev}+`));
-
-  // Dynamic discount pills — only show thresholds where deals exist
-  const DISC_STEPS = [10, 20, 30, 40, 50, 60, 70];
-  const discPills = document.getElementById('discountPills');
-  discPills.innerHTML = makePill('discount', '0', 'Any', true);
-  for (const t of DISC_STEPS) {
-    if (allDeals.some(d => d.discount >= t)) {
-      discPills.insertAdjacentHTML('beforeend', makePill('discount', String(t), `${t}%+`));
-    }
-  }
-
   // Re-sync active states (including gender which has static HTML pills)
   syncPillActive('store', filters.store);
   syncPillActive('gender', filters.gender);
   syncPillActive('category', filters.category);
-  syncPillActive('price', filters.price);
-  syncPillActive('discount', filters.discount);
   syncPillExcluded();
 }
 
@@ -378,9 +401,19 @@ function makePill(filter, value, label, active = false) {
 }
 
 function syncPillActive(filter, value) {
-  document.querySelectorAll(`[data-filter="${filter}"]`).forEach(p => {
-    p.classList.toggle('active', p.dataset.value === value);
-  });
+  // For multi-select (array values), mark all pills whose value is in the array as active
+  if (Array.isArray(value)) {
+    document.querySelectorAll(`[data-filter="${filter}"]`).forEach(p => {
+      const isAll = p.dataset.value === 'all';
+      const isInArray = value.includes(p.dataset.value);
+      p.classList.toggle('active', isAll ? value.length === 0 : isInArray);
+    });
+  } else {
+    // For single-select (string/number values) - backwards compatibility
+    document.querySelectorAll(`[data-filter="${filter}"]`).forEach(p => {
+      p.classList.toggle('active', p.dataset.value === String(value));
+    });
+  }
 }
 
 function syncPillExcluded() {
@@ -417,31 +450,33 @@ function applyFiltersAndRender() {
     return;
   }
 
-  if (filters.store !== 'all') deals = deals.filter(d => (d.storeKey || d.store) === filters.store);
-  if (filters.gender !== 'all') {
-    const GENDER_TAGS = ['Men', 'Women', 'Kids'];
-    deals = deals.filter(d => {
-      if (filters.gender === 'Unisex') {
-        // Unisex pill: truly Unisex items + items with no gender tag (unknown)
-        return d.tags.includes('Unisex') || !GENDER_TAGS.some(g => d.tags.includes(g));
-      }
-      // Men/Women: include exact match + Unisex + no-gender-tag items (gender-neutral products)
-      return d.tags.includes(filters.gender)
-        || d.tags.includes('Unisex')
-        || !GENDER_TAGS.some(g => d.tags.includes(g));
-    });
+  // Multi-select filters (OR logic)
+  if (filters.store.length > 0) {
+    deals = deals.filter(d => filters.store.includes(d.storeKey || d.store));
   }
-  if (filters.category !== 'all') deals = deals.filter(d => d.tags.includes(filters.category));
-  if (filters.price !== 'all') {
-    const [lo, hi] = filters.price.split('-').map(Number);
-    // Use priceCAD for USD items so price filter works consistently in CAD
+  if (filters.gender.length > 0) {
+    const GENDER_TAGS = ['Men', 'Women', 'Kids'];
+    deals = deals.filter(d => filters.gender.some(g => {
+      if (g === 'Unisex') {
+        return d.tags.includes('Unisex') || !GENDER_TAGS.some(gt => d.tags.includes(gt));
+      }
+      return d.tags.includes(g) || d.tags.includes('Unisex') || !GENDER_TAGS.some(gt => d.tags.includes(gt));
+    }));
+  }
+  if (filters.category.length > 0) {
+    deals = deals.filter(d => filters.category.some(c => d.tags.includes(c)));
+  }
+
+  // Slider filters
+  if (filters.priceMin > 0 || filters.priceMax < 500) {
     deals = deals.filter(d => {
       const p = d.currency === 'USD' && d.priceCAD ? d.priceCAD : d.price;
-      return p >= lo && p <= hi;
+      return p >= filters.priceMin && (filters.priceMax >= 500 ? true : p <= filters.priceMax);
     });
   }
-  const minDiscount = parseInt(filters.discount) || 0;
-  if (minDiscount > 0) deals = deals.filter(d => d.discount >= minDiscount);
+  if (filters.discount > 0) {
+    deals = deals.filter(d => d.discount >= filters.discount);
+  }
 
   // Apply exclusion filters (shift-clicked red pills)
   const cadP = d => (d.currency === 'USD' && d.priceCAD) ? d.priceCAD : d.price;
@@ -484,23 +519,33 @@ function applyFiltersAndRender() {
 function dealsExcluding(excludeKey) {
   const cadPrice = d => (d.currency === 'USD' && d.priceCAD) ? d.priceCAD : d.price;
   let d = allDeals.filter(x => !x.tags.includes('Non-Clothing'));
-  if (excludeKey !== 'store'    && filters.store !== 'all')    d = d.filter(x => (x.storeKey || x.store) === filters.store);
-  if (excludeKey !== 'gender' && filters.gender !== 'all') {
+
+  // Multi-select filters
+  if (excludeKey !== 'store' && filters.store.length > 0) {
+    d = d.filter(x => filters.store.includes(x.storeKey || x.store));
+  }
+  if (excludeKey !== 'gender' && filters.gender.length > 0) {
     const GENDER_TAGS = ['Men', 'Women', 'Kids'];
+    d = d.filter(x => filters.gender.some(g => {
+      if (g === 'Unisex') return x.tags.includes('Unisex') || !GENDER_TAGS.some(gt => x.tags.includes(gt));
+      return x.tags.includes(g) || x.tags.includes('Unisex') || !GENDER_TAGS.some(gt => x.tags.includes(gt));
+    }));
+  }
+  if (excludeKey !== 'category' && filters.category.length > 0) {
+    d = d.filter(x => filters.category.some(c => x.tags.includes(c)));
+  }
+
+  // Slider filters (no exclusion for sliders)
+  if (filters.priceMin > 0 || filters.priceMax < 500) {
     d = d.filter(x => {
-      if (filters.gender === 'Unisex') return x.tags.includes('Unisex') || !GENDER_TAGS.some(g => x.tags.includes(g));
-      return x.tags.includes(filters.gender) || x.tags.includes('Unisex') || !GENDER_TAGS.some(g => x.tags.includes(g));
+      const p = cadPrice(x);
+      return p >= filters.priceMin && (filters.priceMax >= 500 ? true : p <= filters.priceMax);
     });
   }
-  if (excludeKey !== 'category' && filters.category !== 'all') d = d.filter(x => x.tags.includes(filters.category));
-  if (excludeKey !== 'price'    && filters.price !== 'all') {
-    const [lo, hi] = filters.price.split('-').map(Number);
-    d = d.filter(x => { const p = cadPrice(x); return p >= lo && p <= hi; });
+  if (filters.discount > 0) {
+    d = d.filter(x => x.discount >= filters.discount);
   }
-  if (excludeKey !== 'discount') {
-    const md = parseInt(filters.discount) || 0;
-    if (md > 0) d = d.filter(x => x.discount >= md);
-  }
+
   // Apply all exclusion filters
   const GENDER_TAGS_EX = ['Men', 'Women', 'Kids'];
   for (const [key, excluded] of Object.entries(excludedFilters)) {
@@ -510,14 +555,6 @@ function dealsExcluding(excludeKey) {
         ? !(x.tags.includes('Unisex') || !GENDER_TAGS_EX.some(g => x.tags.includes(g)))
         : !x.tags.includes(val));
       if (key === 'category') d = d.filter(x => !x.tags.includes(val));
-      if (key === 'price') {
-        const [lo, hi] = val.split('-').map(Number);
-        d = d.filter(x => { const p = cadPrice(x); return !(p >= lo && p <= (hi || Infinity)); });
-      }
-      if (key === 'discount') {
-        const minD = parseInt(val) || 0;
-        if (minD > 0) d = d.filter(x => x.discount < minD);
-      }
     }
   }
   return d;
@@ -535,21 +572,15 @@ function updatePillAvailability() {
       return d.tags.includes(v) || d.tags.includes('Unisex') || !GENDER_TAGS.some(g => d.tags.includes(g));
     },
     category: (d, v) => d.tags.includes(v),
-    price: (d, v) => {
-      const [lo, hi] = v.split('-').map(Number);
-      const p = cadPrice(d);
-      return p >= lo && p <= hi;
-    },
-    discount: (d, v) => d.discount >= parseInt(v),
   };
 
-  for (const filterKey of ['store', 'gender', 'category', 'price', 'discount']) {
+  for (const filterKey of ['store', 'gender', 'category']) {
     const base = dealsExcluding(filterKey);
     document.querySelectorAll(`[data-filter="${filterKey}"]`).forEach(pill => {
       const val = pill.dataset.value;
       // Never disable excluded pills — check state directly (class may not be set yet)
       if (excludedFilters[filterKey]?.includes(val)) { pill.classList.remove('pill-disabled'); return; }
-      if (val === 'all' || val === '0') { pill.classList.remove('pill-disabled'); return; }
+      if (val === 'all') { pill.classList.remove('pill-disabled'); return; }
       const hasDeals = base.some(d => checks[filterKey](d, val));
       pill.classList.toggle('pill-disabled', !hasDeals);
     });
@@ -623,19 +654,46 @@ function renderResultsBar() {
 
   const chips = [];
   let hasActiveFilter = false;
-  for (const [key, val] of Object.entries(filters)) {
-    if (val === 'all' || val === '0') continue;
-    hasActiveFilter = true;
-    const label = key === 'price' ? `$${val.replace(/-99999$/, '+').replace('-', '–')}` : key === 'discount' ? `${val}%+` : val;
-    chips.push(`<div class="active-tag">${escHtml(label)} <span class="active-tag-x" onclick="clearFilter('${key}')">×</span></div>`);
+
+  // Show multi-select filters
+  for (const key of ['store', 'gender', 'category']) {
+    const values = filters[key];
+    if (values && values.length > 0) {
+      hasActiveFilter = true;
+      let displayValues = values;
+      // For stores, look up display names
+      if (key === 'store' && config?.stores) {
+        displayValues = values.map(v => config.stores[v]?.name || v);
+      }
+      const label = `${key.charAt(0).toUpperCase() + key.slice(1)}: ${displayValues.join(', ')}`;
+      chips.push(`<div class="active-tag">${escHtml(label)} <span class="active-tag-x" onclick="clearFilter('${key}')">×</span></div>`);
+    }
   }
+
+  // Show slider filters
+  if (filters.priceMin > 0 || filters.priceMax < 500) {
+    hasActiveFilter = true;
+    const lo = filters.priceMin;
+    const hi = filters.priceMax >= 500 ? '500+' : filters.priceMax;
+    chips.push(`<div class="active-tag">Price: $${lo}–$${hi} <span class="active-tag-x" onclick="clearFilter('price')">×</span></div>`);
+  }
+  if (filters.discount > 0) {
+    hasActiveFilter = true;
+    chips.push(`<div class="active-tag">Discount: ${filters.discount}%+ <span class="active-tag-x" onclick="clearFilter('discount')">×</span></div>`);
+  }
+
+  // Show exclusion filters
   for (const [key, excluded] of Object.entries(excludedFilters)) {
     for (const val of excluded) {
       hasActiveFilter = true;
-      const label = key === 'price' ? `$${val.replace(/-99999$/, '+').replace('-', '–')}` : key === 'discount' ? `${val}%+` : val;
+      let label = val;
+      if (key === 'store' && config?.stores) {
+        label = config.stores[val]?.name || val;
+      }
       chips.push(`<div class="active-tag excluded-tag">not: ${escHtml(label)} <span class="active-tag-x" onclick="clearExcluded('${key}','${val}')">×</span></div>`);
     }
   }
+
   if (hasActiveFilter) {
     chips.push(`<div class="reset-btn" onclick="resetAllFilters()">Reset all</div>`);
   }
@@ -645,8 +703,9 @@ function renderResultsBar() {
 function resetAllFilters() {
   Object.assign(filters, FILTER_DEFAULTS);
   for (const k of Object.keys(excludedFilters)) excludedFilters[k] = [];
-  ['store', 'gender', 'category', 'price', 'discount'].forEach(k => syncPillActive(k, filters[k]));
+  ['store', 'gender', 'category'].forEach(k => syncPillActive(k, filters[k]));
   syncPillExcluded();
+  updateSliders();
   currentPage = 1;
   saveFilters();
   applyFiltersAndRender();
@@ -861,21 +920,23 @@ function togglePill(el, event) {
   const filterKey = el.dataset.filter;
   const value = el.dataset.value;
 
+  // Determine if this is a multi-select filter
+  const isMultiSelect = ['store', 'gender', 'category'].includes(filterKey);
+
   // Shift-click: toggle exclusion (turn red)
   if (event && event.shiftKey) {
-    if (value === 'all' || value === '0') return; // Can't exclude "all"
+    if (value === 'all') return; // Can't exclude "all"
     const excluded = excludedFilters[filterKey];
+    if (!excluded) return; // Only multi-select filters have exclusions now
     const idx = excluded.indexOf(value);
     if (idx >= 0) {
       excluded.splice(idx, 1); // Remove exclusion
     } else {
       excluded.push(value); // Add exclusion
-      // Remove include filter if same value was active
-      if (filters[filterKey] === value) {
-        filters[filterKey] = filterKey === 'discount' ? '0' : 'all';
-        group.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
-        const allPill = group.querySelector('[data-value="all"], [data-value="0"]');
-        if (allPill) allPill.classList.add('active');
+      // Remove from include filter if same value was active
+      if (isMultiSelect && filters[filterKey].includes(value)) {
+        filters[filterKey] = filters[filterKey].filter(v => v !== value);
+        syncPillActive(filterKey, filters[filterKey]);
       }
     }
     currentPage = 1;
@@ -887,29 +948,56 @@ function togglePill(el, event) {
 
   // Normal click: include filter
   // Remove any exclusion for this value if it was excluded
-  const excIdx = excludedFilters[filterKey]?.indexOf(value);
-  if (excIdx >= 0) excludedFilters[filterKey].splice(excIdx, 1);
+  if (isMultiSelect) {
+    const excIdx = excludedFilters[filterKey]?.indexOf(value);
+    if (excIdx >= 0) excludedFilters[filterKey].splice(excIdx, 1);
 
-  group.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
-
-  if (value === 'all' || value === '0') {
-    el.classList.add('active');
-    filters[filterKey] = filterKey === 'discount' ? '0' : 'all';
+    if (value === 'all') {
+      // Clicking "All" clears the array
+      filters[filterKey] = [];
+      syncPillActive(filterKey, filters[filterKey]);
+    } else {
+      // Multi-select logic
+      const arr = filters[filterKey];
+      const idx = arr.indexOf(value);
+      if (idx >= 0) {
+        // Already active - deselect it
+        arr.splice(idx, 1);
+      } else {
+        // Not active - select it
+        arr.push(value);
+      }
+      syncPillActive(filterKey, filters[filterKey]);
+    }
   } else {
-    const allPill = group.querySelector('[data-value="all"], [data-value="0"]');
-    if (allPill) allPill.classList.remove('active');
+    // Single-select for other filters (if any remain) - not used currently
+    group.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
     el.classList.add('active');
     filters[filterKey] = value;
   }
+
   currentPage = 1;
   saveFilters();
   applyFiltersAndRender();
-  syncPillExcluded();
+  if (isMultiSelect) syncPillExcluded();
 }
 
 function clearFilter(key) {
-  filters[key] = key === 'discount' ? '0' : 'all';
-  syncPillActive(key, filters[key]);
+  // Handle multi-select filters
+  if (key === 'store' || key === 'gender' || key === 'category') {
+    filters[key] = [];
+    syncPillActive(key, filters[key]);
+  }
+  // Handle slider filters
+  else if (key === 'price') {
+    filters.priceMin = 0;
+    filters.priceMax = 500;
+    updateSliders();
+  }
+  else if (key === 'discount') {
+    filters.discount = 0;
+    updateSliders();
+  }
   currentPage = 1;
   saveFilters();
   applyFiltersAndRender();
@@ -944,6 +1032,82 @@ function closeDrawer() {
 function toggleDark() {
   document.documentElement.classList.toggle('dark');
   localStorage.setItem('darkMode', document.documentElement.classList.contains('dark'));
+}
+
+// ── Sliders ───────────────────────────────────────────────────────────────────
+function initSliders() {
+  const priceMin = document.getElementById('priceMin');
+  const priceMax = document.getElementById('priceMax');
+  const discountSlider = document.getElementById('discountSlider');
+
+  function updatePriceSlider() {
+    const lo = parseInt(priceMin.value);
+    const hi = parseInt(priceMax.value);
+    if (lo > hi) { priceMin.value = hi; return updatePriceSlider(); }
+    filters.priceMin = lo;
+    filters.priceMax = hi;
+    document.getElementById('priceSliderVals').textContent =
+      `$${lo} – ${hi >= 500 ? '$500+' : '$' + hi}`;
+    // Update fill bar
+    const pct1 = (lo / 500) * 100;
+    const pct2 = (hi / 500) * 100;
+    document.getElementById('priceSliderFill').style.left = pct1 + '%';
+    document.getElementById('priceSliderFill').style.width = (pct2 - pct1) + '%';
+    currentPage = 1;
+    saveFilters();
+    applyFiltersAndRender();
+  }
+
+  function updateDiscountSlider() {
+    const val = parseInt(discountSlider.value);
+    filters.discount = val;
+    document.getElementById('discountSliderVal').textContent = val === 0 ? 'Any' : val + '%+';
+    currentPage = 1;
+    saveFilters();
+    applyFiltersAndRender();
+  }
+
+  if (priceMin && priceMax) {
+    // Restore saved values
+    priceMin.value = filters.priceMin;
+    priceMax.value = filters.priceMax;
+    updatePriceSlider();
+
+    priceMin.addEventListener('input', updatePriceSlider);
+    priceMax.addEventListener('input', updatePriceSlider);
+  }
+
+  if (discountSlider) {
+    // Restore saved value
+    discountSlider.value = filters.discount;
+    updateDiscountSlider();
+
+    discountSlider.addEventListener('input', updateDiscountSlider);
+  }
+}
+
+// Helper to update slider UI (called from clearFilter and resetAllFilters)
+function updateSliders() {
+  const priceMin = document.getElementById('priceMin');
+  const priceMax = document.getElementById('priceMax');
+  const discountSlider = document.getElementById('discountSlider');
+
+  if (priceMin && priceMax) {
+    priceMin.value = filters.priceMin;
+    priceMax.value = filters.priceMax;
+    document.getElementById('priceSliderVals').textContent =
+      `$${filters.priceMin} – ${filters.priceMax >= 500 ? '$500+' : '$' + filters.priceMax}`;
+    const pct1 = (filters.priceMin / 500) * 100;
+    const pct2 = (filters.priceMax / 500) * 100;
+    document.getElementById('priceSliderFill').style.left = pct1 + '%';
+    document.getElementById('priceSliderFill').style.width = (pct2 - pct1) + '%';
+  }
+
+  if (discountSlider) {
+    discountSlider.value = filters.discount;
+    document.getElementById('discountSliderVal').textContent =
+      filters.discount === 0 ? 'Any' : filters.discount + '%+';
+  }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

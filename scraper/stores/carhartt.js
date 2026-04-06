@@ -65,14 +65,18 @@ async function scrape(browser, onProgress = () => {}) {
         const results = [];
 
         for (const priceEl of priceElements) {
-          // Go up to find a container with a product link
+          // Go up to find a container with a product link AND image
           let container = priceEl;
           let link = null;
           let depth = 0;
 
-          while (container && depth < 10) {
+          while (container && depth < 20) {
             link = container.querySelector('a[href*="/product/"]');
-            if (link) break;
+            if (link) {
+              // Keep going up to find the container that has both link and image
+              const img = container.querySelector('cx-media img, .product-image img');
+              if (img) break;
+            }
             container = container.parentElement;
             depth++;
           }
@@ -83,7 +87,10 @@ async function scrape(browser, onProgress = () => {}) {
 
           // Extract from this container
           const nameEl = container.querySelector('.product-name');
-          const imgEl = container.querySelector('img[src*="carhartt"]');
+          // Target the main product image specifically (inside cx-media or with product-image class)
+          // Avoid badges, icons, etc. by looking for larger images or specific containers
+          const imgEl = container.querySelector('cx-media img.ng-star-inserted, .product-image img') ||
+                        container.querySelector('img[alt*="Carhartt"]');
 
           // "with-strike" is the SALE price, without strike is ORIGINAL
           const salePriceEl = container.querySelector('.price-range.with-strike');
@@ -94,10 +101,25 @@ async function scrape(browser, onProgress = () => {}) {
 
           if (!salePrice || !origPrice || salePrice >= origPrice) continue;
 
+          // Extract image URL - prefer src, handle srcset if needed
+          let imageUrl = '';
+          if (imgEl) {
+            imageUrl = imgEl.src || '';
+            // If src is empty but srcset exists, parse srcset to get base URL
+            if (!imageUrl && imgEl.srcset) {
+              const srcsetParts = imgEl.srcset.split(',')[0].trim().split(' ');
+              imageUrl = srcsetParts[0];
+            }
+            // Ensure absolute URL
+            if (imageUrl && !imageUrl.startsWith('http')) {
+              imageUrl = new URL(imageUrl, 'https://www.carhartt.com').href;
+            }
+          }
+
           results.push({
             url: link.href,
             name: nameEl?.textContent?.trim() || link.getAttribute('title') || '',
-            image: imgEl?.src || '',
+            image: imageUrl,
             price: salePrice,
             originalPrice: origPrice
           });
