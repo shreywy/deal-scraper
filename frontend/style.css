@@ -360,6 +360,23 @@ html.dark .dark-icon-sun  { transform: translateY(0) rotate(0deg); opacity: 1; }
 .status-dot.ok { background: #4a9e4e; }
 .status-dot.warn { background: #d4a020; }
 
+.ds-store-search-wrap { margin-bottom: 10px; }
+.ds-store-search {
+  width: 100%; padding: 6px 10px; font-size: 12px;
+  border: 1.5px solid var(--border); border-radius: 7px;
+  background: var(--bg); color: var(--text-primary); outline: none;
+}
+.ds-store-search:focus { border-color: var(--green-dark); }
+
+.ds-row-broken { opacity: 0.5; }
+.ds-row-broken .ds-name { color: var(--text-muted) !important; }
+.ds-broken-badge {
+  display: inline-block; font-size: 9px; font-weight: 700;
+  background: #f5e0e0; color: #a03030; border-radius: 3px;
+  padding: 0 4px; vertical-align: middle; margin-left: 4px; text-transform: uppercase;
+}
+html.dark .ds-broken-badge { background: #4a2020; color: #e08080; }
+
 .toggle {
   width: 36px; height: 20px;
   background: #d0ddd0;

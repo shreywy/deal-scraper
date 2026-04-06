@@ -491,6 +491,12 @@ function applyFiltersAndRender() {
     currentTab === 'non-clothing' ? d.tags.includes('Non-Clothing') : !d.tags.includes('Non-Clothing')
   );
 
+  // Filter out deals from disabled stores
+  if (config?.stores) {
+    const enabledKeys = new Set(Object.entries(config.stores).filter(([,s]) => s.enabled).map(([k]) => k));
+    deals = deals.filter(d => enabledKeys.has(d.storeKey));
+  }
+
   // Sidebar filters only apply to clothing tab
   if (currentTab === 'non-clothing') {
     filteredDeals = deals;
@@ -514,7 +520,8 @@ function applyFiltersAndRender() {
     const GENDER_TAGS = ['Men', 'Women', 'Kids'];
     deals = deals.filter(d => filters.gender.some(g => {
       if (g === 'Unisex') {
-        return d.tags.includes('Unisex') || !GENDER_TAGS.some(gt => d.tags.includes(gt));
+        // Strict: only show items explicitly tagged Unisex (not "no-gender" items which may include kids)
+        return d.tags.includes('Unisex');
       }
       return d.tags.includes(g) || d.tags.includes('Unisex') || !GENDER_TAGS.some(gt => d.tags.includes(gt));
     }));
@@ -615,6 +622,12 @@ function dealsExcluding(excludeKey) {
   const cadPrice = d => (d.currency === 'USD' && d.priceCAD) ? d.priceCAD : d.price;
   let d = allDeals.filter(x => !x.tags.includes('Non-Clothing'));
 
+  // Filter out disabled stores
+  if (config?.stores) {
+    const enabledKeys = new Set(Object.entries(config.stores).filter(([,s]) => s.enabled).map(([k]) => k));
+    d = d.filter(x => enabledKeys.has(x.storeKey));
+  }
+
   // Multi-select filters
   if (excludeKey !== 'store' && filters.store.length > 0) {
     d = d.filter(x => filters.store.includes(x.storeKey || x.store));
@@ -622,7 +635,7 @@ function dealsExcluding(excludeKey) {
   if (excludeKey !== 'gender' && filters.gender.length > 0) {
     const GENDER_TAGS = ['Men', 'Women', 'Kids'];
     d = d.filter(x => filters.gender.some(g => {
-      if (g === 'Unisex') return x.tags.includes('Unisex') || !GENDER_TAGS.some(gt => x.tags.includes(gt));
+      if (g === 'Unisex') return x.tags.includes('Unisex'); // strict: no "no-gender" fallback
       return x.tags.includes(g) || x.tags.includes('Unisex') || !GENDER_TAGS.some(gt => x.tags.includes(gt));
     }));
   }
@@ -875,16 +888,25 @@ async function renderSettingsDrawer(cfg) {
     status = await r.json();
   } catch (_) {}
 
+  // Detect broken stores: disabled + note with block/bot/redirect keywords
+  const BROKEN_KW = ['block', 'bot', 'redirect', 'akamai', 'perimeterx', 'cloudflare', 'denied', '404', 'broken'];
+  function isBroken(s) {
+    if (s.enabled) return false;
+    const note = (s.note || '').toLowerCase();
+    return BROKEN_KW.some(kw => note.includes(kw));
+  }
+
   const storeRows = Object.entries(stores).map(([key, s]) => {
     const sr = status.storeResults?.[key];
     const statusText = sr
       ? (sr.error ? `⚠ ${sr.error.slice(0, 40)}` : `${sr.count} deals`)
-      : 'not scraped yet';
+      : (s.note ? s.note.slice(0, 55) : 'not scraped yet');
     const dotClass = sr ? (sr.error ? 'warn' : 'ok') : '';
+    const broken = isBroken(s);
     return `
-    <div class="ds-row">
+    <div class="ds-row${broken ? ' ds-row-broken' : ''}" data-store-name="${escHtml(s.name.toLowerCase())}">
       <div class="ds-row-text">
-        <div class="ds-name">${escHtml(s.name)}</div>
+        <div class="ds-name">${escHtml(s.name)}${broken ? ' <span class="ds-broken-badge">broken</span>' : ''}</div>
         <div class="ds-sub"><span class="store-status"><span class="status-dot ${dotClass}"></span>${escHtml(statusText)}</span></div>
       </div>
       <div class="toggle ${s.enabled ? 'on' : ''}" onclick="toggleStore('${key}', this)"></div>
@@ -894,6 +916,9 @@ async function renderSettingsDrawer(cfg) {
   body.innerHTML = `
     <div class="ds-section">
       <div class="ds-label">Active Stores</div>
+      <div class="ds-store-search-wrap">
+        <input class="ds-store-search" type="text" placeholder="Filter stores…" oninput="filterDrawerStores(this.value)" autocomplete="off">
+      </div>
       ${storeRows}
     </div>
     <div class="ds-section">
@@ -951,11 +976,20 @@ async function renderSettingsDrawer(cfg) {
   `;
 }
 
+function filterDrawerStores(query) {
+  const q = query.trim().toLowerCase();
+  document.querySelectorAll('#drawerBody .ds-row[data-store-name]').forEach(row => {
+    row.style.display = (!q || row.dataset.storeName.includes(q)) ? '' : 'none';
+  });
+}
+
 async function toggleStore(key, el) {
   el.classList.toggle('on');
   const enabled = el.classList.contains('on');
   await patchConfig({ stores: { [key]: { enabled } } });
   if (config?.stores?.[key]) config.stores[key].enabled = enabled;
+  buildDynamicFilters(); // update store pills
+  applyFiltersAndRender(); // update grid
 }
 
 async function toggleSetting(key, el) {
