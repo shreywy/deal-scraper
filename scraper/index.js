@@ -77,6 +77,24 @@ const SCRAPERS = {
   quiksilver:     require('./stores/quiksilver'),
   dickies:        require('./stores/dickies'),
   converse:       require('./stores/converse'),
+  // Non-clothing retailers
+  bestbuy:        require('./stores/bestbuy'),
+  thesource:      require('./stores/thesource'),
+  walmart:        require('./stores/walmart'),
+  staples:        require('./stores/staples'),
+  newegg:         require('./stores/newegg'),
+  canadacomputers: require('./stores/canadacomputers'),
+  memoryexpress:  require('./stores/memoryexpress'),
+  lenovo:         require('./stores/lenovo'),
+  dell:           require('./stores/dell'),
+  hp:             require('./stores/hp'),
+  indigo:         require('./stores/indigo'),
+  lego:           require('./stores/lego'),
+  samsung:        require('./stores/samsung'),
+  londondrugs:    require('./stores/londondrugs'),
+  microsoft:      require('./stores/microsoft'),
+  ikea:           require('./stores/ikea'),
+  costco:         require('./stores/costco'),
 };
 
 const CACHE_PATH = path.join(__dirname, '../data/deals.json');

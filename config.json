@@ -16,12 +16,12 @@
       "note": "Direct API with fixed x-fr-clientid=uq.ca.web-spa — 0 deals currently (no active sales on site)"
     },
     "zara": {
-      "enabled": false,
+      "enabled": true,
       "name": "Zara Canada",
       "domain": "zara.com/ca",
       "currency": "CAD",
       "category": "clothing",
-      "note": "Akamai bot detection - redirects to homepage instead of sale page"
+      "note": "Updated to use special prices URLs"
     },
     "gymshark": {
       "enabled": true,
@@ -225,7 +225,7 @@
       "name": "Canadian Tire",
       "domain": "canadiantire.ca",
       "currency": "CAD",
-      "category": "clothing",
+      "category": "non-clothing",
       "note": "FGL platform API returns 400 error; weekly flyer URL returns 404 (URL structure changed)"
     },
     "sportinglife": {
@@ -482,6 +482,125 @@
       "currency": "USD",
       "category": "clothing",
       "note": "Shopify API — 0 deals currently (no active sale)"
+    },
+    "bestbuy": {
+      "enabled": true,
+      "name": "Best Buy CA",
+      "domain": "bestbuy.ca",
+      "currency": "CAD",
+      "category": "non-clothing"
+    },
+    "thesource": {
+      "enabled": true,
+      "name": "The Source",
+      "domain": "thesource.ca",
+      "currency": "CAD",
+      "category": "non-clothing"
+    },
+    "walmart": {
+      "enabled": true,
+      "name": "Walmart Canada",
+      "domain": "walmart.ca",
+      "currency": "CAD",
+      "category": "non-clothing"
+    },
+    "staples": {
+      "enabled": true,
+      "name": "Staples Canada",
+      "domain": "staples.ca",
+      "currency": "CAD",
+      "category": "non-clothing"
+    },
+    "newegg": {
+      "enabled": true,
+      "name": "Newegg Canada",
+      "domain": "newegg.ca",
+      "currency": "CAD",
+      "category": "non-clothing"
+    },
+    "canadacomputers": {
+      "enabled": true,
+      "name": "Canada Computers",
+      "domain": "canadacomputers.com",
+      "currency": "CAD",
+      "category": "non-clothing"
+    },
+    "memoryexpress": {
+      "enabled": true,
+      "name": "Memory Express",
+      "domain": "memoryexpress.com",
+      "currency": "CAD",
+      "category": "non-clothing"
+    },
+    "lenovo": {
+      "enabled": true,
+      "name": "Lenovo CA",
+      "domain": "lenovo.com/ca",
+      "currency": "CAD",
+      "category": "non-clothing"
+    },
+    "dell": {
+      "enabled": true,
+      "name": "Dell CA",
+      "domain": "dell.com/ca",
+      "currency": "CAD",
+      "category": "non-clothing"
+    },
+    "hp": {
+      "enabled": true,
+      "name": "HP Canada",
+      "domain": "hp.com/ca",
+      "currency": "CAD",
+      "category": "non-clothing"
+    },
+    "indigo": {
+      "enabled": true,
+      "name": "Indigo / Chapters",
+      "domain": "chapters.indigo.ca",
+      "currency": "CAD",
+      "category": "non-clothing"
+    },
+    "lego": {
+      "enabled": true,
+      "name": "LEGO CA",
+      "domain": "lego.com/en-ca",
+      "currency": "CAD",
+      "category": "non-clothing"
+    },
+    "samsung": {
+      "enabled": true,
+      "name": "Samsung CA",
+      "domain": "samsung.com/ca",
+      "currency": "CAD",
+      "category": "non-clothing"
+    },
+    "londondrugs": {
+      "enabled": true,
+      "name": "London Drugs",
+      "domain": "londondrugs.com",
+      "currency": "CAD",
+      "category": "non-clothing"
+    },
+    "microsoft": {
+      "enabled": true,
+      "name": "Microsoft CA",
+      "domain": "microsoft.com/en-ca",
+      "currency": "CAD",
+      "category": "non-clothing"
+    },
+    "ikea": {
+      "enabled": true,
+      "name": "IKEA Canada",
+      "domain": "ikea.com/ca",
+      "currency": "CAD",
+      "category": "non-clothing"
+    },
+    "costco": {
+      "enabled": true,
+      "name": "Costco Canada",
+      "domain": "costco.ca",
+      "currency": "CAD",
+      "category": "non-clothing"
     }
   },
   "settings": {

@@ -89,6 +89,12 @@ function saveFilters() {
 // Tabs
 let currentTab = 'clothing'; // 'clothing' | 'non-clothing'
 
+// Drawer tabs
+let drawerTab = 'clothing'; // 'clothing' | 'non-clothing'
+
+// Non-clothing category navigation state
+let selectedNcCategory = ''; // empty = all categories
+
 // Pagination
 const PAGE_SIZE = 100;
 let currentPage = 1;
@@ -403,13 +409,162 @@ function hideScrapePopdown() {
   }, 200);
 }
 
+// ── Non-Clothing Category Navigation ─────────────────────────────────────────
+const NC_CATEGORY_MAP = {
+  'Electronics': { icon: '⚡', label: 'Electronics' },
+  'Computers': { icon: '💻', label: 'Computers' },
+  'TVs & Displays': { icon: '📺', label: 'TVs & Displays' },
+  'Phones & Tablets': { icon: '📱', label: 'Phones & Tablets' },
+  'Audio': { icon: '🔊', label: 'Audio' },
+  'Cameras': { icon: '📷', label: 'Cameras' },
+  'Gaming': { icon: '🎮', label: 'Gaming' },
+  'Appliances': { icon: '🏠', label: 'Appliances' },
+  'Furniture': { icon: '🛋️', label: 'Furniture' },
+  'Computer Parts': { icon: '💾', label: 'PC Parts' },
+  'Toys & Games': { icon: '🧸', label: 'Toys & Games' },
+  'Books & Toys': { icon: '🧸', label: 'Toys & Games' }, // lego.js compatibility
+  'Books & Media': { icon: '📚', label: 'Books & Media' },
+  'Beauty & Health': { icon: '💄', label: 'Beauty & Health' },
+  'Fitness': { icon: '💪', label: 'Fitness' },
+  'Tools & Home Improvement': { icon: '🔧', label: 'Tools & Home' },
+  'Kitchen': { icon: '🍳', label: 'Kitchen' },
+  'Home & Furniture': { icon: '🛋️', label: 'Furniture' }, // legacy compat
+  'Tools': { icon: '🔧', label: 'Tools' }, // legacy compat
+};
+
+function buildNcCategoryNav(deals) {
+  const navContainer = document.getElementById('ncCategoryNav');
+  const scrollContainer = document.getElementById('ncCategoryScroll');
+
+  if (!navContainer || !scrollContainer) return;
+
+  // Count deals per category
+  const categoryCounts = {};
+  deals.forEach(d => {
+    d.tags.forEach(tag => {
+      if (NC_CATEGORY_MAP[tag]) {
+        categoryCounts[tag] = (categoryCounts[tag] || 0) + 1;
+      }
+    });
+  });
+
+  // Build category tiles (only show categories with deals)
+  const tiles = [];
+
+  // "All" tile
+  const allCount = deals.length;
+  const allActive = selectedNcCategory === '';
+  tiles.push(`
+    <div class="nc-cat-tile ${allActive ? 'active' : ''}" onclick="selectNcCategory('')">
+      <span class="nc-cat-icon">🌿</span>
+      <span>All</span>
+      <span class="nc-cat-count">${allCount}</span>
+    </div>
+  `);
+
+  // Category tiles (sorted alphabetically)
+  const categories = Object.keys(categoryCounts).sort();
+  for (const cat of categories) {
+    const { icon, label } = NC_CATEGORY_MAP[cat];
+    const count = categoryCounts[cat];
+    const isActive = selectedNcCategory === cat;
+    tiles.push(`
+      <div class="nc-cat-tile ${isActive ? 'active' : ''}" onclick="selectNcCategory('${escHtml(cat)}')">
+        <span class="nc-cat-icon">${icon}</span>
+        <span>${escHtml(label)}</span>
+        <span class="nc-cat-count">${count}</span>
+      </div>
+    `);
+  }
+
+  scrollContainer.innerHTML = tiles.join('');
+}
+
+function selectNcCategory(cat) {
+  // Toggle category: clicking the active category deselects it
+  if (selectedNcCategory === cat) {
+    selectedNcCategory = '';
+    filters.category = [];
+  } else {
+    selectedNcCategory = cat;
+    filters.category = cat ? [cat] : [];
+  }
+
+  // Sync sidebar category pills
+  syncPillActive('category', filters.category);
+
+  currentPage = 1;
+  saveFilters();
+  applyFiltersAndRender();
+}
+
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 function switchTab(tab) {
   currentTab = tab;
   document.getElementById('tabClothing')?.classList.toggle('active', tab === 'clothing');
   document.getElementById('tabNonClothing')?.classList.toggle('active', tab === 'non-clothing');
+
+  // Show/hide non-clothing category nav
+  const navContainer = document.getElementById('ncCategoryNav');
+  if (navContainer) {
+    navContainer.style.display = tab === 'non-clothing' ? 'block' : 'none';
+  }
+
   currentPage = 1;
+  updateSidebarForTab(tab);
   applyFiltersAndRender();
+}
+
+function updateSidebarForTab(tab) {
+  const genderSection = document.getElementById('filterGender');
+
+  if (tab === 'non-clothing') {
+    // Hide gender filter
+    if (genderSection) genderSection.classList.add('nc-hide');
+
+    // Sync selectedNcCategory with current filters
+    if (filters.category.length === 1) {
+      selectedNcCategory = filters.category[0];
+    } else {
+      selectedNcCategory = '';
+    }
+
+    // Rebuild category pills for non-clothing
+    const NC_CATEGORIES = ['Electronics', 'Computers', 'TVs & Displays', 'Phones & Tablets', 'Audio', 'Gaming', 'Cameras', 'Appliances', 'Furniture', 'Computer Parts', 'Toys & Games', 'Books & Toys', 'Books & Media', 'Kitchen', 'Fitness', 'Tools & Home Improvement', 'Beauty & Health', 'Home & Furniture', 'Tools'];
+    const ncDeals = allDeals.filter(d => d.tags.includes('Non-Clothing'));
+    const availableCats = NC_CATEGORIES.filter(cat =>
+      ncDeals.some(d => d.tags.includes(cat))
+    );
+
+    const catPills = document.getElementById('categoryPills');
+    catPills.innerHTML = makePill('category', 'all', 'All', filters.category.length === 0);
+    for (const c of availableCats) {
+      catPills.insertAdjacentHTML('beforeend', makePill('category', c, c, filters.category.includes(c)));
+    }
+
+    // Rebuild store pills to show only non-clothing stores
+    if (config?.stores) {
+      const ncStores = Object.entries(config.stores)
+        .filter(([key, s]) => s.enabled && s.category === 'non-clothing')
+        .map(([key, s]) => ({ key, name: s.name }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+      const storePills = document.getElementById('storePills');
+      storePills.innerHTML = makePill('store', 'all', 'All', filters.store.length === 0);
+      for (const { key, name } of ncStores) {
+        storePills.insertAdjacentHTML('beforeend', makePill('store', key, name, filters.store.includes(key)));
+      }
+    }
+
+    // Build category nav with all non-clothing deals
+    buildNcCategoryNav(ncDeals);
+  } else {
+    // Restore clothing tab
+    if (genderSection) genderSection.classList.remove('nc-hide');
+    buildDynamicFilters(); // Rebuild normal filters
+  }
+
+  syncPillExcluded();
 }
 
 // ── Data Loading ─────────────────────────────────────────────────────────────
@@ -426,13 +581,17 @@ function buildDynamicFilters() {
   const storePills = document.getElementById('storePills');
   storePills.innerHTML = makePill('store', 'all', 'All', true);
   const configStores = config?.stores
-    ? Object.entries(config.stores).filter(([, s]) => s.enabled).map(([key, s]) => ({ key, name: s.name })).sort((a, b) => a.name.localeCompare(b.name))
+    ? Object.entries(config.stores)
+        .filter(([, s]) => s.enabled && s.category !== 'non-clothing')
+        .map(([key, s]) => ({ key, name: s.name }))
+        .sort((a, b) => a.name.localeCompare(b.name))
     : [...new Set(allDeals.map(d => ({ key: d.storeKey || d.store, name: d.store })))];
   for (const { key, name } of configStores) storePills.insertAdjacentHTML('beforeend', makePill('store', key, name));
 
-  // Category pills
+  // Category pills — filter out Non-Clothing and gender tags
   const GENDER_TAGS = new Set(['Men', 'Women', 'Unisex', 'Kids']);
-  const cats = [...new Set(allDeals.flatMap(d => d.tags).filter(t => !GENDER_TAGS.has(t)))].sort();
+  const clothingDeals = allDeals.filter(d => !d.tags.includes('Non-Clothing'));
+  const cats = [...new Set(clothingDeals.flatMap(d => d.tags).filter(t => !GENDER_TAGS.has(t) && t !== 'Non-Clothing'))].sort();
   const catPills = document.getElementById('categoryPills');
   catPills.innerHTML = makePill('category', 'all', 'All', true);
   for (const c of cats) catPills.insertAdjacentHTML('beforeend', makePill('category', c, c));
@@ -497,12 +656,104 @@ function applyFiltersAndRender() {
     deals = deals.filter(d => enabledKeys.has(d.storeKey));
   }
 
-  // Sidebar filters only apply to clothing tab
+  // For non-clothing tab: apply store, category, price, discount filters (but not gender)
   if (currentTab === 'non-clothing') {
+    // Multi-select filters (store and category)
+    if (filters.store.length > 0) {
+      deals = deals.filter(d => filters.store.includes(d.storeKey || d.store));
+    }
+    if (filters.category.length > 0) {
+      deals = deals.filter(d => filters.category.some(c => d.tags.includes(c)));
+    }
+
+    // Slider filters
+    if (filters.priceMin > 0 || filters.priceMax < 500) {
+      deals = deals.filter(d => {
+        const p = d.currency === 'USD' && d.priceCAD ? d.priceCAD : d.price;
+        return p >= filters.priceMin && (filters.priceMax >= 500 ? true : p <= filters.priceMax);
+      });
+    }
+    if (filters.discount > 0) {
+      deals = deals.filter(d => d.discount >= filters.discount);
+    }
+
+    // Apply exclusion filters for non-clothing tab
+    const cadP = d => (d.currency === 'USD' && d.priceCAD) ? d.priceCAD : d.price;
+    for (const [key, excluded] of Object.entries(excludedFilters)) {
+      for (const val of excluded) {
+        if (key === 'store')    deals = deals.filter(d => (d.storeKey || d.store) !== val);
+        if (key === 'category') deals = deals.filter(d => !d.tags.includes(val));
+      }
+    }
+
+    // Search filter with relevance scoring
+    if (searchQuery) {
+      const queryWords = searchQuery.split(/\s+/).filter(w => w.length > 0);
+
+      // First try exact matching
+      let scored = deals.map(d => {
+        let score = 0;
+        const name = d.name.toLowerCase();
+        const store = (d.storeKey || d.store).toLowerCase();
+        const tags = d.tags.map(t => t.toLowerCase());
+
+        if (queryWords.every(w => name.includes(w))) {
+          score = 3; // Product name match (highest priority)
+        } else if (queryWords.every(w => store.includes(w))) {
+          score = 2; // Store name match
+        } else if (queryWords.every(w => tags.some(tag => tag.includes(w)))) {
+          score = 1; // Tag match (lowest priority)
+        }
+
+        return { ...d, _searchScore: score };
+      }).filter(d => d._searchScore > 0);
+
+      // If no exact results, try fuzzy matching
+      if (scored.length === 0) {
+        scored = deals.map(d => ({ ...d, _searchScore: fuzzyScore(d, queryWords) }))
+                      .filter(d => d._searchScore > 0);
+        searchIsFuzzy = true;
+      } else {
+        searchIsFuzzy = false;
+      }
+
+      deals = scored;
+
+      // Sort by relevance when search is active
+      deals.sort((a, b) => b._searchScore - a._searchScore);
+    } else {
+      searchIsFuzzy = false;
+      // Normal sort order when no search query
+      deals.sort((a, b) => {
+        if (currentSort === 'discount') return b.discount - a.discount;
+        if (currentSort === 'price-asc') return a.price - b.price;
+        if (currentSort === 'price-desc') return b.price - a.price;
+        if (currentSort === 'newest') return new Date(b.scrapedAt) - new Date(a.scrapedAt);
+        return 0;
+      });
+    }
+
     filteredDeals = deals;
+    currentPage = 1;
     renderGrid();
     renderResultsBar();
     renderPagination();
+    updatePillAvailability();
+
+    // Rebuild non-clothing category nav with filtered deals (before any category filter is applied)
+    const ncDealsBeforeCategoryFilter = allDeals
+      .filter(d => d.tags.includes('Non-Clothing'))
+      .filter(d => config?.stores ? Object.entries(config.stores).filter(([,s]) => s.enabled).map(([k]) => k).includes(d.storeKey) : true)
+      .filter(d => filters.store.length > 0 ? filters.store.includes(d.storeKey || d.store) : true)
+      .filter(d => {
+        if (filters.priceMin > 0 || filters.priceMax < 500) {
+          const p = d.currency === 'USD' && d.priceCAD ? d.priceCAD : d.price;
+          return p >= filters.priceMin && (filters.priceMax >= 500 ? true : p <= filters.priceMax);
+        }
+        return true;
+      })
+      .filter(d => filters.discount > 0 ? d.discount >= filters.discount : true);
+    buildNcCategoryNav(ncDealsBeforeCategoryFilter);
     return;
   }
 
@@ -620,7 +871,9 @@ function applyFiltersAndRender() {
 // Returns deals matching all active filters EXCEPT the given key (for availability check)
 function dealsExcluding(excludeKey) {
   const cadPrice = d => (d.currency === 'USD' && d.priceCAD) ? d.priceCAD : d.price;
-  let d = allDeals.filter(x => !x.tags.includes('Non-Clothing'));
+  let d = currentTab === 'non-clothing'
+    ? allDeals.filter(x => x.tags.includes('Non-Clothing'))
+    : allDeals.filter(x => !x.tags.includes('Non-Clothing'));
 
   // Filter out disabled stores
   if (config?.stores) {
@@ -632,7 +885,8 @@ function dealsExcluding(excludeKey) {
   if (excludeKey !== 'store' && filters.store.length > 0) {
     d = d.filter(x => filters.store.includes(x.storeKey || x.store));
   }
-  if (excludeKey !== 'gender' && filters.gender.length > 0) {
+  // Gender filter only applies on clothing tab
+  if (currentTab !== 'non-clothing' && excludeKey !== 'gender' && filters.gender.length > 0) {
     const GENDER_TAGS = ['Men', 'Women', 'Kids'];
     d = d.filter(x => filters.gender.some(g => {
       if (g === 'Unisex') return x.tags.includes('Unisex'); // strict: no "no-gender" fallback
@@ -682,7 +936,10 @@ function updatePillAvailability() {
     category: (d, v) => d.tags.includes(v),
   };
 
-  for (const filterKey of ['store', 'gender', 'category']) {
+  // On non-clothing tab, only update store and category (not gender)
+  const filtersToCheck = currentTab === 'non-clothing' ? ['store', 'category'] : ['store', 'gender', 'category'];
+
+  for (const filterKey of filtersToCheck) {
     const base = dealsExcluding(filterKey);
     document.querySelectorAll(`[data-filter="${filterKey}"]`).forEach(pill => {
       const val = pill.dataset.value;
@@ -756,6 +1013,9 @@ function renderResultsBar() {
   const start = (currentPage - 1) * PAGE_SIZE + 1;
   const end = Math.min(currentPage * PAGE_SIZE, total);
   let text = `${total} deal${total !== 1 ? 's' : ''}`;
+  if (currentTab === 'non-clothing') {
+    text += ' <span style="font-size:11px;color:var(--text-muted)">(electronics & more)</span>';
+  }
   if (allDeals.length !== total) text += ` of ${allDeals.length}`;
   if (total > PAGE_SIZE) text += ` · showing ${start}–${end}`;
 
@@ -875,6 +1135,19 @@ function showSkeletons(n) {
 function clearGrid() { document.getElementById('grid').innerHTML = ''; }
 
 // ── Hover Preview ─────────────────────────────────────────────────────────────
+// ── Drawer Tab Control ───────────────────────────────────────────────────────
+function setDrawerTab(tab) {
+  drawerTab = tab;
+  document.querySelectorAll('.drawer-tab-pill').forEach(pill => {
+    pill.classList.toggle('active', pill.dataset.tab === tab);
+  });
+  // Show/hide rows based on category
+  document.querySelectorAll('.ds-row[data-store-category]').forEach(row => {
+    const cat = row.dataset.storeCategory || 'clothing';
+    row.style.display = (tab === 'clothing' && cat === 'clothing') || (tab === 'non-clothing' && cat === 'non-clothing') ? '' : 'none';
+  });
+}
+
 // ── Settings Drawer ───────────────────────────────────────────────────────────
 async function renderSettingsDrawer(cfg) {
   const body = document.getElementById('drawerBody');
@@ -903,8 +1176,9 @@ async function renderSettingsDrawer(cfg) {
       : (s.note ? s.note.slice(0, 55) : 'not scraped yet');
     const dotClass = sr ? (sr.error ? 'warn' : 'ok') : '';
     const broken = isBroken(s);
+    const category = s.category || 'clothing';
     return `
-    <div class="ds-row${broken ? ' ds-row-broken' : ''}" data-store-name="${escHtml(s.name.toLowerCase())}">
+    <div class="ds-row${broken ? ' ds-row-broken' : ''}" data-store-name="${escHtml(s.name.toLowerCase())}" data-store-category="${category}">
       <div class="ds-row-text">
         <div class="ds-name">${escHtml(s.name)}${broken ? ' <span class="ds-broken-badge">broken</span>' : ''}</div>
         <div class="ds-sub"><span class="store-status"><span class="status-dot ${dotClass}"></span>${escHtml(statusText)}</span></div>
@@ -914,6 +1188,10 @@ async function renderSettingsDrawer(cfg) {
   }).join('');
 
   body.innerHTML = `
+    <div class="drawer-tab-bar">
+      <button class="drawer-tab-pill active" data-tab="clothing" onclick="setDrawerTab('clothing')">Clothing Stores</button>
+      <button class="drawer-tab-pill" data-tab="non-clothing" onclick="setDrawerTab('non-clothing')">Electronics & More</button>
+    </div>
     <div class="ds-section">
       <div class="ds-label">Active Stores</div>
       <div class="ds-store-search-wrap">
@@ -984,6 +1262,9 @@ async function renderSettingsDrawer(cfg) {
       </div>
     </div>
   `;
+
+  // Initialize drawer tab visibility
+  setDrawerTab(drawerTab);
 }
 
 async function clearCache() {
@@ -1007,7 +1288,10 @@ async function clearCache() {
 function filterDrawerStores(query) {
   const q = query.trim().toLowerCase();
   document.querySelectorAll('#drawerBody .ds-row[data-store-name]').forEach(row => {
-    row.style.display = (!q || row.dataset.storeName.includes(q)) ? '' : 'none';
+    const matchesSearch = !q || row.dataset.storeName.includes(q);
+    const cat = row.dataset.storeCategory || 'clothing';
+    const matchesTab = (drawerTab === 'clothing' && cat === 'clothing') || (drawerTab === 'non-clothing' && cat === 'non-clothing');
+    row.style.display = (matchesSearch && matchesTab) ? '' : 'none';
   });
 }
 
@@ -1155,6 +1439,22 @@ function togglePill(el, event) {
     group.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
     el.classList.add('active');
     filters[filterKey] = value;
+  }
+
+  // Sync with non-clothing category nav if on non-clothing tab and clicking category
+  if (currentTab === 'non-clothing' && filterKey === 'category') {
+    if (value === 'all') {
+      selectedNcCategory = '';
+    } else if (filters.category.length === 1 && filters.category[0] === value) {
+      // Single category selected - sync selectedNcCategory
+      selectedNcCategory = value;
+    } else if (filters.category.length === 0) {
+      // No categories - reset selectedNcCategory
+      selectedNcCategory = '';
+    } else {
+      // Multiple categories - clear selectedNcCategory (nav shows "All" active)
+      selectedNcCategory = '';
+    }
   }
 
   currentPage = 1;

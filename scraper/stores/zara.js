@@ -11,9 +11,11 @@ const STORE_KEY = 'zara';
 
 // Try multiple sale entry points — Zara periodically restructures these URLs
 const SALE_URLS = [
+  'https://www.zara.com/ca/en/man-special-prices-l806.html?v1=2436823&regionGroupId=124',
+  'https://www.zara.com/ca/en/woman-special-prices-l1246.html',
   'https://www.zara.com/ca/en/sale-l1333.html',
-  'https://www.zara.com/ca/en/woman-sale-l1001.html',
   'https://www.zara.com/ca/en/man-sale-l1002.html',
+  'https://www.zara.com/ca/en/woman-sale-l1001.html',
 ];
 
 /**
@@ -23,9 +25,15 @@ const SALE_URLS = [
  */
 async function scrape(browser, onProgress = () => {}) {
   const context = await browser.newContext({
-    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
     locale: 'en-CA',
-    extraHTTPHeaders: { 'Accept-Language': 'en-CA,en;q=0.9' },
+    extraHTTPHeaders: {
+      'Accept-Language': 'en-CA,en;q=0.9',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+      'sec-ch-ua': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+      'sec-ch-ua-mobile': '?0',
+      'sec-ch-ua-platform': '"Windows"',
+    },
   });
   const page = await context.newPage();
 
