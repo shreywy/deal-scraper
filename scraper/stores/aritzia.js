@@ -7,7 +7,7 @@ const STORE_KEY = 'aritzia';
 const CURRENCY = 'CAD';
 
 const SALE_URLS = [
-  { url: 'https://www.aritzia.com/en/category/sale', gender: 'Women' },
+  { url: 'https://www.aritzia.com/en/sale', gender: 'Women' },
 ];
 
 /**

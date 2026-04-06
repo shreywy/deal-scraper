@@ -7,10 +7,13 @@ const STORE_KEY = 'ralphlauren';
 const CURRENCY = 'CAD';
 
 // Try multiple sale page URLs
+// Note: Ralph Lauren CA uses aggressive bot protection similar to PVH Corp brands
 const SALE_URLS = [
-  'https://www.ralphlauren.com/en-ca/t/men-sale',
-  'https://www.ralphlauren.com/en-ca/c/men-sale',
-  'https://www.ralphlauren.com/en-ca/sale/men',
+  'https://www.ralphlauren.ca/men-clothing-sale',
+  'https://www.ralphlauren.ca/sale/men',
+  'https://www.ralphlauren.ca/sale',
+  'https://www.ralphlauren.com/en/ca/men/sale',
+  'https://www.ralphlauren.com/en/ca/sale',
 ];
 
 /**
@@ -38,8 +41,8 @@ async function scrape(browser, onProgress = () => {}) {
     const ct = response.headers()['content-type'] || '';
     if (!ct.includes('application/json')) return;
 
-    // Look for product API endpoints
-    if (!url.includes('ralphlauren') && !url.includes('products') && !url.includes('search')) return;
+    // Look for product API endpoints (SFCC patterns)
+    if (!url.includes('ralphlauren') && !url.includes('Search-UpdateGrid') && !url.includes('products') && !url.includes('dw/shop')) return;
 
     try {
       const json = await response.json();
@@ -50,7 +53,6 @@ async function scrape(browser, onProgress = () => {}) {
         json?.data?.products ||
         json?.results ||
         json?.items ||
-        json?.productListings ||
         [];
 
       for (const p of products) {
@@ -72,8 +74,20 @@ async function scrape(browser, onProgress = () => {}) {
       onProgress(`Polo Ralph Lauren: trying ${saleUrl}...`);
       const response = await page.goto(saleUrl, { waitUntil: 'domcontentloaded', timeout: 35000 });
 
-      if (response && (response.status() === 403 || response.status() === 404 || response.status() === 503)) {
+      if (!response) {
+        onProgress(`Polo Ralph Lauren: ${saleUrl} - no response (possible redirect or ERR_ABORTED)`);
+        continue;
+      }
+
+      if (response.status() === 403 || response.status() === 404 || response.status() === 503) {
         onProgress(`Polo Ralph Lauren: ${saleUrl} returned ${response.status()}`);
+        continue;
+      }
+
+      // Check if we got redirected to a different domain (bot protection)
+      const currentUrl = page.url();
+      if (!currentUrl.includes('ralphlauren')) {
+        onProgress(`Polo Ralph Lauren: ${saleUrl} redirected to ${currentUrl} (bot protection)`);
         continue;
       }
 
@@ -107,8 +121,9 @@ async function scrape(browser, onProgress = () => {}) {
             return isNaN(n) ? null : n;
           };
 
+          // SFCC selectors (similar to Tommy Hilfiger / Calvin Klein)
           const cardSels = [
-            '.product, .product-tile, .product-card',
+            '.product, .product-tile',
             'div[class*="product"]',
             'article[class*="product"]',
             'li[class*="product"]',
@@ -127,10 +142,22 @@ async function scrape(browser, onProgress = () => {}) {
             if (!url || seen.has(url)) return null;
             seen.add(url);
 
-            const name = card.querySelector('.product-name, .pdp-link, h2, h3, [class*="name"]')?.textContent?.trim() || '';
+            // Name extraction with fallback to image alt
+            const nameEl = card.querySelector('.product-name, .pdp-link, h2, h3, [class*="name"]');
+            let name = '';
+            if (nameEl) {
+              const titleAttr = nameEl.getAttribute('title') || nameEl.querySelector('[title]')?.getAttribute('title');
+              name = titleAttr || nameEl.textContent?.trim() || '';
+            }
+            // Filter out "Quick View" and similar non-product names
+            if (!name || name.toLowerCase().includes('quick view') || name.toLowerCase().includes('add to')) {
+              const fallbackName = card.querySelector('img[alt]')?.getAttribute('alt');
+              name = fallbackName || '';
+            }
 
-            const salePriceEl = card.querySelector('.price .sales, .sale-price, [class*="sale"]');
-            const origPriceEl = card.querySelector('.price .strike-through, .original-price, del, s, [class*="strike"]');
+            // SFCC price selectors
+            const salePriceEl = card.querySelector('.price .sales .value, .sales, .sale-price, [class*="sale"]');
+            const origPriceEl = card.querySelector('.price .strike-through .value, .strike-through, del, s, [class*="strike"]');
 
             const price = parsePrice(salePriceEl);
             const originalPrice = parsePrice(origPriceEl);
@@ -190,10 +217,12 @@ function mapProduct(p, seen) {
     const name = p.productName || p.name || p.title || '';
     if (!name) return null;
 
+    // SFCC price structure
     const price = parseFloat(
       p.price?.sales?.value ||
       p.price?.sales ||
       p.salePrice ||
+      p.price?.min?.sales?.value ||
       p.price?.current ||
       p.currentPrice ||
       0
@@ -202,6 +231,7 @@ function mapProduct(p, seen) {
       p.price?.list?.value ||
       p.price?.list ||
       p.listPrice ||
+      p.price?.min?.list?.value ||
       p.originalPrice ||
       p.price?.original ||
       0
@@ -213,7 +243,7 @@ function mapProduct(p, seen) {
     if (discount <= 0) return null;
 
     const id = p.productId || p.id || p.sku || '';
-    const url = p.pdpUrl || p.url || (id ? `https://www.ralphlauren.com/en-ca/p/${id}` : '');
+    const url = p.pdpUrl || p.url || (id ? `https://www.ralphlauren.ca/p/${id}` : '');
 
     if (!url || seen.has(url)) return null;
     seen.add(url);

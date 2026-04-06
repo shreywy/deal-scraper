@@ -7,8 +7,8 @@ const STORE_KEY = 'gap';
 const CURRENCY = 'CAD';
 
 const SALE_PAGES = [
-  { url: 'https://www.gap.com/browse/category.do?cid=1050595&country=CA', gender: 'Men', label: "men's" },
-  { url: 'https://www.gap.com/browse/category.do?cid=1050396&country=CA', gender: 'Women', label: "women's" },
+  { url: 'https://gap.com/browse/category.do?cid=11900&department=75&style=1132935', gender: 'Men', label: "men's" },
+  { url: 'https://gap.com/browse/category.do?cid=8792&department=136', gender: 'Women', label: "women's" },
 ];
 
 /**
@@ -33,13 +33,23 @@ async function scrape(browser, onProgress = () => {}) {
     const url = response.url();
     const ct = response.headers()['content-type'] || '';
     if (!ct.includes('application/json')) return;
-    if (!url.includes('gap.com')) return;
+    if (!url.includes('api.gap.com/commerce/search')) return;
     try {
       const json = await response.json();
-      const products = json?.products || json?.data?.products || json?.results || [];
-      for (const p of (Array.isArray(products) ? products : [])) {
-        const id = p.id || p.productId || p.styleId;
-        if (id && !seenIds.has(id)) { seenIds.add(id); rawProducts.push(p); }
+      // GAP API returns products array with full details
+      const products = json?.products || [];
+      for (const p of products) {
+        const styleId = p.styleId;
+        if (!styleId || seenIds.has(styleId)) continue;
+        seenIds.add(styleId);
+        // Each product has multiple colors in styleColors array
+        for (const color of (p.styleColors || [])) {
+          const colorId = color.ccId;
+          if (colorId && !seenIds.has(colorId)) {
+            seenIds.add(colorId);
+            rawProducts.push({ ...p, color });
+          }
+        }
       }
     } catch (_) {}
   });
@@ -127,20 +137,30 @@ async function scrape(browser, onProgress = () => {}) {
 
 function mapProduct(p, gender, seen) {
   try {
-    const name = p.name || p.displayName || p.title || '';
+    // GAP API structure: product has styleName and color object
+    const name = p.styleName || p.name || '';
     if (!name) return null;
-    const price = parseFloat(p.salePrice || p.prices?.sale || 0);
-    const originalPrice = parseFloat(p.regularPrice || p.prices?.list || p.listPrice || 0);
+    const color = p.color || {};
+    const price = parseFloat(color.effectivePrice || 0);
+    const originalPrice = parseFloat(color.regularPrice || 0);
     if (!price || !originalPrice || price >= originalPrice) return null;
-    const discount = Math.round((1 - price / originalPrice) * 100);
+    const discount = parseInt(color.percentageOff || 0, 10);
     if (discount <= 0) return null;
-    const styleId = p.id || p.productId || p.styleId || '';
-    const url = p.url || `https://www.gap.com/browse/product.do?pid=${styleId}&country=CA`;
+
+    const styleId = p.styleId || '';
+    const ccId = color.ccId || '';
+    const url = `https://gap.com/browse/product.do?pid=${styleId}-${ccId}`;
     if (seen.has(url)) return null;
     seen.add(url);
-    const image = p.imageUrl || p.images?.[0]?.url || '';
+
+    // Get image from color images array (use P01 or first available)
+    const images = color.images || [];
+    const p01 = images.find(img => img.type === 'P01');
+    const imagePath = p01?.path || images[0]?.path || '';
+    const image = imagePath ? `https://gap.com${imagePath}` : '';
+
     return {
-      id: slugify(`${STORE_KEY}-${name}-${styleId}`),
+      id: slugify(`${STORE_KEY}-${name}-${ccId}`),
       store: STORE_NAME,
       storeKey: STORE_KEY,
       name,

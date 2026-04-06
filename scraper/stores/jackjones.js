@@ -2,16 +2,13 @@
 
 const { tag } = require('../tagger');
 
-const STORE_NAME = 'Foot Locker Canada';
+const STORE_NAME = 'Jack & Jones';
 const STORE_KEY = 'jackjones';
 const CURRENCY = 'CAD';
 
-// Jack & Jones Canada now redirects to Foot Locker Canada
-const SALE_URL = 'https://www.footlocker.ca/en/category/sale.html';
-
 /**
- * Jack & Jones Canada redirects to Foot Locker Canada.
- * Uses API interception + DOM fallback for Foot Locker sale products.
+ * Jack & Jones Canada — Bestseller platform scraper
+ * Uses browser automation to intercept API calls and scrape DOM
  *
  * @param {import('playwright').Browser} browser
  * @param {function(string):void} [onProgress]
@@ -31,152 +28,257 @@ async function scrape(browser, onProgress = () => {}) {
   context.on('response', async response => {
     const url = response.url();
     const ct = response.headers()['content-type'] || '';
+
+    // Look for JSON API responses
     if (!ct.includes('application/json')) return;
-    if (!url.includes('footlocker') && !url.includes('flx')) return;
+    if (!url.includes('jackjones.com')) return;
+
     try {
       const json = await response.json();
-      // Foot Locker API response structure
-      const products = json?.products || json?.data?.products || json?.results || json?.items || json?.productListItems || [];
+
+      // Check for product list data (various possible structures)
+      const products = json?.products || json?.items || json?.results || json?.data?.products || [];
       for (const p of (Array.isArray(products) ? products : [])) {
         const id = p.id || p.productId || p.code || p.sku;
-        if (id && !seenIds.has(id)) { seenIds.add(id); rawProducts.push(p); }
+        if (id && !seenIds.has(id)) {
+          seenIds.add(id);
+          rawProducts.push(p);
+        }
       }
-    } catch (_) {}
+    } catch (err) {
+      // Ignore JSON parse errors
+    }
   });
 
   const page = await context.newPage();
+  const allDeals = [];
+  const seen = new Set();
 
   try {
-    onProgress('Foot Locker (Jack & Jones): navigating to sale page…');
-    await page.goto(SALE_URL, { waitUntil: 'domcontentloaded', timeout: 35000 });
+    onProgress('Jack & Jones: loading sale page...');
 
-    // Cookie consent
-    try {
-      await page.click('#onetrust-accept-btn-handler, [class*="accept"], button[id*="accept"]', { timeout: 4000 });
-    } catch (_) {}
+    // Try multiple sale URL patterns
+    const saleUrls = [
+      'https://www.jackjones.com/en-ca/jj/men/sale',
+      'https://www.jackjones.com/en-ca/sale',
+      'https://www.jackjones.com/jj/men/sale',
+      'https://www.jackjones.com/sale',
+    ];
 
-    await page.waitForTimeout(3000);
-
-    // Scroll to load more products
-    onProgress('Foot Locker (Jack & Jones): loading products…');
-    for (let i = 0; i < 5; i++) {
-      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-      await page.waitForTimeout(1500);
-    }
-
-    const seenUrls = new Set();
-    const allDeals = [];
-
-    // Map XHR products
-    for (const p of rawProducts) {
-      const d = mapXHRProduct(p, seenUrls);
-      if (d) allDeals.push(d);
-    }
-
-    // Fallback to DOM scraping
-    if (allDeals.length === 0) {
-      const domDeals = await page.evaluate(({ storeName, storeKey }) => {
-        const parsePrice = text => {
-          if (!text) return null;
-          const cleaned = text.replace(/[^0-9.]/g, '');
-          const n = parseFloat(cleaned);
-          return isNaN(n) ? null : n;
-        };
-
-        const parsePriceText = text => {
-          // Foot Locker format: "$168.75$225.00" or "Price dropped from $225.00 to $168.75"
-          const matches = text.match(/\$([0-9.]+)/g);
-          if (!matches || matches.length < 2) return null;
-          const prices = matches.map(m => parsePrice(m));
-          // Find sale price (lowest) and original price (highest)
-          const sorted = prices.filter(Boolean).sort((a, b) => a - b);
-          if (sorted.length < 2) return null;
-          return { price: sorted[0], originalPrice: sorted[sorted.length - 1] };
-        };
-
-        const links = document.querySelectorAll('a[href*="/product/"]');
-        const seen = new Set();
-
-        return [...links].map(link => {
-          const url = link.href;
-          if (!url || seen.has(url)) return null;
-          seen.add(url);
-
-          // Find parent container
-          let container = link.closest('[class*="product"], article, li');
-          if (!container) container = link.parentElement;
-
-          const priceEl = container?.querySelector('.ProductPrice');
-          if (!priceEl) return null;
-
-          const priceText = priceEl.textContent || '';
-          const prices = parsePriceText(priceText);
-          if (!prices) return null;
-
-          const { price, originalPrice } = prices;
-          if (price >= originalPrice) return null;
-
-          const discount = Math.round((1 - price / originalPrice) * 100);
-          if (discount <= 0) return null;
-
-          // Extract name - remove "Save $XX" prefix/suffix, ratings, price text
-          let name = (link.textContent || link.getAttribute('aria-label') || '').trim();
-          name = name.replace(/Save\s+\$\d+/gi, '').replace(/Average customer rating.*$/i, '').replace(/This item is on sale.*$/i, '').trim();
-          // Remove trailing Men's/Women's/Kids and color info
-          name = name.split(/\n/)[0].trim();
-          if (!name || name === 'Gift Cards' || name.length < 3) return null;
-
-          const imgEl = container?.querySelector('img');
-          const image = imgEl?.src || '';
-
-          return { store: storeName, storeKey, name, url, image, price, originalPrice, discount, tags: [] };
-        }).filter(Boolean);
-      }, { storeName: STORE_NAME, storeKey: STORE_KEY });
-
-      for (const d of domDeals) {
-        if (!seenUrls.has(d.url)) { seenUrls.add(d.url); allDeals.push(d); }
+    let loaded = false;
+    for (const saleUrl of saleUrls) {
+      try {
+        await page.goto(saleUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        onProgress(`Jack & Jones: loaded ${saleUrl}`);
+        loaded = true;
+        break;
+      } catch (err) {
+        onProgress(`Jack & Jones: ${saleUrl} failed (${err.message})`);
       }
     }
 
-    const tagged = allDeals.map(d => ({
-      ...d,
-      id: d.id || slugify(`${STORE_KEY}-${d.name}`),
-      currency: CURRENCY,
-      priceCAD: d.price,
-      originalPriceCAD: d.originalPrice,
-      tags: tag({ name: d.name }),
-      scrapedAt: new Date().toISOString(),
-    }));
+    if (!loaded) {
+      onProgress('Jack & Jones: all sale URLs failed, returning 0 deals');
+      return [];
+    }
 
-    onProgress(`Foot Locker (Jack & Jones): found ${tagged.length} deals`);
-    return tagged;
+    // Accept cookies if present
+    try {
+      await page.click('button:has-text("Accept All"), button[id*="accept"]', { timeout: 3000 });
+      await page.waitForTimeout(1000);
+    } catch (_) {}
 
+    // Wait for content to load
+    await page.waitForTimeout(3000);
+
+    // Scroll to load lazy content
+    for (let i = 0; i < 4; i++) {
+      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+      await page.waitForTimeout(2000);
+    }
+
+    onProgress(`Jack & Jones: intercepted ${rawProducts.length} products from API`);
+
+    // Process intercepted products
+    for (const p of rawProducts) {
+      const deal = mapProduct(p, seen);
+      if (deal) allDeals.push(deal);
+    }
+
+    // Also try DOM scraping as fallback
+    const domDeals = await page.evaluate(({ storeName, storeKey }) => {
+      const parsePrice = str => {
+        if (!str) return null;
+        const match = String(str).match(/[\d,.]+/);
+        return match ? parseFloat(match[0].replace(/,/g, '')) : null;
+      };
+
+      const deals = [];
+
+      // Try common product card selectors
+      const selectors = [
+        '[data-testid*="product-card"]',
+        '[class*="ProductCard"]',
+        '[class*="product-card"]',
+        '.product-tile',
+        '[class*="product-item"]',
+        'article[class*="product"]',
+      ];
+
+      for (const selector of selectors) {
+        const cards = document.querySelectorAll(selector);
+        if (cards.length === 0) continue;
+
+        for (const card of cards) {
+          try {
+            // Find product link
+            const link = card.querySelector('a[href*="/product/"], a[href*="/p/"]') || card.querySelector('a');
+            if (!link) continue;
+
+            const url = link.href;
+            if (!url || url === window.location.href) continue;
+
+            // Find product name
+            const nameEl = card.querySelector('[class*="name"], [class*="title"], h2, h3, h4');
+            const name = nameEl?.textContent?.trim();
+            if (!name || name.length < 3) continue;
+
+            // Find prices - look for sale and original
+            const priceEls = Array.from(card.querySelectorAll('[class*="price"], [class*="Price"]'));
+            let price = null;
+            let originalPrice = null;
+
+            for (const el of priceEls) {
+              const text = el.textContent;
+              const val = parsePrice(text);
+              if (!val) continue;
+
+              const classList = el.className.toLowerCase();
+              if (classList.includes('sale') || classList.includes('discount') || classList.includes('current') || classList.includes('offer')) {
+                price = val;
+              } else if (classList.includes('original') || classList.includes('regular') || classList.includes('compare') || classList.includes('was')) {
+                originalPrice = val;
+              } else if (!price) {
+                // First price found, assume it's the current price
+                price = val;
+              } else if (!originalPrice && val > price) {
+                // Second price higher than first, it's the original
+                originalPrice = val;
+              }
+            }
+
+            // If we don't have both prices, skip
+            if (!price || !originalPrice || price >= originalPrice) continue;
+
+            const discount = Math.round((1 - price / originalPrice) * 100);
+            if (discount <= 0) continue;
+
+            // Find image
+            const img = card.querySelector('img');
+            const image = img?.src || img?.getAttribute('data-src') || img?.getAttribute('srcset')?.split(' ')[0] || '';
+
+            deals.push({
+              store: storeName,
+              storeKey,
+              name,
+              url,
+              image,
+              price,
+              originalPrice,
+              discount,
+              tags: [],
+            });
+          } catch (_) {
+            // Skip invalid cards
+          }
+        }
+
+        if (deals.length > 0) break; // Found products with this selector
+      }
+
+      return deals;
+    }, { storeName: STORE_NAME, storeKey: STORE_KEY });
+
+    onProgress(`Jack & Jones: found ${domDeals.length} products from DOM`);
+
+    for (const d of domDeals) {
+      if (!seen.has(d.url)) {
+        seen.add(d.url);
+        allDeals.push({
+          ...d,
+          id: slugify(`${STORE_KEY}-${d.name}`),
+          currency: CURRENCY,
+          priceCAD: d.price,
+          originalPriceCAD: d.originalPrice,
+          tags: tag({ name: d.name }),
+          scrapedAt: new Date().toISOString(),
+        });
+      }
+    }
+
+  } catch (err) {
+    onProgress(`Jack & Jones: error — ${err.message}`);
   } finally {
+    await page.close();
     await context.close();
   }
+
+  onProgress(`Jack & Jones: found ${allDeals.length} deals total`);
+  return allDeals;
 }
 
-function mapXHRProduct(p, seen) {
+function mapProduct(p, seen) {
   try {
-    const name = p.name || p.displayName || p.title || p.productName || '';
-    if (!name) return null;
+    // Extract product details from API response
+    const name = p.name || p.title || p.displayName || p.productName || '';
+    if (!name || name.length < 3) return null;
 
-    const price = parseFloat(p.price || p.salePrice || p.price?.sale || p.currentPrice || 0);
-    const originalPrice = parseFloat(p.originalPrice || p.regularPrice || p.price?.original || p.price?.list || p.listPrice || 0);
+    // Extract prices
+    let price = null;
+    let originalPrice = null;
 
+    // Try different price field patterns
+    if (p.price) {
+      if (typeof p.price === 'object') {
+        price = parseFloat(p.price.current || p.price.sale || p.price.discount || p.price.offer || 0);
+        originalPrice = parseFloat(p.price.original || p.price.regular || p.price.list || p.price.was || 0);
+      } else {
+        price = parseFloat(p.price);
+      }
+    }
+
+    if (p.salePrice || p.offerPrice) price = parseFloat(p.salePrice || p.offerPrice);
+    if (p.regularPrice || p.originalPrice || p.listPrice) {
+      originalPrice = parseFloat(p.regularPrice || p.originalPrice || p.listPrice);
+    }
+    if (p.compareAtPrice) originalPrice = parseFloat(p.compareAtPrice);
+
+    // Skip if no valid discount
     if (!price || !originalPrice || price >= originalPrice) return null;
 
     const discount = Math.round((1 - price / originalPrice) * 100);
     if (discount <= 0) return null;
 
-    const url = p.url || p.link || p.pdpUrl || (p.slug ? `https://www.footlocker.ca/en/product/${p.slug}` : '');
-    if (!url || seen.has(url)) return null;
+    // Build product URL
+    const productId = p.id || p.productId || p.code || p.sku || '';
+    const slug = p.slug || p.url || p.path || p.handle || '';
+    const url = slug.startsWith('http')
+      ? slug
+      : slug.startsWith('/')
+      ? `https://www.jackjones.com${slug}`
+      : `https://www.jackjones.com/product/${productId}`;
+
+    if (seen.has(url)) return null;
     seen.add(url);
 
-    const image = p.image || p.imageUrl || p.images?.[0]?.url || p.thumbnail || '';
+    // Extract image
+    const image = p.image || p.imageUrl || p.thumbnail ||
+      (Array.isArray(p.images) && p.images[0]?.url) ||
+      (Array.isArray(p.images) && p.images[0]) ||
+      (p.media && Array.isArray(p.media) && p.media[0]?.url) || '';
 
     return {
-      id: slugify(`${STORE_KEY}-${name}`),
+      id: slugify(`${STORE_KEY}-${name}-${productId}`),
       store: STORE_NAME,
       storeKey: STORE_KEY,
       name,
@@ -191,7 +293,9 @@ function mapXHRProduct(p, seen) {
       tags: tag({ name }),
       scrapedAt: new Date().toISOString(),
     };
-  } catch (_) { return null; }
+  } catch (_) {
+    return null;
+  }
 }
 
 function slugify(str) {

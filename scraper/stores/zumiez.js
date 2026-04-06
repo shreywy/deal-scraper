@@ -1,32 +1,36 @@
 'use strict';
 
 const { tag } = require('../tagger');
+const { getUSDtoCAD } = require('../currency');
 
 const STORE_NAME = 'Zumiez';
 const STORE_KEY = 'zumiez';
-const CURRENCY = 'CAD';
+const CURRENCY = 'USD'; // Zumiez is US-based, convert to CAD
 
-// Try Shopify API first, fallback to DOM
+// Zumiez.com sale URLs (SFCC platform)
 const SALE_URLS = [
-  'https://www.zumiez.com/ca/collections/sale',
-  'https://www.zumiez.com/ca/sale.html',
+  'https://www.zumiez.com/sale',
+  'https://www.zumiez.com/mens-clothing-deals',
 ];
 
 /**
- * Zumiez Canada — Shopify store
- * Try products.json API first, fallback to DOM scraping
+ * Zumiez — Salesforce Commerce Cloud (SFCC) store
+ * NOTE: As of April 2026, zumiez.com has intermittent redirect issues.
+ * Sale URLs sometimes redirect to other retailers' sites. This scraper
+ * attempts to access the sale page but may return 0 deals if redirects occur.
  *
  * @param {import('playwright').Browser} browser
  * @param {function(string):void} [onProgress]
  * @returns {Promise<import('../index').Deal[]>}
  */
 async function scrape(browser, onProgress = () => {}) {
-  onProgress('Zumiez: checking Shopify API...');
+  onProgress('Zumiez: fetching USD→CAD rate...');
+  const exchangeRate = await getUSDtoCAD();
 
-  // Try Shopify API first
   const context = await browser.newContext({
     userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-    locale: 'en-CA',
+    locale: 'en-US',
+    extraHTTPHeaders: { 'Accept-Language': 'en-US,en;q=0.9' },
   });
 
   const page = await context.newPage();
@@ -34,67 +38,17 @@ async function scrape(browser, onProgress = () => {}) {
   const seenUrls = new Set();
 
   try {
-    // Try Shopify products.json API
-    const apiUrl = 'https://www.zumiez.com/ca/collections/sale/products.json?limit=250';
-    const response = await page.goto(apiUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-
-    if (response && response.status() === 200) {
-      const json = await response.json();
-      const products = json?.products || [];
-
-      onProgress(`Zumiez: processing ${products.length} products from API...`);
-
-      for (const p of products) {
-        const name = p.title || '';
-        if (!name) continue;
-
-        const variants = p.variants || [];
-        if (variants.length === 0) continue;
-
-        // Use first variant for pricing
-        const variant = variants[0];
-        const price = parseFloat(variant.price);
-        const originalPrice = parseFloat(variant.compare_at_price);
-
-        if (!price || !originalPrice || price >= originalPrice) continue;
-
-        const discount = Math.round((1 - price / originalPrice) * 100);
-        if (discount <= 0) continue;
-
-        const url = `https://www.zumiez.com/ca/products/${p.handle}`;
-        if (seenUrls.has(url)) continue;
-        seenUrls.add(url);
-
-        const image = p.images?.[0]?.src || '';
-
-        allDeals.push({
-          id: slugify(`${STORE_KEY}-${name}`),
-          store: STORE_NAME,
-          storeKey: STORE_KEY,
-          name,
-          url,
-          image,
-          price,
-          originalPrice,
-          discount,
-          currency: CURRENCY,
-          priceCAD: price,
-          originalPriceCAD: originalPrice,
-          tags: tag({ name }),
-          scrapedAt: new Date().toISOString(),
-        });
-      }
-    }
-  } catch (err) {
-    onProgress(`Zumiez: API failed (${err.message}), trying DOM scraping...`);
-  }
-
-  // If API failed, try DOM scraping
-  if (allDeals.length === 0) {
     for (const saleUrl of SALE_URLS) {
       try {
         onProgress(`Zumiez: trying ${saleUrl}...`);
         const response = await page.goto(saleUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+
+        // Check if page redirected to a different domain (indicates redirect issue)
+        const currentUrl = page.url();
+        if (!currentUrl.includes('zumiez.com')) {
+          onProgress(`Zumiez: redirected to ${currentUrl} — site may be having issues`);
+          continue;
+        }
 
         if (response && (response.status() === 403 || response.status() === 404)) {
           onProgress(`Zumiez: ${saleUrl} returned ${response.status()}`);
@@ -102,13 +56,13 @@ async function scrape(browser, onProgress = () => {}) {
         }
 
         // Cookie consent
-        try { await page.click('[data-testid="cookie-accept"], #onetrust-accept-btn-handler', { timeout: 3000 }); } catch (_) {}
+        try { await page.click('#onetrust-accept-btn-handler, [class*="onetrust-accept"]', { timeout: 3000 }); } catch (_) {}
 
         await page.waitForTimeout(3000);
 
         // Scroll to load lazy content
         for (let i = 0; i < 3; i++) {
-          await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+          await page.evaluate(() => window.scrollBy(0, 1500));
           await page.waitForTimeout(1500);
         }
 
@@ -119,9 +73,14 @@ async function scrape(browser, onProgress = () => {}) {
             return isNaN(n) ? null : n;
           };
 
+          // SFCC-style selectors + generic fallbacks
           const cardSels = [
-            '.product, .product-card, .product-item, .product-tile',
-            'div[class*="product"]',
+            '.product-tile',
+            '.product',
+            '.product-card',
+            'div[class*="product-tile"]',
+            'div[class*="ProductTile"]',
+            '[data-testid="product-card"]',
             'article',
             'li[class*="product"]',
           ];
@@ -134,15 +93,17 @@ async function scrape(browser, onProgress = () => {}) {
 
           const seen = new Set();
           return cards.map(card => {
-            const link = card.querySelector('a[href*="/products/"], a[href]');
+            const link = card.querySelector('a[href]');
             const url = link?.href || '';
             if (!url || seen.has(url)) return null;
             seen.add(url);
 
-            const name = card.querySelector('.product-title, .product-name, h2, h3, [class*="title"]')?.textContent?.trim() || '';
+            const nameEl = card.querySelector('.product-name, .product-title, h2, h3, [class*="name"], [class*="title"]');
+            const name = nameEl?.textContent?.trim() || '';
 
-            const salePriceEl = card.querySelector('.price--sale, .sale-price, [class*="sale"]');
-            const origPriceEl = card.querySelector('.price--compare, .compare-price, del, s, [class*="compare"]');
+            // SFCC price selectors
+            const salePriceEl = card.querySelector('.price-sales, .sale-price, [class*="sale"], [class*="reduced"]');
+            const origPriceEl = card.querySelector('.price-standard, .price-strike, del, s, [class*="standard"], [class*="compare"]');
 
             const price = parsePrice(salePriceEl);
             const originalPrice = parsePrice(origPriceEl);
@@ -171,12 +132,18 @@ async function scrape(browser, onProgress = () => {}) {
         for (const d of domDeals) {
           if (!seenUrls.has(d.url)) {
             seenUrls.add(d.url);
+            const priceCAD = Math.round(d.price * exchangeRate * 100) / 100;
+            const originalPriceCAD = Math.round(d.originalPrice * exchangeRate * 100) / 100;
+
             allDeals.push({
               ...d,
               id: slugify(`${STORE_KEY}-${d.name}`),
-              currency: CURRENCY,
-              priceCAD: d.price,
-              originalPriceCAD: d.originalPrice,
+              currency: 'CAD',
+              price: priceCAD,
+              originalPrice: originalPriceCAD,
+              priceCAD,
+              originalPriceCAD,
+              exchangeRate,
               tags: tag({ name: d.name }),
               scrapedAt: new Date().toISOString(),
             });
@@ -188,12 +155,17 @@ async function scrape(browser, onProgress = () => {}) {
         onProgress(`Zumiez: error on ${saleUrl} — ${err.message}`);
       }
     }
+  } finally {
+    await page.close();
+    await context.close();
   }
 
-  await page.close();
-  await context.close();
+  if (allDeals.length === 0) {
+    onProgress('Zumiez: 0 deals found — site may be experiencing redirect issues');
+  } else {
+    onProgress(`Zumiez: found ${allDeals.length} deals`);
+  }
 
-  onProgress(`Zumiez: found ${allDeals.length} deals`);
   return allDeals;
 }
 

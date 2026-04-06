@@ -61,12 +61,12 @@
       "note": "Sale pages don't expose original prices - can't calculate discount percentage"
     },
     "aritzia": {
-      "enabled": false,
+      "enabled": true,
       "name": "Aritzia",
       "domain": "aritzia.com",
       "currency": "CAD",
       "category": "clothing",
-      "note": "Sale page returns 404 - site structure changed or bot detection"
+      "note": "Fixed 2026-04-05 — URL updated to /en/sale (was /en/category/sale); XHR intercept + DOM"
     },
     "roots": {
       "enabled": false,
@@ -182,12 +182,12 @@
       "category": "clothing"
     },
     "gap": {
-      "enabled": false,
+      "enabled": true,
       "name": "Gap CA",
       "domain": "gap.com",
       "currency": "CAD",
       "category": "clothing",
-      "note": "Sale category pages redirect to OutOfStockNoResults"
+      "note": "GAP Inc XHR intercept — same platform as Banana Republic CA"
     },
     "levis": {
       "enabled": false,
@@ -366,19 +366,19 @@
     },
     "lacoste": {
       "enabled": false,
-      "name": "Tommy Hilfiger Canada (Lacoste)",
-      "domain": "ca.tommy.com",
+      "name": "Lacoste",
+      "domain": "lacoste.com",
       "currency": "CAD",
       "category": "clothing",
-      "note": "Lacoste.ca redirects elsewhere — scraper was incorrectly repurposed to scrape ca.tommy.com (duplicate of tommyhilfiger scraper)"
+      "note": "Non-operational — lacoste.com/ca/en/ redirects to Converse/Ralph Lauren as of April 2026; 0 deals"
     },
     "jackjones": {
-      "enabled": false,
-      "name": "Foot Locker Canada (Jack & Jones)",
-      "domain": "footlocker.ca",
+      "enabled": true,
+      "name": "Jack & Jones",
+      "domain": "jackjones.com",
       "currency": "CAD",
       "category": "clothing",
-      "note": "Jack & Jones CA redirects elsewhere — scraper was incorrectly repurposed to scrape footlocker.ca (duplicate of footlocker scraper)"
+      "note": "Fixed 2026-04-05 — Proper Jack & Jones CA scraper via jackjones.com/en-ca/sale"
     },
     "quiksilver": {
       "enabled": true,
@@ -396,12 +396,12 @@
       "category": "clothing"
     },
     "converse": {
-      "enabled": false,
-      "name": "Converse Canada",
-      "domain": "converse.com",
+      "enabled": true,
+      "name": "Converse",
+      "domain": "converse.ca",
       "currency": "CAD",
       "category": "clothing",
-      "note": "Returns 0 deals — Nike-owned SFCC platform, DOM selectors may be incorrect or bot detection"
+      "note": "Fixed 2026-04-05 — Shopify API via converse.ca/collections/sale"
     },
     "ssense": {
       "enabled": true,
@@ -411,12 +411,12 @@
       "category": "clothing"
     },
     "zumiez": {
-      "enabled": false,
+      "enabled": true,
       "name": "Zumiez",
       "domain": "zumiez.com",
-      "currency": "CAD",
+      "currency": "USD",
       "category": "clothing",
-      "note": "Sale pages return 404 - URL structure may have changed"
+      "note": "Fixed 2026-04-05 — US SFCC site with USD→CAD conversion; may 0 if redirects occur"
     },
     "footlocker": {
       "enabled": true,

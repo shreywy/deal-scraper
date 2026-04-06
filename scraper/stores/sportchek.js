@@ -98,22 +98,12 @@ async function tryApiEndpoints(onProgress) {
 /**
  * Parse Sport Chek products from their search API
  */
-function parseSportChekProducts(products, debug = false) {
+function parseSportChekProducts(products) {
   const deals = [];
 
   if (!Array.isArray(products) || products.length === 0) {
     return null;
   }
-
-  let skippedReasons = {
-    noOptions: 0,
-    noColorOption: 0,
-    noColorValues: 0,
-    notOnSale: 0,
-    noCurrentPrice: 0,
-    noOriginalPrice: 0,
-    priceNotLower: 0,
-  };
 
   for (const product of products) {
     try {
@@ -127,24 +117,42 @@ function parseSportChekProducts(products, debug = false) {
         // Try to extract pricing from product level
         if (product.currentPrice && product.currentPrice.value) {
           currentPrice = product.currentPrice.value;
+        } else if (product.currentPrice && product.currentPrice.minPrice) {
+          currentPrice = product.currentPrice.minPrice;
         }
 
         if (product.originalPrice && product.originalPrice.value) {
           originalPrice = product.originalPrice.value;
-        } else if (product.saleCut && product.saleCut.percentage) {
-          const discount = product.saleCut.percentage;
-          originalPrice = currentPrice / (1 - discount / 100);
-        } else if (product.priceMessage && product.priceMessage.length > 0) {
-          // Extract discount from priceMessage (e.g., "30% Off* - Discount Applied")
-          const msg = product.priceMessage[0].label || '';
-          const match = msg.match(/(\d+)%\s*Off/i);
-          if (match) {
-            const discount = parseInt(match[1]);
+        } else if (product.originalPrice && product.originalPrice.minPrice) {
+          originalPrice = product.originalPrice.minPrice;
+        }
+
+        // Try to calculate original price from discount info
+        if (!originalPrice && currentPrice) {
+          if (product.saleCut && product.saleCut.percentage) {
+            const discount = product.saleCut.percentage;
             originalPrice = currentPrice / (1 - discount / 100);
+          } else if (product.priceMessage && product.priceMessage.length > 0) {
+            // Extract discount from priceMessage (e.g., "30% Off" or "Save 29% ($200.00)")
+            const msg = product.priceMessage[0].label || '';
+            const percentMatch = msg.match(/(\d+)%\s*Off/i);
+            const saveMatch = msg.match(/Save\s+(\d+)%/i);
+            const dollarMatch = msg.match(/\$([0-9.]+)\)/);
+
+            if (percentMatch) {
+              const discount = parseInt(percentMatch[1]);
+              originalPrice = currentPrice / (1 - discount / 100);
+            } else if (saveMatch && !dollarMatch) {
+              const discount = parseInt(saveMatch[1]);
+              originalPrice = currentPrice / (1 - discount / 100);
+            } else if (dollarMatch) {
+              // Extract dollar amount from "Save X% ($Y.YY)"
+              originalPrice = currentPrice + parseFloat(dollarMatch[1]);
+            }
           }
         }
 
-        // Check if product has SALE badge
+        // Check if product has SALE badge or explicit sale markers
         if (product.skus && Array.isArray(product.skus)) {
           for (const sku of product.skus) {
             if (sku.badges && sku.badges.includes('SALE')) {
@@ -154,28 +162,25 @@ function parseSportChekProducts(products, debug = false) {
           }
         }
 
+        // Also check if we have both prices (that's a strong indicator of a sale)
+        if (!isOnSale && currentPrice && originalPrice && currentPrice < originalPrice) {
+          isOnSale = true;
+        }
+
         // If we found pricing at product level, use it
         if (currentPrice && originalPrice && isOnSale && currentPrice < originalPrice) {
           // Continue with deal creation below
         } else {
-          // Track why we're skipping
-          if (!product.options || product.options.length === 0) {
-            skippedReasons.noOptions++;
-          } else {
-            skippedReasons.noColorOption++;
-          }
           continue;
         }
       } else {
         // Original logic: extract from color options
         const colorOption = product.options.find(o => o.descriptor === 'COLOUR');
         if (!colorOption) {
-          skippedReasons.noColorOption++;
           continue;
         }
 
         if (!colorOption.values || colorOption.values.length === 0) {
-          skippedReasons.noColorValues++;
           continue;
         }
 
@@ -206,20 +211,7 @@ function parseSportChekProducts(products, debug = false) {
       }
 
       // Skip if not on sale or no valid pricing
-      if (!isOnSale) {
-        skippedReasons.notOnSale++;
-        continue;
-      }
-      if (!currentPrice) {
-        skippedReasons.noCurrentPrice++;
-        continue;
-      }
-      if (!originalPrice) {
-        skippedReasons.noOriginalPrice++;
-        continue;
-      }
-      if (currentPrice >= originalPrice) {
-        skippedReasons.priceNotLower++;
+      if (!isOnSale || !currentPrice || !originalPrice || currentPrice >= originalPrice) {
         continue;
       }
 
@@ -265,19 +257,6 @@ function parseSportChekProducts(products, debug = false) {
       // Skip malformed products
       continue;
     }
-  }
-
-  if (debug) {
-    console.log('Sport Chek parsing stats:');
-    console.log(`  Total products: ${products.length}`);
-    console.log(`  Valid deals: ${deals.length}`);
-    console.log(`  Skipped - no options: ${skippedReasons.noOptions}`);
-    console.log(`  Skipped - no color option: ${skippedReasons.noColorOption}`);
-    console.log(`  Skipped - no color values: ${skippedReasons.noColorValues}`);
-    console.log(`  Skipped - not on sale: ${skippedReasons.notOnSale}`);
-    console.log(`  Skipped - no current price: ${skippedReasons.noCurrentPrice}`);
-    console.log(`  Skipped - no original price: ${skippedReasons.noOriginalPrice}`);
-    console.log(`  Skipped - price not lower: ${skippedReasons.priceNotLower}`);
   }
 
   return deals.length > 0 ? deals : null;

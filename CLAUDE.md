@@ -64,7 +64,7 @@ deal-scraper/
 │   │   ├── patagonia.js     # SFCC DOM — 36-178 deals ✅
 │   │   ├── gap.js           # GAP Inc XHR — 0 (sale pages redirect currently) 🔲
 │   │   ├── levis.js         # SFCC DOM — 0 (Access Denied, bot block) ❌
-│   │   ├── sportchek.js     # FGL XHR intercept — 28 deals (first page only) ✅
+│   │   ├── sportchek.js     # FGL XHR intercept + API pagination — ~410 deals ✅
 │   │   ├── reigningchamp.js # Shopify API — 0 (store has no active sales) 🔲
 │   │   ├── adidas.js        # PerimeterX blocked — disabled ❌
 │   │   ├── northface.js     # Akamai blocked — disabled ❌
@@ -119,7 +119,7 @@ deal-scraper/
 | Alo Yoga | ~31 | Builder.io DOM | `aloyoga.com/collections/sale`; scroll to lazy-load; CAD (shows CAD prices to Canadian visitors) |
 | Patagonia CA | ~36 | SFCC DOM | `patagonia.com/ca/shop/`; "M's"/"W's" names tagged via tagger |
 | Sporting Life | ~36 | SFCC DOM | `sportinglife.ca/en-CA/sale/`; `.product-tile`, `.price-sales`, `.price-standard` |
-| Sport Chek | ~28 | FGL XHR intercept | First page only (~28 of 1602 total); key: same FGL platform as Marks |
+| Sport Chek | ~410 | FGL XHR intercept + API pagination | Captures `ocp-apim-subscription-key` from browser request, paginates through 1000 products; same FGL platform as Marks |
 | Under Armour CA | ~24 | SFCC DOM | `/en-ca/c/sale/?sz=120` + outlet |
 | Nike CA | ~24 | DOM (SSR) | `/ca/w/sale-3yaep`; `is--current-price`, `is--striked-out` |
 | YoungLA | ~35 | DOM (Shopify custom elements) | USD→CAD; `product-card`, `sale-price`, `compare-at-price` |
@@ -164,7 +164,6 @@ deal-scraper/
 
 - **Vans CA**: browse-all approach (no dedicated sale section); deal count unknown until live test
 - **Champion**: Shopify API accessible but store has no active sale currently
-- **Sport Chek**: Only scrapes first page (~28 of ~1602 deals) — pagination would require 41 page loads
 - **Uniqlo CA**: Fixed API scraper in place; 0 deals because Uniqlo CA has no active sales now
 - **Lacoste / Jack & Jones / Quiksilver**: DOM selectors don't match — site structure investigation needed
 - **Tommy Hilfiger / Calvin Klein / Ralph Lauren**: PVH Corp SFCC — URL patterns unresolved
