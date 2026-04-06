@@ -469,6 +469,25 @@ function dealsExcluding(excludeKey) {
     const md = parseInt(filters.discount) || 0;
     if (md > 0) d = d.filter(x => x.discount >= md);
   }
+  // Apply all exclusion filters
+  const GENDER_TAGS_EX = ['Men', 'Women', 'Kids'];
+  for (const [key, excluded] of Object.entries(excludedFilters)) {
+    for (const val of excluded) {
+      if (key === 'store')    d = d.filter(x => (x.storeKey || x.store) !== val);
+      if (key === 'gender')   d = d.filter(x => val === 'Unisex'
+        ? !(x.tags.includes('Unisex') || !GENDER_TAGS_EX.some(g => x.tags.includes(g)))
+        : !x.tags.includes(val));
+      if (key === 'category') d = d.filter(x => !x.tags.includes(val));
+      if (key === 'price') {
+        const [lo, hi] = val.split('-').map(Number);
+        d = d.filter(x => { const p = cadPrice(x); return !(p >= lo && p <= (hi || Infinity)); });
+      }
+      if (key === 'discount') {
+        const minD = parseInt(val) || 0;
+        if (minD > 0) d = d.filter(x => x.discount < minD);
+      }
+    }
+  }
   return d;
 }
 
