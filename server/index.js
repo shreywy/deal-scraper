@@ -42,6 +42,17 @@ app.get('/api/deals', (req, res) => {
   res.json(cache);
 });
 
+// ── DELETE /api/cache ────────────────────────────────────────────────────────
+app.delete('/api/cache', (req, res) => {
+  const CACHE_PATH = path.join(__dirname, '../data/deals.json');
+  try {
+    if (fs.existsSync(CACHE_PATH)) fs.unlinkSync(CACHE_PATH);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── GET /api/status ──────────────────────────────────────────────────────────
 app.get('/api/status', (req, res) => {
   const cache = loadCache();

@@ -973,7 +973,35 @@ async function renderSettingsDrawer(cfg) {
         </div>
       </div>
     </div>
+    <div class="ds-section">
+      <div class="ds-label">Data</div>
+      <div class="ds-row">
+        <div class="ds-row-text">
+          <div class="ds-name">Clear deal cache</div>
+          <div class="ds-sub">⚠ Deletes all cached deals — next launch will re-scrape from scratch</div>
+        </div>
+        <button class="ds-danger-btn" onclick="clearCache()">Clear</button>
+      </div>
+    </div>
   `;
+}
+
+async function clearCache() {
+  const confirmed = window.confirm(
+    'Clear all cached deals?\n\nThis deletes the local deals.json file. The grid will be empty until you run a new scrape (click ↻ in the top bar).'
+  );
+  if (!confirmed) return;
+  try {
+    const r = await fetch('/api/cache', { method: 'DELETE' });
+    if (!r.ok) throw new Error('Server error');
+    allDeals = [];
+    filteredDeals = [];
+    clearGrid();
+    setStrip('cached', 'Cache cleared — click ↻ to scrape');
+    closeDrawer();
+  } catch (_) {
+    alert('Failed to clear cache.');
+  }
 }
 
 function filterDrawerStores(query) {
