@@ -288,12 +288,11 @@
       "note": "Bot detection - all sale URLs redirect to homepage (tested headless/visible, stealth plugin, multiple URLs)"
     },
     "rhone": {
-      "enabled": false,
+      "enabled": true,
       "name": "Rhone",
       "domain": "rhone.com",
       "currency": "CAD",
-      "category": "clothing",
-      "note": "Returns 0 deals — no active Shopify sale right now"
+      "category": "clothing"
     },
     "twoxu": {
       "enabled": false,
@@ -301,7 +300,7 @@
       "domain": "2xu.com",
       "currency": "USD",
       "category": "clothing",
-      "note": "Returns 0 deals — no active Shopify sale right now"
+      "note": "Outlet pages exist but products don't load in headless browser (heavy JS rendering or bot detection)"
     },
     "joefresh": {
       "enabled": false,
@@ -332,6 +331,124 @@
       "currency": "CAD",
       "category": "clothing",
       "note": "Shopify API returns 0 — no active sale or collection blocked"
+    },
+    "urbanoutfitters": {
+      "enabled": false,
+      "name": "Urban Outfitters CA",
+      "domain": "urbanoutfitters.com",
+      "currency": "CAD",
+      "category": "clothing",
+      "note": "Bot protection - 403 Forbidden on all sale URLs (tested multiple URL patterns with stealth mode)"
+    },
+    "vans": {
+      "enabled": true,
+      "name": "Vans CA",
+      "domain": "vans.ca",
+      "currency": "CAD",
+      "category": "clothing",
+      "note": "Navigates to all-products pages (footwear+clothing) and filters for items with sale prices (no dedicated sale section)"
+    },
+    "pacsun": {
+      "enabled": false,
+      "name": "PacSun",
+      "domain": "pacsun.com",
+      "currency": "USD",
+      "category": "clothing",
+      "note": "PerimeterX bot protection - Access Denied on clearance pages (tested both headless and visible browser with stealth mode)"
+    },
+    "champion": {
+      "enabled": true,
+      "name": "Champion",
+      "domain": "champion.com",
+      "currency": "CAD",
+      "category": "clothing",
+      "note": "0 deals currently (Shopify API accessible but sale collection is empty)"
+    },
+    "lacoste": {
+      "enabled": false,
+      "name": "Lacoste Canada",
+      "domain": "lacoste.com",
+      "currency": "CAD",
+      "category": "clothing",
+      "note": "Returns 0 deals — DOM selectors may be incorrect or products don't load in headless browser"
+    },
+    "jackjones": {
+      "enabled": false,
+      "name": "Jack & Jones Canada",
+      "domain": "jackjones.com",
+      "currency": "CAD",
+      "category": "clothing",
+      "note": "Returns 0 deals — DOM selectors may be incorrect or products don't load in headless browser"
+    },
+    "quiksilver": {
+      "enabled": false,
+      "name": "Quiksilver Canada",
+      "domain": "quiksilver.com",
+      "currency": "CAD",
+      "category": "clothing",
+      "note": "Returns 0 deals — Boardriders platform DOM selectors may be incorrect or products don't load in headless browser"
+    },
+    "dickies": {
+      "enabled": true,
+      "name": "Dickies",
+      "domain": "dickies.com",
+      "currency": "USD",
+      "category": "clothing"
+    },
+    "converse": {
+      "enabled": false,
+      "name": "Converse Canada",
+      "domain": "converse.com",
+      "currency": "CAD",
+      "category": "clothing",
+      "note": "Returns 0 deals — Nike-owned SFCC platform, DOM selectors may be incorrect or bot detection"
+    },
+    "ssense": {
+      "enabled": true,
+      "name": "SSENSE",
+      "domain": "ssense.com",
+      "currency": "CAD",
+      "category": "clothing"
+    },
+    "zumiez": {
+      "enabled": false,
+      "name": "Zumiez",
+      "domain": "zumiez.com",
+      "currency": "CAD",
+      "category": "clothing",
+      "note": "Sale pages return 404 - URL structure may have changed"
+    },
+    "footlocker": {
+      "enabled": false,
+      "name": "Foot Locker",
+      "domain": "footlocker.ca",
+      "currency": "CAD",
+      "category": "clothing",
+      "note": "Page loads but no products found - possible bot detection or no active sale"
+    },
+    "tommyhilfiger": {
+      "enabled": false,
+      "name": "Tommy Hilfiger",
+      "domain": "tommy.com",
+      "currency": "CAD",
+      "category": "clothing",
+      "note": "Page loads but no products found - possible bot detection or no active sale"
+    },
+    "ralphlauren": {
+      "enabled": false,
+      "name": "Polo Ralph Lauren",
+      "domain": "ralphlauren.com",
+      "currency": "CAD",
+      "category": "clothing",
+      "note": "Page loads but no products found - possible bot detection or no active sale"
+    },
+    "calvinklein": {
+      "enabled": false,
+      "name": "Calvin Klein",
+      "domain": "calvinklein.com",
+      "currency": "CAD",
+      "category": "clothing",
+      "note": "Sale pages return 404 - URL structure may have changed"
     }
   },
   "settings": {

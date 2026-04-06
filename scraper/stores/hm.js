@@ -42,39 +42,9 @@ async function scrape(browser, onProgress = () => {}) {
 }
 
 async function fetchDeals(onProgress) {
-  const allDeals = [];
-  const seen = new Set();
-
-  for (const cat of CATEGORIES) {
-    let offset = 0;
-    const pageSize = 36;
-
-    while (true) {
-      const url = `${BASE_API}?category=${cat.id}&offset=${offset}&page-size=${pageSize}&sort=SELL_OUT&country=CA&lang=en_US&editorial-exp=A`;
-      const res = await fetch(url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-          'Accept': 'application/json',
-          'Referer': 'https://www2.hm.com/en_ca/sale.html',
-        },
-      });
-      if (!res.ok) break;
-      const data = await res.json();
-      const products = data.products || data.results || [];
-      if (products.length === 0) break;
-
-      for (const p of products) {
-        const d = mapHMProduct(p, cat.label.includes('men') && !cat.label.includes('women') ? 'Men' : 'Women', seen);
-        if (d) allDeals.push(d);
-      }
-      onProgress(`H&M Canada: fetched ${allDeals.length} ${cat.label} deals…`);
-
-      const total = data.total || data.pagination?.total || 0;
-      offset += pageSize;
-      if (offset >= total || products.length < pageSize) break;
-    }
-  }
-  return allDeals;
+  // H&M blocks all direct fetch requests with Akamai 403
+  // Skip this approach entirely and go straight to browser
+  throw new Error('Direct fetch blocked by Akamai');
 }
 
 function mapHMProduct(p, gender, seen) {
@@ -123,6 +93,7 @@ async function browserScrape(browser, onProgress) {
   const context = await browser.newContext({
     userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
     locale: 'en-CA',
+    viewport: { width: 1920, height: 1080 },
     extraHTTPHeaders: { 'Accept-Language': 'en-CA,en;q=0.9' },
   });
 
@@ -148,51 +119,135 @@ async function browserScrape(browser, onProgress) {
   const seen = new Set();
   const allDeals = [];
 
+  // Try multiple H&M sale URLs - some might bypass Akamai
+  const saleURLs = [
+    { url: 'https://www2.hm.com/en_ca/men/sale.html', gender: 'Men' },
+    { url: 'https://www2.hm.com/en_ca/ladies/sale.html', gender: 'Women' },
+  ];
+
   try {
-    await page.goto('https://www2.hm.com/en_ca/sale.html', { waitUntil: 'domcontentloaded', timeout: 30000 });
-    try { await page.click('#onetrust-accept-btn-handler, .cookie-notice-accept', { timeout: 4000 }); } catch (_) {}
-    await page.waitForTimeout(3000);
+    for (const { url, gender } of saleURLs) {
+      try {
+        onProgress(`H&M Canada: trying ${gender} sale page...`);
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
-    for (let i = 0; i < 3; i++) {
-      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-      await page.waitForTimeout(1500);
-    }
+        // Check if blocked by Akamai
+        const content = await page.content();
+        if (content.includes('Access Denied') || content.includes('Akamai') || content.includes('403')) {
+          onProgress(`H&M Canada: ${gender} - Akamai blocked`);
+          continue;
+        }
 
-    // Process XHR-intercepted products
-    for (const p of rawProducts) {
-      const gStr = p.name?.toLowerCase() || '';
-      const gender = /women|ladies|girl/.test(gStr) ? 'Women' : /\bmen\b|guys|boy/.test(gStr) ? 'Men' : '';
-      const d = mapHMProduct(p, gender, seen);
-      if (d) allDeals.push(d);
-    }
+        try {
+          await page.click('#onetrust-accept-btn-handler, button:has-text("Accept"), button:has-text("OK")', { timeout: 3000 });
+        } catch (_) {}
 
-    // DOM fallback
-    if (allDeals.length === 0) {
-      const domDeals = await page.evaluate(({ storeName, storeKey }) => {
-        const parsePrice = el => {
-          const n = parseFloat((el?.textContent || '').replace(/[^0-9.]/g, ''));
-          return isNaN(n) ? null : n;
-        };
-        const cards = document.querySelectorAll('[class*="product-item"], [class*="ProductItem"], article[class*="product"]');
-        const seen = new Set();
-        return [...cards].map(card => {
-          const link = card.querySelector('a[href]');
-          const url = link?.href || '';
-          if (!url || seen.has(url)) return null;
-          seen.add(url);
-          const name = card.querySelector('[class*="name"], h3, h2')?.textContent?.trim() || '';
-          const priceEl = card.querySelector('[class*="sale-price"], [class*="reduced"]');
-          const origPriceEl = card.querySelector('[class*="original-price"], del, s');
-          const imgEl = card.querySelector('img');
-          const price = parsePrice(priceEl);
-          const originalPrice = parsePrice(origPriceEl);
-          if (!name || !price || !originalPrice || price >= originalPrice) return null;
-          const discount = Math.round((1 - price / originalPrice) * 100);
-          if (discount <= 0) return null;
-          return { store: storeName, storeKey, name, url, image: imgEl?.src || '', price, originalPrice, discount, tags: [] };
-        }).filter(Boolean);
-      }, { storeName: STORE_NAME, storeKey: STORE_KEY });
-      allDeals.push(...domDeals);
+        await page.waitForTimeout(3000);
+
+        // Aggressive scrolling to load lazy products
+        for (let i = 0; i < 5; i++) {
+          await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+          await page.waitForTimeout(2000);
+        }
+
+        // Process XHR-intercepted products
+        for (const p of rawProducts) {
+          const d = mapHMProduct(p, gender, seen);
+          if (d) allDeals.push(d);
+        }
+
+        // Enhanced DOM scraping with more selectors
+        const domDeals = await page.evaluate(({ storeName, storeKey, expectedGender }) => {
+          const parsePrice = el => {
+            if (!el) return null;
+            const n = parseFloat((el.textContent || '').replace(/[^0-9.]/g, ''));
+            return isNaN(n) ? null : n;
+          };
+
+          // Try multiple selector patterns
+          const cards = document.querySelectorAll([
+            'article.product-item',
+            'li.product-item',
+            '.item-link',
+            '[data-product]',
+            '[class*="product-tile"]',
+            'article',
+          ].join(', '));
+
+          const seen = new Set();
+          const results = [];
+
+          for (const card of cards) {
+            try {
+              const link = card.querySelector('a[href*="/productpage"], a[href*=".html"]');
+              if (!link) continue;
+
+              const url = link.href;
+              if (!url || seen.has(url)) continue;
+              seen.add(url);
+
+              // Multiple name selector patterns
+              const nameEl = card.querySelector([
+                '[class*="product-item-link"]',
+                '[class*="item-heading"]',
+                '[class*="name"]',
+                'h3', 'h2',
+              ].join(', '));
+
+              const name = nameEl?.textContent?.trim() || '';
+              if (!name) continue;
+
+              // Multiple price selector patterns
+              const salePriceEl = card.querySelector([
+                '[class*="sale-price"]',
+                '[class*="price-value"]',
+                '.price span:not([class*="original"])',
+                '.price .current',
+              ].join(', '));
+
+              const regularPriceEl = card.querySelector([
+                '[class*="original-price"]',
+                '[class*="compare-price"]',
+                'del',
+                's',
+                '.price .old',
+              ].join(', '));
+
+              const price = parsePrice(salePriceEl);
+              const originalPrice = parsePrice(regularPriceEl);
+
+              if (!price || !originalPrice || price >= originalPrice) continue;
+
+              const imgEl = card.querySelector('img');
+              const image = imgEl?.src || imgEl?.dataset?.src || '';
+
+              const discount = Math.round((1 - price / originalPrice) * 100);
+              if (discount <= 0) continue;
+
+              results.push({
+                store: storeName,
+                storeKey,
+                name,
+                url,
+                image,
+                price,
+                originalPrice,
+                discount,
+                tags: [],
+                gender: expectedGender,
+              });
+            } catch (e) {}
+          }
+
+          return results;
+        }, { storeName: STORE_NAME, storeKey: STORE_KEY, expectedGender: gender });
+
+        allDeals.push(...domDeals);
+        onProgress(`H&M Canada: ${gender} - found ${domDeals.length} products`);
+
+      } catch (err) {
+        onProgress(`H&M Canada: ${gender} error — ${err.message}`);
+      }
     }
   } catch (err) {
     onProgress(`H&M Canada: browser error — ${err.message}`);
@@ -207,7 +262,7 @@ async function browserScrape(browser, onProgress) {
     currency: CURRENCY,
     priceCAD: d.price,
     originalPriceCAD: d.originalPrice,
-    tags: d.tags?.length ? d.tags : tag({ name: d.name }),
+    tags: d.tags?.length ? d.tags : tag({ name: d.name, gender: d.gender }),
     scrapedAt: d.scrapedAt || new Date().toISOString(),
   }));
 

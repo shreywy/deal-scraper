@@ -5,7 +5,10 @@ const { getUSDtoCAD } = require('../currency');
 
 const STORE_NAME = '2XU';
 const STORE_KEY = 'twoxu';
-const SALE_URL = 'https://www.2xu.com/collections/sale';
+const OUTLET_COLLECTIONS = [
+  'https://www.2xu.com/collections/men-outlet',
+  'https://www.2xu.com/collections/women-outlet'
+];
 
 /**
  * @param {import('playwright').Browser} browser
@@ -13,58 +16,64 @@ const SALE_URL = 'https://www.2xu.com/collections/sale';
  * @returns {Promise<import('../index').Deal[]>}
  */
 async function scrape(browser, onProgress = () => {}) {
-  const page = await browser.newPage();
   const allDeals = [];
   const seen = new Set();
+  let rate = 1.0;
+  let currency = 'USD';
 
-  try {
-    onProgress('2XU: navigating to sale page…');
-    await page.goto(SALE_URL, { waitUntil: 'domcontentloaded', timeout: 45000 });
+  for (const collectionUrl of OUTLET_COLLECTIONS) {
+    const gender = collectionUrl.includes('men-outlet') ? 'Men' : 'Women';
+    const page = await browser.newPage();
 
-    // Detect currency from page
-    const currencyInfo = await page.evaluate(() => {
-      // Try to find currency indicators
-      const metaEl = document.querySelector('meta[property="og:price:currency"]');
-      if (metaEl) return metaEl.content;
+    try {
+      onProgress(`2XU: navigating to ${gender} outlet…`);
+      await page.goto(collectionUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
 
-      // Look for currency symbols or text in price elements
-      const priceText = document.querySelector('.money, .price, [class*="price"]')?.textContent || '';
-      if (priceText.includes('$') && !priceText.includes('CAD')) return 'USD';
-      if (priceText.includes('CAD') || priceText.includes('CA$')) return 'CAD';
-      if (priceText.includes('USD') || priceText.includes('US$')) return 'USD';
+      // Detect currency from page (once, on first collection)
+      if (collectionUrl === OUTLET_COLLECTIONS[0]) {
+        const currencyInfo = await page.evaluate(() => {
+          // Try to find currency indicators
+          const metaEl = document.querySelector('meta[property="og:price:currency"]');
+          if (metaEl) return metaEl.content;
 
-      // Check URL or domain
-      if (window.location.hostname.includes('ca.2xu') || window.location.pathname.includes('/ca/') || window.location.pathname.includes('/en-ca/')) {
-        return 'CAD';
+          // Look for currency symbols or text in price elements
+          const priceText = document.querySelector('.money, .price, [class*="price"]')?.textContent || '';
+          if (priceText.includes('$') && !priceText.includes('CAD')) return 'USD';
+          if (priceText.includes('CAD') || priceText.includes('CA$')) return 'CAD';
+          if (priceText.includes('USD') || priceText.includes('US$')) return 'USD';
+
+          // Check URL or domain
+          if (window.location.hostname.includes('ca.2xu') || window.location.pathname.includes('/ca/') || window.location.pathname.includes('/en-ca/')) {
+            return 'CAD';
+          }
+
+          return 'USD'; // default assumption
+        });
+
+        currency = currencyInfo || 'USD';
+
+        if (currency === 'USD') {
+          onProgress('2XU: fetching USD→CAD rate…');
+          rate = await getUSDtoCAD();
+          onProgress(`2XU: 1 USD = ${rate.toFixed(4)} CAD`);
+        } else {
+          onProgress('2XU: using CAD prices (no conversion needed)');
+        }
       }
 
-      return 'USD'; // default assumption
-    });
+      // Wait for products to load
+      await page.waitForTimeout(3000);
 
-    const currency = currencyInfo || 'USD';
-    let rate = 1.0;
+      // Scroll to lazy-load more products
+      onProgress(`2XU: scrolling to load ${gender} products…`);
+      for (let i = 0; i < 3; i++) {
+        await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+        await page.waitForTimeout(1500);
+      }
 
-    if (currency === 'USD') {
-      onProgress('2XU: fetching USD→CAD rate…');
-      rate = await getUSDtoCAD();
-      onProgress(`2XU: 1 USD = ${rate.toFixed(4)} CAD`);
-    } else {
-      onProgress('2XU: using CAD prices (no conversion needed)');
-    }
+      onProgress(`2XU: extracting ${gender} product data from DOM…`);
 
-    // Wait for products to load
-    await page.waitForSelector('.product-item, .grid-product, [data-product], .product, .collection-product', { timeout: 10000 }).catch(() => null);
-
-    // Scroll to lazy-load more products
-    onProgress('2XU: scrolling to load all products…');
-    for (let i = 0; i < 3; i++) {
-      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-      await page.waitForTimeout(1000);
-    }
-
-    onProgress('2XU: extracting product data from DOM…');
-
-    const products = await page.evaluate(() => {
+      const products = await page.evaluate((detectedGender) => {
       const items = [];
 
       // Try multiple selector patterns for product cards
@@ -151,32 +160,23 @@ async function scrape(browser, onProgress = () => {}) {
             if (priceText && originalPriceText) break;
           }
 
-          // Try to detect gender from product name or categories
-          let gender = '';
-          const productText = (name + ' ' + (el.textContent || '')).toLowerCase();
-          if (productText.includes('women') || productText.includes("women's") || productText.includes('womens')) {
-            gender = 'Women';
-          } else if (productText.includes('men') || productText.includes("men's") || productText.includes('mens')) {
-            gender = 'Men';
-          }
-
           items.push({
             name,
             url,
             image,
             priceText: priceText || '',
             originalPriceText: originalPriceText || '',
-            gender
+            gender: detectedGender // Use gender from collection URL
           });
         } catch (_) {}
       }
 
       return items;
-    });
+      }, gender);
 
-    onProgress(`2XU: found ${products.length} products, filtering for deals…`);
+      onProgress(`2XU: ${gender} - found ${products.length} products, filtering for deals…`);
 
-    for (const p of products) {
+      for (const p of products) {
       try {
         // Parse prices
         const price = parsePrice(p.priceText);
@@ -213,15 +213,17 @@ async function scrape(browser, onProgress = () => {}) {
 
         allDeals.push(deal);
       } catch (_) {}
-    }
+      }
 
-    onProgress(`2XU: total ${allDeals.length} deals found`);
-  } catch (err) {
-    onProgress(`2XU: Error - ${err.message}`);
-  } finally {
-    await page.close().catch(() => {});
+      onProgress(`2XU: ${gender} - ${allDeals.filter(d => d.gender === gender).length} deals total`);
+    } catch (err) {
+      onProgress(`2XU: Error on ${gender} - ${err.message}`);
+    } finally {
+      await page.close().catch(() => {});
+    }
   }
 
+  onProgress(`2XU: total ${allDeals.length} deals found`);
   return allDeals;
 }
 
