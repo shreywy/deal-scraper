@@ -312,7 +312,7 @@
       "note": "Site redirects to Canadian Tire/Hudson's Bay - domain no longer serves Joe Fresh products (as of April 2026)"
     },
     "rwco": {
-      "enabled": true,
+      "enabled": false,
       "name": "RW&CO",
       "domain": "rw-co.com",
       "currency": "CAD",
@@ -462,7 +462,7 @@
     "huf": {
       "name": "HUF",
       "domain": "hufworldwide.com",
-      "enabled": true,
+      "enabled": false,
       "currency": "USD",
       "category": "clothing",
       "note": "Shopify API — ~281 deals (streetwear/skate)"

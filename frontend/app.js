@@ -100,7 +100,7 @@ let drawerTab = 'clothing'; // 'clothing' | 'non-clothing'
 let selectedNcCategory = ''; // empty = all categories
 
 // Pagination
-const PAGE_SIZE = 100;
+let pageSize = parseInt(localStorage.getItem('pageSize') || '100');
 let currentPage = 1;
 
 // Search
@@ -615,6 +615,18 @@ function buildDynamicFilters() {
   syncPillActive('gender', filters.gender);
   syncPillActive('category', filters.category);
   syncPillExcluded();
+
+  // Sync store dropdown label/items (if dropdown is open, refresh list)
+  if (_storeDropdownOpen) syncStoreDropdown();
+  else {
+    const label = document.getElementById('storeSelectLabel');
+    if (label) {
+      const storePills = [...document.querySelectorAll('#storePills [data-filter="store"]')].filter(p => p.dataset.value !== 'all');
+      if (filters.store.length === 0) label.textContent = 'All Stores';
+      else if (filters.store.length === 1) { const p = storePills.find(p => p.dataset.value === filters.store[0]); label.textContent = p?.textContent.trim() || filters.store[0]; }
+      else label.textContent = `${filters.store.length} stores selected`;
+    }
+  }
 }
 
 function makePill(filter, value, label, active = false) {
@@ -651,6 +663,79 @@ function syncPillExcluded() {
     });
   }
 }
+
+// ── Store Dropdown ───────────────────────────────────────────────────────────
+let _storeDropdownOpen = false;
+
+function toggleStoreDropdown(event) {
+  event.stopPropagation();
+  const menu = document.getElementById('storeSelectMenu');
+  const trigger = document.getElementById('storeSelectTrigger');
+  if (!menu) return;
+  _storeDropdownOpen = !_storeDropdownOpen;
+  menu.style.display = _storeDropdownOpen ? '' : 'none';
+  trigger.classList.toggle('open', _storeDropdownOpen);
+  if (_storeDropdownOpen) {
+    syncStoreDropdown();
+    const search = menu.querySelector('.store-select-search');
+    if (search) { search.value = ''; search.focus(); }
+  }
+}
+
+function filterStoreDropdown(query) {
+  syncStoreDropdown(query);
+}
+
+function clickStoreItem(key) {
+  const pill = document.querySelector(`#storePills [data-filter="store"][data-value="${key}"]`);
+  if (pill) togglePill(pill, new MouseEvent('click'));
+  syncStoreDropdown(document.querySelector('#storeSelectMenu .store-select-search')?.value || '');
+}
+
+function syncStoreDropdown(query) {
+  const list = document.getElementById('storeSelectList');
+  if (!list) return;
+  const q = (query !== undefined ? query : (document.querySelector('#storeSelectMenu .store-select-search')?.value || '')).toLowerCase();
+  const pills = [...document.querySelectorAll('#storePills [data-filter="store"]')];
+  const storePills = pills.filter(p => p.dataset.value !== 'all');
+  const isAllActive = filters.store.length === 0;
+
+  let html = `<div class="ss-item ss-all-item${isAllActive ? ' active' : ''}" onclick="clickStoreItem('all')"><span class="ss-check">${isAllActive ? '✓' : ''}</span>All Stores</div>`;
+  const filtered = storePills.filter(p => !q || p.textContent.toLowerCase().includes(q));
+  if (!filtered.length) {
+    html += '<div class="ss-no-results">No stores found</div>';
+  } else {
+    html += filtered.map(p => {
+      const key = p.dataset.value;
+      const name = p.textContent.trim();
+      const active = filters.store.includes(key);
+      return `<div class="ss-item${active ? ' active' : ''}" onclick="clickStoreItem('${escHtml(key)}')"><span class="ss-check">${active ? '✓' : ''}</span>${escHtml(name)}</div>`;
+    }).join('');
+  }
+  list.innerHTML = html;
+
+  const label = document.getElementById('storeSelectLabel');
+  if (!label) return;
+  if (filters.store.length === 0) {
+    label.textContent = 'All Stores';
+  } else if (filters.store.length === 1) {
+    const pill = storePills.find(p => p.dataset.value === filters.store[0]);
+    label.textContent = pill?.textContent.trim() || filters.store[0];
+  } else {
+    label.textContent = `${filters.store.length} stores selected`;
+  }
+}
+
+// Close dropdown on outside click
+document.addEventListener('click', () => {
+  if (_storeDropdownOpen) {
+    _storeDropdownOpen = false;
+    const menu = document.getElementById('storeSelectMenu');
+    const trigger = document.getElementById('storeSelectTrigger');
+    if (menu) menu.style.display = 'none';
+    if (trigger) trigger.classList.remove('open');
+  }
+});
 
 // ── Filtering & Sorting ───────────────────────────────────────────────────────
 function applyFiltersAndRender() {
@@ -978,8 +1063,8 @@ function renderGrid() {
   }
   empty.style.display = 'none';
 
-  const start = (currentPage - 1) * PAGE_SIZE;
-  const pageDeals = filteredDeals.slice(start, start + PAGE_SIZE);
+  const start = (currentPage - 1) * pageSize;
+  const pageDeals = filteredDeals.slice(start, start + pageSize);
 
   grid.innerHTML = pageDeals.map((d, i) => {
     const isUSD = d.currency === 'USD';
@@ -1024,14 +1109,14 @@ function renderResultsBar() {
     document.getElementById('activeFilters').innerHTML = '';
     return;
   }
-  const start = (currentPage - 1) * PAGE_SIZE + 1;
-  const end = Math.min(currentPage * PAGE_SIZE, total);
+  const start = (currentPage - 1) * pageSize + 1;
+  const end = Math.min(currentPage * pageSize, total);
   let text = `${total} deal${total !== 1 ? 's' : ''}`;
   if (currentTab === 'non-clothing') {
     text += ' <span style="font-size:11px;color:var(--text-muted)">(electronics & more)</span>';
   }
   if (allDeals.length !== total) text += ` of ${allDeals.length}`;
-  if (total > PAGE_SIZE) text += ` · showing ${start}–${end}`;
+  if (total > pageSize) text += ` · showing ${start}–${end}`;
 
   // Add fuzzy search indicator
   if (searchIsFuzzy && searchQuery) {
@@ -1101,7 +1186,7 @@ function resetAllFilters() {
 
 function renderPagination() {
   const total = filteredDeals.length;
-  const pageCount = Math.ceil(total / PAGE_SIZE);
+  const pageCount = Math.ceil(total / pageSize);
   const pg = document.getElementById('pagination');
 
   if (pageCount <= 1) { pg.innerHTML = ''; return; }

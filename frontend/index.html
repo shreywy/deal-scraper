@@ -80,7 +80,18 @@
 
     <div class="sb-section" id="filterStore">
       <div class="sb-label">Store</div>
-      <div class="pill-group" id="storePills">
+      <div class="store-select" id="storeSelect">
+        <div class="store-select-trigger" id="storeSelectTrigger" onclick="toggleStoreDropdown(event)">
+          <span id="storeSelectLabel">All Stores</span>
+          <span class="store-select-arrow">▾</span>
+        </div>
+        <div class="store-select-menu" id="storeSelectMenu" style="display:none">
+          <input class="store-select-search" type="text" placeholder="Search…" oninput="filterStoreDropdown(this.value)" autocomplete="off">
+          <div class="store-select-list" id="storeSelectList"></div>
+        </div>
+      </div>
+      <!-- Hidden pill-group: drives filter logic, synced by dropdown -->
+      <div id="storePills" style="display:none">
         <div class="pill active" data-filter="store" data-value="all" onclick="togglePill(this, event)">All</div>
       </div>
     </div>

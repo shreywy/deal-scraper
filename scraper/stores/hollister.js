@@ -199,7 +199,10 @@ async function browserScrape(browser, onProgress) {
           const discount = Math.round((1 - price / originalPrice) * 100);
           if (discount <= 0) return null;
           const imgEl = link.querySelector('img');
-          let image = imgEl?.src || imgEl?.getAttribute('data-src') || '';
+          const rawSrc = imgEl?.src || '';
+          // Skip lazy-load 1×1 GIF placeholders
+          let image = (rawSrc && !rawSrc.startsWith('data:')) ? rawSrc : '';
+          if (!image) image = imgEl?.getAttribute('data-src') || '';
           // Extract first URL from srcset if src is empty
           if (!image && imgEl?.srcset) {
             const srcsetMatch = imgEl.srcset.match(/^([^\s,]+)/);

@@ -41,6 +41,7 @@ function parsePrice(priceStr) {
  */
 async function scrape(browser, onProgress = () => {}) {
   const deals = [];
+  const seen = new Set(); // deduplicate by URL across pages
   let context = null;
   let page = null;
 
@@ -130,6 +131,9 @@ async function scrape(browser, onProgress = () => {}) {
 
             const discount = Math.round(((regularPrice - salePrice) / regularPrice) * 100);
             if (discount <= 0) continue;
+
+            if (seen.has(product.url)) continue;
+            seen.add(product.url);
 
             const deal = {
               id: slugify(`canadacomputers-${product.name}`),
