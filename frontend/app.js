@@ -856,9 +856,7 @@ function togglePill(el, event) {
 
 function clearFilter(key) {
   filters[key] = key === 'discount' ? '0' : 'all';
-  if (excludedFilters[key]) excludedFilters[key] = [];
   syncPillActive(key, filters[key]);
-  syncPillExcluded();
   currentPage = 1;
   saveFilters();
   applyFiltersAndRender();
