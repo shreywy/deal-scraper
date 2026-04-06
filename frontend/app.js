@@ -462,8 +462,8 @@ function buildNcCategoryNav(deals) {
     </div>
   `);
 
-  // Category tiles (sorted alphabetically)
-  const categories = Object.keys(categoryCounts).sort();
+  // Category tiles (sorted by deal count descending, then alphabetically)
+  const categories = Object.keys(categoryCounts).sort((a, b) => categoryCounts[b] - categoryCounts[a] || a.localeCompare(b));
   for (const cat of categories) {
     const { icon, label } = NC_CATEGORY_MAP[cat];
     const count = categoryCounts[cat];

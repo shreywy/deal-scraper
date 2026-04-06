@@ -95,6 +95,11 @@ const SCRAPERS = {
   microsoft:      require('./stores/microsoft'),
   ikea:           require('./stores/ikea'),
   costco:         require('./stores/costco'),
+  homedepot:      require('./stores/homedepot'),
+  rona:           require('./stores/rona'),
+  gamestop:       require('./stores/gamestop'),
+  toysrus:        require('./stores/toysrus'),
+  bestbuyoutlet:  require('./stores/bestbuyoutlet'),
 };
 
 const CACHE_PATH = path.join(__dirname, '../data/deals.json');

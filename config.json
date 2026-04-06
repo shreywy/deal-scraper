@@ -601,6 +601,42 @@
       "domain": "costco.ca",
       "currency": "CAD",
       "category": "non-clothing"
+    },
+    "homedepot": {
+      "enabled": true,
+      "name": "Home Depot CA",
+      "domain": "homedepot.ca",
+      "currency": "CAD",
+      "category": "non-clothing"
+    },
+    "rona": {
+      "enabled": true,
+      "name": "RONA",
+      "domain": "rona.ca",
+      "currency": "CAD",
+      "category": "non-clothing"
+    },
+    "gamestop": {
+      "enabled": true,
+      "name": "GameStop CA",
+      "domain": "gamestop.ca",
+      "currency": "CAD",
+      "category": "non-clothing"
+    },
+    "toysrus": {
+      "enabled": true,
+      "name": "Toys R Us CA",
+      "domain": "toysrus.ca",
+      "currency": "CAD",
+      "category": "non-clothing"
+    },
+    "bestbuyoutlet": {
+      "enabled": true,
+      "name": "Best Buy Outlet",
+      "domain": "bestbuy.ca",
+      "currency": "CAD",
+      "category": "non-clothing",
+      "note": "Open-box and refurbished deals from Best Buy Canada"
     }
   },
   "settings": {
