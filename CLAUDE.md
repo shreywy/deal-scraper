@@ -115,8 +115,8 @@ deal-scraper/
 | Carhartt | ~48 | DOM (SFCC) | `carhartt.com` promo pages; USD→CAD |
 | MEC | ~52 | DOM (Next.js) | `mec.ca/en/products/sale`; Chakra UI product cards |
 | Altitude Sports | ~48 | DOM (Chakra UI) | `altitude-sports.com/collections/sale`; `article[data-testid="plp-product-card"]` |
-| Rhone | ~30 | DOM (Vue.js) | `rhone.com` sale collection; `.product-card` selectors; USD→CAD |
-| Alo Yoga | ~31 | Builder.io DOM | `aloyoga.com/collections/sale`; scroll to lazy-load; USD→CAD |
+| Rhone | ~30 | DOM (Vue.js) | `rhone.com` sale collection; `.product-card` selectors; CAD |
+| Alo Yoga | ~31 | Builder.io DOM | `aloyoga.com/collections/sale`; scroll to lazy-load; CAD (shows CAD prices to Canadian visitors) |
 | Patagonia CA | ~36 | SFCC DOM | `patagonia.com/ca/shop/`; "M's"/"W's" names tagged via tagger |
 | Sporting Life | ~36 | SFCC DOM | `sportinglife.ca/en-CA/sale/`; `.product-tile`, `.price-sales`, `.price-standard` |
 | Sport Chek | ~28 | FGL XHR intercept | First page only (~28 of 1602 total); key: same FGL platform as Marks |
