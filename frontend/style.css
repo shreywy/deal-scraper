@@ -308,7 +308,7 @@ html.dark .dark-icon-sun  { transform: translateY(0) rotate(0deg); opacity: 1; }
 }
 .drawer-close:hover { background: #fde8e8; color: #c04040; border-color: #f0c0c0; }
 
-.drawer-body { padding: 0 0 32px; flex: 1; }
+.drawer-body { padding: 0 0 32px; flex: 1; overflow-y: auto; }
 .ds-section { padding: 14px 20px; border-bottom: 1px solid var(--border); }
 .ds-label {
   font-size: 10px; font-weight: 700; letter-spacing: 0.7px;

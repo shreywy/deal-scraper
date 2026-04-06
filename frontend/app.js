@@ -396,7 +396,10 @@ function applyFiltersAndRender() {
         // Unisex pill: truly Unisex items + items with no gender tag (unknown)
         return d.tags.includes('Unisex') || !GENDER_TAGS.some(g => d.tags.includes(g));
       }
-      return d.tags.includes(filters.gender);
+      // Men/Women: include exact match + Unisex + no-gender-tag items (gender-neutral products)
+      return d.tags.includes(filters.gender)
+        || d.tags.includes('Unisex')
+        || !GENDER_TAGS.some(g => d.tags.includes(g));
     });
   }
   if (filters.category !== 'all') deals = deals.filter(d => d.tags.includes(filters.category));
@@ -457,7 +460,7 @@ function dealsExcluding(excludeKey) {
     const GENDER_TAGS = ['Men', 'Women', 'Kids'];
     d = d.filter(x => {
       if (filters.gender === 'Unisex') return x.tags.includes('Unisex') || !GENDER_TAGS.some(g => x.tags.includes(g));
-      return x.tags.includes(filters.gender);
+      return x.tags.includes(filters.gender) || x.tags.includes('Unisex') || !GENDER_TAGS.some(g => x.tags.includes(g));
     });
   }
   if (excludeKey !== 'category' && filters.category !== 'all') d = d.filter(x => x.tags.includes(filters.category));
@@ -500,7 +503,7 @@ function updatePillAvailability() {
     gender: (d, v) => {
       const GENDER_TAGS = ['Men', 'Women', 'Kids'];
       if (v === 'Unisex') return d.tags.includes('Unisex') || !GENDER_TAGS.some(g => d.tags.includes(g));
-      return d.tags.includes(v);
+      return d.tags.includes(v) || d.tags.includes('Unisex') || !GENDER_TAGS.some(g => d.tags.includes(g));
     },
     category: (d, v) => d.tags.includes(v),
     price: (d, v) => {
