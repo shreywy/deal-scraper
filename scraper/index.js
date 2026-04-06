@@ -51,6 +51,11 @@ const SCRAPERS = {
   twoxu:          require('./stores/twoxu'),
   rwco:           require('./stores/rwco'),
   joefresh:       require('./stores/joefresh'),
+  // Outdoor / Canadian retailers
+  mec:            require('./stores/mec'),
+  altitudesports: require('./stores/altitudesports'),
+  canadiantire:   require('./stores/canadiantire'),
+  sportinglife:   require('./stores/sportinglife'),
 };
 
 const CACHE_PATH = path.join(__dirname, '../data/deals.json');

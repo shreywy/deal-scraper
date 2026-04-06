@@ -106,7 +106,7 @@
       "domain": "hm.com",
       "currency": "CAD",
       "category": "clothing",
-      "note": "Akamai bot protection - Access Denied (403) on both API and browser with stealth"
+      "note": "Akamai 403 Forbidden on ALL requests (tested: products/list API 403, sale.html 403, men/sale.html 403, ladies/sale.html 403, even with browser+stealth — completely blocked)"
     },
     "hollister": {
       "enabled": true,
@@ -128,7 +128,7 @@
       "domain": "ae.com",
       "currency": "CAD",
       "category": "clothing",
-      "note": "Sale pages redirect to homepage (bot detection)"
+      "note": "Aggressive bot detection — sale pages redirect to homepage even with Playwright stealth mode (tested: API endpoints 404, DOM scraping redirected, headless/visible browser both fail)"
     },
     "aloyoga": {
       "enabled": true,
@@ -167,11 +167,12 @@
       "note": "Location chooser blocks automated access - cannot proceed to sale content"
     },
     "asos": {
-      "enabled": true,
+      "enabled": false,
       "name": "ASOS",
       "domain": "asos.com",
       "currency": "USD",
-      "category": "clothing"
+      "category": "clothing",
+      "note": "ECONNRESET on direct fetch; XHR intercept unreliable"
     },
     "patagonia": {
       "enabled": true,
@@ -181,25 +182,28 @@
       "category": "clothing"
     },
     "gap": {
-      "enabled": true,
+      "enabled": false,
       "name": "Gap CA",
       "domain": "gap.com",
       "currency": "CAD",
-      "category": "clothing"
+      "category": "clothing",
+      "note": "Sale category pages redirect to OutOfStockNoResults"
     },
     "levis": {
-      "enabled": true,
+      "enabled": false,
       "name": "Levi's CA",
       "domain": "levi.com",
       "currency": "CAD",
-      "category": "clothing"
+      "category": "clothing",
+      "note": "Access Denied bot block on sale URL"
     },
     "reigningchamp": {
-      "enabled": true,
+      "enabled": false,
       "name": "Reigning Champ",
       "domain": "reigningchamp.com",
       "currency": "CAD",
-      "category": "clothing"
+      "category": "clothing",
+      "note": "Store has no active sales (all 697 products checked, 0 on sale)"
     },
     "sportchek": {
       "enabled": true,
@@ -216,18 +220,20 @@
       "category": "clothing"
     },
     "canadiantire": {
-      "enabled": true,
+      "enabled": false,
       "name": "Canadian Tire",
       "domain": "canadiantire.ca",
       "currency": "CAD",
-      "category": "clothing"
+      "category": "clothing",
+      "note": "FGL platform API returns 400 error; weekly flyer URL returns 404 (URL structure changed)"
     },
     "sportinglife": {
-      "enabled": true,
+      "enabled": false,
       "name": "Sporting Life",
       "domain": "sportinglife.ca",
       "currency": "CAD",
-      "category": "clothing"
+      "category": "clothing",
+      "note": "Returns 0 deals — Shopify API blocked or no active sale"
     },
     "alphalete": {
       "enabled": true,
@@ -282,18 +288,20 @@
       "note": "Bot detection - all sale URLs redirect to homepage (tested headless/visible, stealth plugin, multiple URLs)"
     },
     "rhone": {
-      "enabled": true,
+      "enabled": false,
       "name": "Rhone",
       "domain": "rhone.com",
-      "currency": "USD",
-      "category": "clothing"
+      "currency": "CAD",
+      "category": "clothing",
+      "note": "Returns 0 deals — no active Shopify sale right now"
     },
     "twoxu": {
-      "enabled": true,
+      "enabled": false,
       "name": "2XU",
       "domain": "2xu.com",
       "currency": "USD",
-      "category": "clothing"
+      "category": "clothing",
+      "note": "Returns 0 deals — no active Shopify sale right now"
     },
     "joefresh": {
       "enabled": false,
@@ -311,12 +319,11 @@
       "category": "clothing"
     },
     "mec": {
-      "enabled": false,
+      "enabled": true,
       "name": "MEC",
       "domain": "mec.ca",
       "currency": "CAD",
-      "category": "clothing",
-      "note": "Testing pending - Next.js site with product data"
+      "category": "clothing"
     },
     "altitudesports": {
       "enabled": false,
@@ -324,7 +331,7 @@
       "domain": "altitude-sports.com",
       "currency": "CAD",
       "category": "clothing",
-      "note": "Testing pending"
+      "note": "Shopify API returns 0 — no active sale or collection blocked"
     }
   },
   "settings": {
