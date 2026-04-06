@@ -219,6 +219,15 @@ async function tryXhrInterception(browser, onProgress) {
           timeout: 20000,
         });
 
+        // Check for redirect (bot detection)
+        const currentUrl = page.url();
+        if (!currentUrl.includes('/sale')) {
+          onProgress(`Simons XHR: redirected to ${currentUrl} — bot detection active`);
+          await page.close();
+          await context.close();
+          return null;
+        }
+
         onProgress(`Simons XHR: navigated to ${saleUrl}`);
 
         await page.waitForTimeout(4000);
@@ -277,6 +286,15 @@ async function tryDomScraping(browser, onProgress) {
       timeout: 20000,
     });
 
+    // Check for redirect to homepage (bot detection)
+    const currentUrl = page.url();
+    if (!currentUrl.includes('/sale')) {
+      onProgress(`Simons DOM: redirected to ${currentUrl} — bot detection active`);
+      await page.close();
+      await context.close();
+      return null;
+    }
+
     onProgress('Simons DOM: page loaded, waiting for content…');
 
     // Wait longer for SPA to render
@@ -317,7 +335,11 @@ async function tryDomScraping(browser, onProgress) {
       previousCount = currentCount;
     }
 
-    onProgress(`Simons DOM: found ${previousCount} potential product elements`);
+    if (previousCount === 0) {
+      onProgress('Simons DOM: no product elements found');
+    } else {
+      onProgress(`Simons DOM: found ${previousCount} potential product elements`);
+    }
 
     // Extract product data
     const products = await page.evaluate(() => {
