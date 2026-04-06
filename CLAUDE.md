@@ -93,59 +93,82 @@ deal-scraper/
 └── launch.bat            # Windows double-click launcher
 ```
 
-## Stores & scraper status
+## Stores & scraper status (as of 2026-04-05)
+
+26 stores enabled. Total expected deals: ~3000+ on fresh scrape.
 
 ### Confirmed working ✅
-| Store | Deals | Platform | Notes |
-|-------|-------|----------|-------|
+| Store | ~Deals | Platform | Notes |
+|-------|--------|----------|-------|
 | Gymshark CA | ~677 | Algolia CA | AppId: `2DEAES0CUO`, Key: `932fd4562e8443c09e3d14fd4ab94295`, index: `production_ca_products_v2`; inStock:true filter |
-| Nike CA | ~24 | DOM (SSR) | sale URL: `/ca/w/sale-3yaep`, price classes: `is--current-price`, `is--striked-out` |
-| YoungLA | ~35 | DOM (Shopify custom elements) | USD → CAD; custom elements: `product-card`, `sale-price`, `compare-at-price` |
-| Under Armour CA | ~24 | SFCC DOM | `/en-ca/c/sale/?sz=120` + outlet |
-| Club Monaco CA | ~48 | XHR intercept + DOM | `clubmonaco.ca/en/sale/` |
+| Banana Republic CA | ~620 | GAP Inc XHR intercept | `api.gap.com/commerce/search` — XHR captures product API |
+| RW&CO | ~534 | Shopify API | `/collections/men-promo-upto40` and `/collections/women-promo-upto40` |
+| Alphalete | ~400 | Shopify API | `collections/sale/products.json`; USD→CAD |
+| Dickies | ~256 | Shopify API | `dickies.com/collections/sale/products.json`; USD→CAD |
+| SSENSE | ~240 | DOM (Cloudflare stealth) | `ssense.com/en-ca/men/sale` + women; `.plp-products__product-tile` selectors |
 | Hollister CA | ~180 | HCo DOM clearance page | `hollisterco.com/shop/sale/` — clearance page DOM scrape |
 | Abercrombie CA | ~180 | HCo DOM clearance page | `abercrombie.com/shop/ca/mens-sale` — DOM scrape |
-| Banana Republic CA | ~620 | GAP Inc XHR intercept | `api.gap.com/commerce/search` — XHR captures product API |
-| Alo Yoga | ~10-31 | Builder.io DOM | `aloyoga.com/collections/sale` — scroll to lazy-load; CAD prices |
-| Patagonia CA | ~36-178 | SFCC DOM | `patagonia.com/ca/shop/` — "M's"/"W's" names tagged via tagger |
-| Sport Chek | ~28 | FGL XHR intercept | `sportchek.ca/sale.html` — `/api/v1/search/v2/search` — first page only (1602 total) |
-
-### Needs investigation 🔲
-| Store | Platform | Notes |
-|-------|----------|-------|
-| ASOS | Browser XHR intercept | Direct API fetch fails (ECONNRESET); XHR browser intercept approach in scraper |
-| Gap CA | GAP Inc XHR | Same platform as BR — category pages redirect to OutOfStockNoResults currently |
-| Reigning Champ | Shopify API | Scraper works; store has no active sales right now |
+| Puma | ~192 | DOM (Shopify) | `us.puma.com/us/en/sale`; USD→CAD |
+| Nobull | ~66 | Shopify API | `nobull.com/collections/sale/products.json`; USD→CAD |
+| Marks | ~82 | FGL API | `marks.com/api/v1/search/v2/search`, key: `c01ef3612328420c9f5cd9277e815a0e` |
+| Club Monaco CA | ~48 | XHR intercept + DOM | `clubmonaco.ca/en/sale/` |
+| Carhartt | ~48 | DOM (SFCC) | `carhartt.com` promo pages; USD→CAD |
+| MEC | ~52 | DOM (Next.js) | `mec.ca/en/products/sale`; Chakra UI product cards |
+| Altitude Sports | ~48 | DOM (Chakra UI) | `altitude-sports.com/collections/sale`; `article[data-testid="plp-product-card"]` |
+| Rhone | ~30 | DOM (Vue.js) | `rhone.com` sale collection; `.product-card` selectors; USD→CAD |
+| Alo Yoga | ~31 | Builder.io DOM | `aloyoga.com/collections/sale`; scroll to lazy-load; USD→CAD |
+| Patagonia CA | ~36 | SFCC DOM | `patagonia.com/ca/shop/`; "M's"/"W's" names tagged via tagger |
+| Sporting Life | ~36 | SFCC DOM | `sportinglife.ca/en-CA/sale/`; `.product-tile`, `.price-sales`, `.price-standard` |
+| Sport Chek | ~28 | FGL XHR intercept | First page only (~28 of 1602 total); key: same FGL platform as Marks |
+| Under Armour CA | ~24 | SFCC DOM | `/en-ca/c/sale/?sz=120` + outlet |
+| Nike CA | ~24 | DOM (SSR) | `/ca/w/sale-3yaep`; `is--current-price`, `is--striked-out` |
+| YoungLA | ~35 | DOM (Shopify custom elements) | USD→CAD; `product-card`, `sale-price`, `compare-at-price` |
+| Uniqlo CA | 0 now | Direct API fetch | `x-fr-clientid: uq.ca.web-spa` (static); 0 deals = no active Uniqlo CA sale |
+| Vans CA | ? | DOM (browse-all) | Navigates `/en-ca/men/footwear.html` etc., filters items with both prices |
+| Champion | 0 now | Shopify API | `champion.com/collections/sale`; currently no active sale items |
 
 ### Confirmed broken / disabled ❌
 | Store | Reason |
 |-------|--------|
 | Lululemon CA | Sale pages don't expose original prices — can't calculate discount |
-| Zara CA | Akamai bot block — redirects to homepage |
+| Zara CA | Akamai bot block |
 | Aritzia | Sale page 404 / Cloudflare |
-| Arc'teryx CA | Sale page moved to outlet.arcteryx.com (times out) |
-| H&M Canada | Akamai 403 even with stealth |
+| Arc'teryx CA | Outlet site times out |
+| H&M Canada | Akamai 403 — ALL requests blocked (even browser+stealth) |
 | Frank and Oak | No `compare_at_price` in Shopify |
 | Adidas CA | PerimeterX bot protection |
 | North Face CA | Akamai bot protection |
-| Uniqlo CA | Requires dynamic client-id from browser session |
-| Musinsa Global | Location chooser blocks automated access |
-| American Eagle CA | Sale pages redirect to homepage (bot detection) |
+| Musinsa Global | Location chooser blocks access |
+| American Eagle CA | Aggressive bot detection — sale pages redirect regardless of browser mode |
 | Roots Canada | SFCC ISML server errors |
-| Levi's CA | Access Denied (bot block on sale URL) |
+| Levi's CA | Access Denied on sale URL |
 | Vuori | Disabled per user preference |
+| ASOS | ECONNRESET on direct fetch; XHR interception unreliable |
+| Gap CA | Sale pages redirect to OutOfStockNoResults |
+| Simons CA | All sale URLs redirect to homepage (bot-blocking) |
+| Urban Outfitters CA | 403 Forbidden on all sale URLs with stealth |
+| PacSun | PerimeterX bot protection |
+| Lacoste CA | 0 deals — DOM selectors not matching |
+| Jack & Jones CA | 0 deals — DOM selectors not matching |
+| Quiksilver CA | 0 deals — Boardriders platform |
+| Converse CA | 0 deals — Nike SFCC bot detection |
+| Zumiez CA | Sale pages 404 — URL structure changed |
+| Foot Locker CA | 0 products found — possible bot detection |
+| Tommy Hilfiger CA | 0 products found — possible bot detection |
+| Polo Ralph Lauren CA | 0 products found — possible bot detection |
+| Calvin Klein CA | Sale pages 404 |
+| Joe Fresh | Domain redirects — no longer serves Joe Fresh |
+| Canadian Tire | Non-clothing store; FGL API returns 400 |
 
 ## Known issues / TODO
 
-- **YoungLA timeout**: Occasionally times out when run concurrently with many other stores. Retry usually works.
-- **ASOS**: XHR intercept scraper in place — direct API fetch fails (ECONNRESET). Needs live run to confirm XHR interception picks up products.
-- **Sport Chek**: Only scrapes first page (~28 of 1602 deals). Implementing pagination would require 41 page loads; acceptable trade-off for now.
-- **Gap CA**: Sale category pages redirect to OutOfStockNoResults — could be temporary or URL change.
-- **Gymshark price accuracy**: Algolia index can lag behind actual site prices. inStock:true filter excludes OOS items.
-- **Gender tagging**: FIXED — items tagged via product name; tagger recognizes "M's"/"W's" (Patagonia convention).
-- **Store sidebar pills**: FIXED — pills use storeKey (short key from config), matching deals by storeKey field.
-- **Filter persistence**: FIXED — filters saved to localStorage, survive page refresh.
-- **Grid overlay during scrape**: FIXED — overlay only shows when zero cached deals exist.
+- **Vans CA**: browse-all approach (no dedicated sale section); deal count unknown until live test
+- **Champion**: Shopify API accessible but store has no active sale currently
+- **Sport Chek**: Only scrapes first page (~28 of ~1602 deals) — pagination would require 41 page loads
+- **Uniqlo CA**: Fixed API scraper in place; 0 deals because Uniqlo CA has no active sales now
+- **Lacoste / Jack & Jones / Quiksilver**: DOM selectors don't match — site structure investigation needed
+- **Tommy Hilfiger / Calvin Klein / Ralph Lauren**: PVH Corp SFCC — URL patterns unresolved
+- **Shift-click exclusion filter**: DONE — shift-click any sidebar pill to turn it red and EXCLUDE deals matching that filter; persists in localStorage
 
 ## Key behaviours
 
