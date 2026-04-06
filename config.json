@@ -215,6 +215,20 @@
       "currency": "CAD",
       "category": "clothing"
     },
+    "canadiantire": {
+      "enabled": true,
+      "name": "Canadian Tire",
+      "domain": "canadiantire.ca",
+      "currency": "CAD",
+      "category": "clothing"
+    },
+    "sportinglife": {
+      "enabled": true,
+      "name": "Sporting Life",
+      "domain": "sportinglife.ca",
+      "currency": "CAD",
+      "category": "clothing"
+    },
     "alphalete": {
       "enabled": true,
       "name": "Alphalete",
@@ -266,6 +280,51 @@
       "currency": "CAD",
       "category": "clothing",
       "note": "Bot detection - all sale URLs redirect to homepage (tested headless/visible, stealth plugin, multiple URLs)"
+    },
+    "rhone": {
+      "enabled": true,
+      "name": "Rhone",
+      "domain": "rhone.com",
+      "currency": "USD",
+      "category": "clothing"
+    },
+    "twoxu": {
+      "enabled": true,
+      "name": "2XU",
+      "domain": "2xu.com",
+      "currency": "USD",
+      "category": "clothing"
+    },
+    "joefresh": {
+      "enabled": false,
+      "name": "Joe Fresh",
+      "domain": "joefresh.com",
+      "currency": "CAD",
+      "category": "clothing",
+      "note": "Site redirects to Canadian Tire/Hudson's Bay - domain no longer serves Joe Fresh products (as of April 2026)"
+    },
+    "rwco": {
+      "enabled": true,
+      "name": "RW&CO",
+      "domain": "rw-co.com",
+      "currency": "CAD",
+      "category": "clothing"
+    },
+    "mec": {
+      "enabled": false,
+      "name": "MEC",
+      "domain": "mec.ca",
+      "currency": "CAD",
+      "category": "clothing",
+      "note": "Testing pending - Next.js site with product data"
+    },
+    "altitudesports": {
+      "enabled": false,
+      "name": "Altitude Sports",
+      "domain": "altitude-sports.com",
+      "currency": "CAD",
+      "category": "clothing",
+      "note": "Testing pending"
     }
   },
   "settings": {

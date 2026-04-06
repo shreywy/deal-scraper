@@ -47,6 +47,10 @@ const SCRAPERS = {
   newbalance:     require('./stores/newbalance'),
   marks:          require('./stores/marks'),
   simons:         require('./stores/simons'),
+  rhone:          require('./stores/rhone'),
+  twoxu:          require('./stores/twoxu'),
+  rwco:           require('./stores/rwco'),
+  joefresh:       require('./stores/joefresh'),
 };
 
 const CACHE_PATH = path.join(__dirname, '../data/deals.json');

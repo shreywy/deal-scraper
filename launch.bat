@@ -11,18 +11,32 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-:: Install dependencies if node_modules is missing
+:: Install npm dependencies if missing
 if not exist node_modules (
     echo Installing dependencies...
     call npm install
-    if %errorlevel% neq 0 ( echo npm install failed. & pause & exit /b 1 )
+    if %errorlevel% neq 0 (
+        echo npm install failed.
+        pause
+        exit /b 1
+    )
 )
 
-:: Install Playwright chromium if missing
-if not exist node_modules\playwright\package.json (
-    echo Installing Playwright browser...
+:: Check if Playwright Chromium browser binary is installed
+:: (npm package alone is not enough — the browser binary must be downloaded separately)
+node -e "const {chromium}=require('playwright');const fs=require('fs');process.exit(fs.existsSync(chromium.executablePath())?0:1);" >nul 2>&1
+if %errorlevel% neq 0 (
+    echo Installing Playwright Chromium browser...
     call npx playwright install chromium
+    if %errorlevel% neq 0 (
+        echo Playwright browser install failed.
+        pause
+        exit /b 1
+    )
 )
+
+:: Create data directory if missing (stores deal cache)
+if not exist data mkdir data
 
 echo.
 echo  Starting dealsco...
