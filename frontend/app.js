@@ -93,6 +93,10 @@ let currentTab = 'clothing'; // 'clothing' | 'non-clothing'
 const PAGE_SIZE = 100;
 let currentPage = 1;
 
+// Search
+let searchQuery = '';
+let searchDebounce = null;
+
 // Strip state
 let lastScrapedAt = null;
 let lastDealCount = 0;
@@ -499,13 +503,38 @@ function applyFiltersAndRender() {
     }
   }
 
-  deals.sort((a, b) => {
-    if (currentSort === 'discount') return b.discount - a.discount;
-    if (currentSort === 'price-asc') return a.price - b.price;
-    if (currentSort === 'price-desc') return b.price - a.price;
-    if (currentSort === 'newest') return new Date(b.scrapedAt) - new Date(a.scrapedAt);
-    return 0;
-  });
+  // Search filter with relevance scoring
+  if (searchQuery) {
+    // Compute relevance score for each deal
+    deals = deals.map(d => {
+      let score = 0;
+      const name = d.name.toLowerCase();
+      const store = (d.storeKey || d.store).toLowerCase();
+      const tags = d.tags.map(t => t.toLowerCase());
+
+      if (name.includes(searchQuery)) {
+        score = 3; // Product name match (highest priority)
+      } else if (store.includes(searchQuery)) {
+        score = 2; // Store name match
+      } else if (tags.some(tag => tag.includes(searchQuery))) {
+        score = 1; // Tag match (lowest priority)
+      }
+
+      return { ...d, _searchScore: score };
+    }).filter(d => d._searchScore > 0); // Filter out non-matches
+
+    // Sort by relevance when search is active
+    deals.sort((a, b) => b._searchScore - a._searchScore);
+  } else {
+    // Normal sort order when no search query
+    deals.sort((a, b) => {
+      if (currentSort === 'discount') return b.discount - a.discount;
+      if (currentSort === 'price-asc') return a.price - b.price;
+      if (currentSort === 'price-desc') return b.price - a.price;
+      if (currentSort === 'newest') return new Date(b.scrapedAt) - new Date(a.scrapedAt);
+      return 0;
+    });
+  }
 
   filteredDeals = deals;
   currentPage = 1;
@@ -910,6 +939,24 @@ function setSort(el) {
   document.querySelectorAll('.sort-row').forEach(r => r.classList.remove('active'));
   el.classList.add('active');
   currentSort = el.dataset.sort;
+  currentPage = 1;
+  applyFiltersAndRender();
+}
+
+function onSearchInput() {
+  clearTimeout(searchDebounce);
+  searchDebounce = setTimeout(() => {
+    searchQuery = document.getElementById('searchInput').value.trim().toLowerCase();
+    document.getElementById('searchClear').classList.toggle('visible', searchQuery.length > 0);
+    currentPage = 1;
+    applyFiltersAndRender();
+  }, 200);
+}
+
+function clearSearch() {
+  document.getElementById('searchInput').value = '';
+  searchQuery = '';
+  document.getElementById('searchClear').classList.remove('visible');
   currentPage = 1;
   applyFiltersAndRender();
 }

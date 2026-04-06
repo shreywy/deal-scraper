@@ -135,7 +135,8 @@
       "name": "Alo Yoga",
       "domain": "aloyoga.com",
       "currency": "USD",
-      "category": "clothing"
+      "category": "clothing",
+      "note": "USD pricing with conversion to CAD"
     },
     "vuori": {
       "enabled": false,
@@ -267,8 +268,8 @@
     "puma": {
       "enabled": true,
       "name": "Puma",
-      "domain": "puma.com",
-      "currency": "USD",
+      "domain": "ca.puma.com",
+      "currency": "CAD",
       "category": "clothing"
     },
     "newbalance": {
@@ -291,7 +292,7 @@
       "enabled": true,
       "name": "Rhone",
       "domain": "rhone.com",
-      "currency": "CAD",
+      "currency": "USD",
       "category": "clothing"
     },
     "twoxu": {

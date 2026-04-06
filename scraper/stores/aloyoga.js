@@ -5,13 +5,13 @@ const { getUSDtoCAD } = require('../currency');
 
 const STORE_NAME = 'Alo Yoga';
 const STORE_KEY = 'aloyoga';
-const CURRENCY = 'CAD';
+const CURRENCY = 'USD';
 
 // Alo Yoga main sale collection URL
 const SALE_URL = 'https://www.aloyoga.com/collections/sale';
 
 /**
- * Alo Yoga — shows CAD prices for Canadian visitors.
+ * Alo Yoga — USD pricing, convert to CAD.
  * Uses Playwright browser to scrape Builder.io product cards.
  *
  * @param {import('playwright').Browser} browser
@@ -19,7 +19,9 @@ const SALE_URL = 'https://www.aloyoga.com/collections/sale';
  * @returns {Promise<import('../index').Deal[]>}
  */
 async function scrape(browser, onProgress = () => {}) {
-  const rate = 1; // Site already shows CAD prices
+  onProgress('Alo Yoga: fetching USD→CAD rate…');
+  const rate = await getUSDtoCAD();
+  onProgress(`Alo Yoga: 1 USD = ${rate.toFixed(4)} CAD`);
 
   const context = await browser.newContext({
     userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
@@ -198,9 +200,12 @@ async function scrape(browser, onProgress = () => {}) {
   const tagged = allDeals.map(d => ({
     ...d,
     id: d.id || slugify(`${STORE_KEY}-${d.name}`),
-    currency: CURRENCY,
+    currency: 'CAD',
+    price: Math.round(d.price * rate * 100) / 100,
+    originalPrice: Math.round(d.originalPrice * rate * 100) / 100,
     priceCAD: Math.round(d.price * rate * 100) / 100,
     originalPriceCAD: Math.round(d.originalPrice * rate * 100) / 100,
+    exchangeRate: rate,
     tags: tag({ name: d.name, gender: d.gender || '' }),
     scrapedAt: new Date().toISOString(),
   }));
@@ -253,7 +258,8 @@ function mapShopifyProduct(p, seen, rate) {
       store: STORE_NAME, storeKey: STORE_KEY,
       name, url, image,
       price: priceCAD, originalPrice: originalPriceCAD, discount,
-      currency: CURRENCY, priceCAD, originalPriceCAD,
+      currency: 'CAD', priceCAD, originalPriceCAD,
+      exchangeRate: rate,
       tags: [], gender: '',
       scrapedAt: new Date().toISOString(),
     };

@@ -22,6 +22,10 @@
        onmouseenter="showScrapePopdown()" onmouseleave="hideScrapePopdown()">
     <div id="scrapePopdownContent"></div>
   </div>
+  <div class="search-wrap" id="searchWrap">
+    <input class="search-input" id="searchInput" type="text" placeholder="Search deals…" oninput="onSearchInput()" autocomplete="off">
+    <span class="search-clear" id="searchClear" onclick="clearSearch()">×</span>
+  </div>
   <div class="topbar-spacer"></div>
   <div class="dark-btn" id="darkBtn" onclick="toggleDark()" title="Toggle dark mode">
     <span class="dark-icon dark-icon-moon">🌙</span>

@@ -1,10 +1,11 @@
 'use strict';
 
 const { tag } = require('../tagger');
+const { getUSDtoCAD } = require('../currency');
 
 const STORE_NAME = 'Rhone';
 const STORE_KEY = 'rhone';
-const CURRENCY = 'CAD'; // Rhone shows CAD prices on their site
+const CURRENCY = 'USD'; // Rhone uses USD pricing, convert to CAD
 const SALE_URL = 'https://www.rhone.com/collections/sale';
 
 /**
@@ -13,6 +14,10 @@ const SALE_URL = 'https://www.rhone.com/collections/sale';
  * @returns {Promise<import('../index').Deal[]>}
  */
 async function scrape(browser, onProgress = () => {}) {
+  onProgress('Rhone: fetching USD→CAD rate…');
+  const exchangeRate = await getUSDtoCAD();
+  onProgress(`Rhone: 1 USD = ${exchangeRate.toFixed(4)} CAD`);
+
   const page = await browser.newPage();
   const allDeals = [];
   const seen = new Set();
@@ -100,6 +105,10 @@ async function scrape(browser, onProgress = () => {}) {
         if (seen.has(url)) continue;
         seen.add(url);
 
+        // Convert USD to CAD
+        const priceCAD = Math.round(price * exchangeRate * 100) / 100;
+        const originalPriceCAD = Math.round(originalPrice * exchangeRate * 100) / 100;
+
         const deal = {
           id: slugify(`rhone-${p.name}`),
           store: STORE_NAME,
@@ -107,12 +116,13 @@ async function scrape(browser, onProgress = () => {}) {
           name: p.name,
           url,
           image: p.image,
-          price,
-          originalPrice,
+          price: priceCAD,
+          originalPrice: originalPriceCAD,
           discount,
-          currency: CURRENCY,
-          priceCAD: price, // Already in CAD
-          originalPriceCAD: originalPrice, // Already in CAD
+          currency: 'CAD',
+          priceCAD,
+          originalPriceCAD,
+          exchangeRate,
           gender: 'Men', // Rhone is primarily men's activewear
           tags: tag({ name: p.name, gender: 'Men' }),
           scrapedAt: new Date().toISOString(),

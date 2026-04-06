@@ -89,6 +89,41 @@ body {
 .topbar-divider { width: 1px; height: 22px; background: var(--border); flex-shrink: 0; }
 .topbar-spacer { flex: 1; }
 
+/* ── SEARCH BAR ── */
+.search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  max-width: 360px;
+  margin: 0 12px;
+}
+.search-input {
+  width: 100%;
+  height: 34px;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  padding: 0 30px 0 10px;
+  font-size: 13px;
+  background: var(--surface);
+  color: var(--text-primary);
+  outline: none;
+}
+.search-input:focus {
+  border-color: var(--green-dark);
+}
+.search-clear {
+  position: absolute;
+  right: 8px;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 16px;
+  display: none;
+}
+.search-clear.visible {
+  display: block;
+}
+
 .refresh-strip {
   display: flex;
   align-items: center;

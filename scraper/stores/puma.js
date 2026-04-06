@@ -1,15 +1,13 @@
 'use strict';
 
 const { tag } = require('../tagger');
-const { getUSDtoCAD } = require('../currency');
 
 const STORE_NAME = 'Puma';
 const STORE_KEY = 'puma';
-const CURRENCY = 'USD';
+const CURRENCY = 'CAD';
 
-// Try multiple URLs in order
+// Puma CA site — use Canadian store for CAD pricing
 const SALE_URLS = [
-  'https://us.puma.com/us/en/sale',
   'https://ca.puma.com/ca/en/sale',
 ];
 
@@ -19,13 +17,10 @@ const SALE_URLS = [
  * @returns {Promise<import('../index').Deal[]>}
  */
 async function scrape(browser, onProgress = () => {}) {
-  onProgress('Puma: fetching USD→CAD rate…');
-  const rate = await getUSDtoCAD();
-  onProgress(`Puma: 1 USD = ${rate.toFixed(4)} CAD`);
-
   const context = await browser.newContext({
     userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-    locale: 'en-US',
+    locale: 'en-CA',
+    extraHTTPHeaders: { 'Accept-Language': 'en-CA,en;q=0.9' },
   });
 
   let workingUrl = null;
@@ -108,7 +103,7 @@ async function scrape(browser, onProgress = () => {}) {
 
     // Try XHR intercepted data first
     if (intercepted.length > 0) {
-      const deals = intercepted.map(p => mapAPIProduct(p, rate)).filter(Boolean);
+      const deals = intercepted.map(p => mapAPIProduct(p)).filter(Boolean);
       if (deals.length > 0) {
         onProgress(`Puma: found ${deals.length} deals (XHR)`);
         await context.close();
@@ -191,7 +186,7 @@ async function scrape(browser, onProgress = () => {}) {
         const discount = Math.round((1 - price / originalPrice) * 100);
         if (discount <= 0) continue;
 
-        results.push({ store: storeName, storeKey, name, url, image, price, originalPrice, discount, currency: 'USD', tags: [] });
+        results.push({ store: storeName, storeKey, name, url, image, price, originalPrice, discount, currency: 'CAD', tags: [] });
       }
 
       return results;
@@ -200,9 +195,9 @@ async function scrape(browser, onProgress = () => {}) {
     const tagged = deals.map(d => ({
       ...d,
       id: slugify(`puma-${d.name}`),
-      priceCAD: Math.round(d.price * rate * 100) / 100,
-      originalPriceCAD: Math.round(d.originalPrice * rate * 100) / 100,
-      exchangeRate: rate,
+      currency: CURRENCY,
+      priceCAD: d.price,
+      originalPriceCAD: d.originalPrice,
       tags: tag({ name: d.name }),
       scrapedAt: new Date().toISOString(),
     }));
@@ -215,7 +210,7 @@ async function scrape(browser, onProgress = () => {}) {
   }
 }
 
-function mapAPIProduct(p, rate) {
+function mapAPIProduct(p) {
   try {
     const name = p.name || p.title || p.productName || '';
     if (!name) return null;
@@ -236,7 +231,7 @@ function mapAPIProduct(p, rate) {
     if (discount <= 0) return null;
 
     const id = p.id || p.productId || p.sku || p.code || slugify(name);
-    const url = p.url || p.link || `https://us.puma.com/us/en/pd/${id}`;
+    const url = p.url || p.link || `https://ca.puma.com/ca/en/pd/${id}`;
     const image = p.image?.url || p.imageUrl || p.images?.[0]?.url || '';
 
     return {
@@ -250,9 +245,8 @@ function mapAPIProduct(p, rate) {
       originalPrice,
       discount,
       currency: CURRENCY,
-      priceCAD: Math.round(price * rate * 100) / 100,
-      originalPriceCAD: Math.round(originalPrice * rate * 100) / 100,
-      exchangeRate: rate,
+      priceCAD: price,
+      originalPriceCAD: originalPrice,
       tags: tag({ name }),
       scrapedAt: new Date().toISOString(),
     };
