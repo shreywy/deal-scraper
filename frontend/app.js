@@ -510,6 +510,11 @@ function switchTab(tab) {
     navContainer.style.display = tab === 'non-clothing' ? 'block' : 'none';
   }
 
+  // Reset category + store filters when switching tabs to avoid cross-tab bleed
+  filters.category = [];
+  filters.store = [];
+  selectedNcCategory = '';
+
   currentPage = 1;
   updateSidebarForTab(tab);
   applyFiltersAndRender();
