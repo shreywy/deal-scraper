@@ -64,12 +64,16 @@ async function scrape(browser, onProgress = () => {}) {
             seen.add(url);
 
             // Get name from description section
+            // SSENSE tiles have two .s-text elements: [0]=designer/brand, [1]=product name
             const descEl = tile.querySelector('.product-tile__description, [class*="description"]');
-            const brandEl = descEl?.querySelector('.s-text, [class*="brand"], [class*="designer"]');
-            const nameEl = descEl?.querySelector('.s-text:not([class*="price"]):not([class*="caption"])');
-            const brand = brandEl?.textContent?.trim() || '';
-            const productName = nameEl?.textContent?.trim() || '';
-            const name = brand && productName ? `${brand} ${productName}` : (brand || productName || '');
+            const sTexts = descEl
+              ? Array.from(descEl.querySelectorAll('.s-text')).filter(el => !el.closest('[class*="pricing"]'))
+              : [];
+            const brand = (sTexts[0]?.textContent?.trim()) || '';
+            const productName = (sTexts[1]?.textContent?.trim()) || '';
+            const name = brand && productName && productName !== brand
+              ? `${brand} ${productName}`
+              : (brand || productName || '');
 
             if (!name) return;
 
@@ -104,13 +108,12 @@ async function scrape(browser, onProgress = () => {}) {
             let image = '';
 
             if (sourceEl) {
-              // Extract from srcset or data-srcset (lazy loading)
-              const srcset = sourceEl.srcset || sourceEl.dataset?.srcset || '';
+              // Use getAttribute to reliably read both native srcset and lazy-load data-srcset
+              const srcset = sourceEl.getAttribute('srcset') || sourceEl.getAttribute('data-srcset') || '';
               if (srcset) {
-                // srcset format: "url descriptor, url descriptor"
-                // Cloudinary URLs include commas in params, so match until image extension
+                // Cloudinary URLs may contain commas in transform params — match up to image extension
                 const urlMatch = srcset.match(/^(https?:\/\/[^\s]+\.(?:jpg|jpeg|png|webp|gif))/i);
-                image = urlMatch ? urlMatch[1] : srcset.split(/\s/)[0]; // fallback to first space-separated token
+                image = urlMatch ? urlMatch[1] : srcset.split(/\s/)[0];
               }
             }
 
