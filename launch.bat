@@ -38,6 +38,11 @@ if %errorlevel% neq 0 (
 :: Create data directory if missing (stores deal cache)
 if not exist data mkdir data
 
+:: Kill any existing dealsco server on port 3000
+echo Checking for existing server on port 3000...
+powershell -Command "Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }" >nul 2>&1
+timeout /t 1 /nobreak >nul
+
 echo.
 echo  Starting dealsco...
 echo  Press Ctrl+C to stop.

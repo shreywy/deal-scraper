@@ -365,20 +365,20 @@
       "note": "0 deals currently (Shopify API accessible but sale collection is empty)"
     },
     "lacoste": {
-      "enabled": true,
+      "enabled": false,
       "name": "Tommy Hilfiger Canada (Lacoste)",
       "domain": "ca.tommy.com",
       "currency": "CAD",
       "category": "clothing",
-      "note": "Lacoste Canada redirects to Tommy Hilfiger Canada. XHR API + DOM scraping — ~10 deals"
+      "note": "Lacoste.ca redirects elsewhere — scraper was incorrectly repurposed to scrape ca.tommy.com (duplicate of tommyhilfiger scraper)"
     },
     "jackjones": {
-      "enabled": true,
+      "enabled": false,
       "name": "Foot Locker Canada (Jack & Jones)",
       "domain": "footlocker.ca",
       "currency": "CAD",
       "category": "clothing",
-      "note": "Jack & Jones Canada redirects to Foot Locker Canada. DOM scraping — ~48 deals"
+      "note": "Jack & Jones CA redirects elsewhere — scraper was incorrectly repurposed to scrape footlocker.ca (duplicate of footlocker scraper)"
     },
     "quiksilver": {
       "enabled": true,
