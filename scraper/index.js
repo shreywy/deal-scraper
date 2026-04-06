@@ -56,6 +56,23 @@ const SCRAPERS = {
   altitudesports: require('./stores/altitudesports'),
   canadiantire:   require('./stores/canadiantire'),
   sportinglife:   require('./stores/sportinglife'),
+  // Streetwear
+  urbanoutfitters: require('./stores/urbanoutfitters'),
+  vans:           require('./stores/vans'),
+  pacsun:         require('./stores/pacsun'),
+  champion:       require('./stores/champion'),
+  zumiez:         require('./stores/zumiez'),
+  ssense:         require('./stores/ssense'),
+  footlocker:     require('./stores/footlocker'),
+  // Menswear / luxury
+  tommyhilfiger:  require('./stores/tommyhilfiger'),
+  ralphlauren:    require('./stores/ralphlauren'),
+  calvinklein:    require('./stores/calvinklein'),
+  lacoste:        require('./stores/lacoste'),
+  jackjones:      require('./stores/jackjones'),
+  quiksilver:     require('./stores/quiksilver'),
+  dickies:        require('./stores/dickies'),
+  converse:       require('./stores/converse'),
 };
 
 const CACHE_PATH = path.join(__dirname, '../data/deals.json');

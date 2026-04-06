@@ -19,8 +19,19 @@ const filters = (() => {
   } catch (_) { return { ...FILTER_DEFAULTS }; }
 })();
 
+const EXCLUDE_DEFAULTS = { store: [], gender: [], category: [], price: [], discount: [] };
+const excludedFilters = (() => {
+  try {
+    const saved = JSON.parse(localStorage.getItem('dealFiltersExcluded') || 'null');
+    return saved ? { ...EXCLUDE_DEFAULTS, ...saved } : { ...EXCLUDE_DEFAULTS };
+  } catch (_) { return { ...EXCLUDE_DEFAULTS }; }
+})();
+
 function saveFilters() {
-  try { localStorage.setItem('dealFilters', JSON.stringify(filters)); } catch (_) {}
+  try {
+    localStorage.setItem('dealFilters', JSON.stringify(filters));
+    localStorage.setItem('dealFiltersExcluded', JSON.stringify(excludedFilters));
+  } catch (_) {}
 }
 
 // Pagination
@@ -343,16 +354,32 @@ function buildDynamicFilters() {
   syncPillActive('category', filters.category);
   syncPillActive('price', filters.price);
   syncPillActive('discount', filters.discount);
+  syncPillExcluded();
 }
 
 function makePill(filter, value, label, active = false) {
-  return `<div class="pill${active ? ' active' : ''}" data-filter="${filter}" data-value="${escHtml(value)}" onclick="togglePill(this)">${escHtml(label)}</div>`;
+  const isExcluded = excludedFilters[filter]?.includes(value);
+  const cls = `pill${active ? ' active' : ''}${isExcluded ? ' excluded' : ''}`;
+  return `<div class="${cls}" data-filter="${filter}" data-value="${escHtml(value)}" onclick="togglePill(this, event)">${escHtml(label)}</div>`;
 }
 
 function syncPillActive(filter, value) {
   document.querySelectorAll(`[data-filter="${filter}"]`).forEach(p => {
     p.classList.toggle('active', p.dataset.value === value);
   });
+}
+
+function syncPillExcluded() {
+  document.querySelectorAll('.pill.excluded').forEach(p => p.classList.remove('excluded'));
+  for (const [filter, excluded] of Object.entries(excludedFilters)) {
+    if (!excluded.length) continue;
+    document.querySelectorAll(`[data-filter="${filter}"]`).forEach(p => {
+      if (excluded.includes(p.dataset.value)) {
+        p.classList.add('excluded');
+        p.classList.remove('active');
+      }
+    });
+  }
 }
 
 // ── Filtering & Sorting ───────────────────────────────────────────────────────
@@ -381,6 +408,27 @@ function applyFiltersAndRender() {
   }
   const minDiscount = parseInt(filters.discount) || 0;
   if (minDiscount > 0) deals = deals.filter(d => d.discount >= minDiscount);
+
+  // Apply exclusion filters (shift-clicked red pills)
+  const cadP = d => (d.currency === 'USD' && d.priceCAD) ? d.priceCAD : d.price;
+  const GENDER_TAGS_EX = ['Men', 'Women', 'Kids'];
+  for (const [key, excluded] of Object.entries(excludedFilters)) {
+    for (const val of excluded) {
+      if (key === 'store')    deals = deals.filter(d => (d.storeKey || d.store) !== val);
+      if (key === 'gender')   deals = deals.filter(d => val === 'Unisex'
+        ? !(d.tags.includes('Unisex') || !GENDER_TAGS_EX.some(g => d.tags.includes(g)))
+        : !d.tags.includes(val));
+      if (key === 'category') deals = deals.filter(d => !d.tags.includes(val));
+      if (key === 'price') {
+        const [lo, hi] = val.split('-').map(Number);
+        deals = deals.filter(d => { const p = cadP(d); return !(p >= lo && p <= (hi || Infinity)); });
+      }
+      if (key === 'discount') {
+        const minD = parseInt(val) || 0;
+        if (minD > 0) deals = deals.filter(d => d.discount < minD);
+      }
+    }
+  }
 
   deals.sort((a, b) => {
     if (currentSort === 'discount') return b.discount - a.discount;
@@ -526,6 +574,13 @@ function renderResultsBar() {
     const label = key === 'price' ? `$${val.replace(/-99999$/, '+').replace('-', '–')}` : key === 'discount' ? `${val}%+` : val;
     chips.push(`<div class="active-tag">${escHtml(label)} <span class="active-tag-x" onclick="clearFilter('${key}')">×</span></div>`);
   }
+  for (const [key, excluded] of Object.entries(excludedFilters)) {
+    for (const val of excluded) {
+      hasActiveFilter = true;
+      const label = key === 'price' ? `$${val.replace(/-99999$/, '+').replace('-', '–')}` : key === 'discount' ? `${val}%+` : val;
+      chips.push(`<div class="active-tag excluded-tag">not: ${escHtml(label)} <span class="active-tag-x" onclick="clearExcluded('${key}','${val}')">×</span></div>`);
+    }
+  }
   if (hasActiveFilter) {
     chips.push(`<div class="reset-btn" onclick="resetAllFilters()">Reset all</div>`);
   }
@@ -534,7 +589,9 @@ function renderResultsBar() {
 
 function resetAllFilters() {
   Object.assign(filters, FILTER_DEFAULTS);
+  for (const k of Object.keys(excludedFilters)) excludedFilters[k] = [];
   ['store', 'gender', 'category', 'price', 'discount'].forEach(k => syncPillActive(k, filters[k]));
+  syncPillExcluded();
   currentPage = 1;
   saveFilters();
   applyFiltersAndRender();
@@ -743,11 +800,40 @@ function setSort(el) {
   applyFiltersAndRender();
 }
 
-function togglePill(el) {
+function togglePill(el, event) {
   if (el.classList.contains('pill-disabled')) return;
   const group = el.closest('.pill-group');
   const filterKey = el.dataset.filter;
   const value = el.dataset.value;
+
+  // Shift-click: toggle exclusion (turn red)
+  if (event && event.shiftKey) {
+    if (value === 'all' || value === '0') return; // Can't exclude "all"
+    const excluded = excludedFilters[filterKey];
+    const idx = excluded.indexOf(value);
+    if (idx >= 0) {
+      excluded.splice(idx, 1); // Remove exclusion
+    } else {
+      excluded.push(value); // Add exclusion
+      // Remove include filter if same value was active
+      if (filters[filterKey] === value) {
+        filters[filterKey] = filterKey === 'discount' ? '0' : 'all';
+        group.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+        const allPill = group.querySelector('[data-value="all"], [data-value="0"]');
+        if (allPill) allPill.classList.add('active');
+      }
+    }
+    currentPage = 1;
+    saveFilters();
+    applyFiltersAndRender();
+    syncPillExcluded();
+    return;
+  }
+
+  // Normal click: include filter
+  // Remove any exclusion for this value if it was excluded
+  const excIdx = excludedFilters[filterKey]?.indexOf(value);
+  if (excIdx >= 0) excludedFilters[filterKey].splice(excIdx, 1);
 
   group.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
 
@@ -755,7 +841,6 @@ function togglePill(el) {
     el.classList.add('active');
     filters[filterKey] = filterKey === 'discount' ? '0' : 'all';
   } else {
-    // Also deactivate the "all" pill
     const allPill = group.querySelector('[data-value="all"], [data-value="0"]');
     if (allPill) allPill.classList.remove('active');
     el.classList.add('active');
@@ -764,11 +849,24 @@ function togglePill(el) {
   currentPage = 1;
   saveFilters();
   applyFiltersAndRender();
+  syncPillExcluded();
 }
 
 function clearFilter(key) {
   filters[key] = key === 'discount' ? '0' : 'all';
+  if (excludedFilters[key]) excludedFilters[key] = [];
   syncPillActive(key, filters[key]);
+  syncPillExcluded();
+  currentPage = 1;
+  saveFilters();
+  applyFiltersAndRender();
+}
+
+function clearExcluded(key, val) {
+  if (!excludedFilters[key]) return;
+  const idx = excludedFilters[key].indexOf(val);
+  if (idx >= 0) excludedFilters[key].splice(idx, 1);
+  syncPillExcluded();
   currentPage = 1;
   saveFilters();
   applyFiltersAndRender();

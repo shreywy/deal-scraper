@@ -431,6 +431,10 @@ html.dark .dark-icon-sun  { transform: translateY(0) rotate(0deg); opacity: 1; }
 }
 .pill:hover { border-color: var(--border-hover); background: var(--green-light); transform: translateY(-1px); }
 .pill.active { background: var(--green-mid); color: white; border-color: var(--green-mid); }
+.pill.excluded { background: #fde8e8; color: #b91c1c; border-color: #f87171; }
+.pill.excluded:hover { background: #fecaca; border-color: #ef4444; transform: translateY(-1px); }
+html.dark .pill.excluded { background: #3d1c1c; color: #fca5a5; border-color: #b91c1c; }
+html.dark .pill.excluded:hover { background: #4d2020; border-color: #ef4444; }
 .pill.pill-disabled { opacity: 0.35; cursor: not-allowed; pointer-events: none; }
 .pill.pill-disabled:hover { transform: none; background: var(--surface); border-color: var(--border); }
 
@@ -471,6 +475,8 @@ html.dark .dark-icon-sun  { transform: translateY(0) rotate(0deg); opacity: 1; }
 }
 .active-tag-x { cursor: pointer; opacity: 0.6; margin-left: 1px; }
 .active-tag-x:hover { opacity: 1; }
+.active-tag.excluded-tag { background: #fde8e8; color: #b91c1c; }
+html.dark .active-tag.excluded-tag { background: #3d1c1c; color: #fca5a5; }
 
 /* ── GRID ── */
 /* Tile min-width is set via --tile-min on the element, auto-fill does the rest.

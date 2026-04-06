@@ -73,38 +73,38 @@
     <div class="sb-section" id="filterStore">
       <div class="sb-label">Store</div>
       <div class="pill-group" id="storePills">
-        <div class="pill active" data-filter="store" data-value="all" onclick="togglePill(this)">All</div>
+        <div class="pill active" data-filter="store" data-value="all" onclick="togglePill(this, event)">All</div>
       </div>
     </div>
 
     <div class="sb-section">
       <div class="sb-label">Gender</div>
       <div class="pill-group" id="genderPills">
-        <div class="pill active" data-filter="gender" data-value="all" onclick="togglePill(this)">All</div>
-        <div class="pill" data-filter="gender" data-value="Men" onclick="togglePill(this)">Men</div>
-        <div class="pill" data-filter="gender" data-value="Women" onclick="togglePill(this)">Women</div>
-        <div class="pill" data-filter="gender" data-value="Unisex" onclick="togglePill(this)">Unisex</div>
+        <div class="pill active" data-filter="gender" data-value="all" onclick="togglePill(this, event)">All</div>
+        <div class="pill" data-filter="gender" data-value="Men" onclick="togglePill(this, event)">Men</div>
+        <div class="pill" data-filter="gender" data-value="Women" onclick="togglePill(this, event)">Women</div>
+        <div class="pill" data-filter="gender" data-value="Unisex" onclick="togglePill(this, event)">Unisex</div>
       </div>
     </div>
 
     <div class="sb-section">
       <div class="sb-label">Category <span class="sb-label-note">(auto-tagged)</span></div>
       <div class="pill-group" id="categoryPills">
-        <div class="pill active" data-filter="category" data-value="all" onclick="togglePill(this)">All</div>
+        <div class="pill active" data-filter="category" data-value="all" onclick="togglePill(this, event)">All</div>
       </div>
     </div>
 
     <div class="sb-section">
       <div class="sb-label">Price range</div>
       <div class="pill-group" id="pricePills">
-        <div class="pill active" data-filter="price" data-value="all" onclick="togglePill(this)">Any</div>
+        <div class="pill active" data-filter="price" data-value="all" onclick="togglePill(this, event)">Any</div>
       </div>
     </div>
 
     <div class="sb-section">
       <div class="sb-label">Min. discount</div>
       <div class="pill-group" id="discountPills">
-        <div class="pill active" data-filter="discount" data-value="0" onclick="togglePill(this)">Any</div>
+        <div class="pill active" data-filter="discount" data-value="0" onclick="togglePill(this, event)">Any</div>
       </div>
     </div>
   </aside>
