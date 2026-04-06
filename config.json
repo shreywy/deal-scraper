@@ -492,11 +492,12 @@
       "note": "Bot-blocked - 403 Access Denied on all sale URLs (clearance, sale-items)"
     },
     "thesource": {
-      "enabled": true,
+      "enabled": false,
       "name": "The Source",
       "domain": "thesource.ca",
       "currency": "CAD",
-      "category": "non-clothing"
+      "category": "non-clothing",
+      "note": "SSL certificate invalid — ERR_CERT_DATE_INVALID on thesource.ca"
     },
     "walmart": {
       "enabled": false,
@@ -507,11 +508,12 @@
       "note": "Bot-blocked - timeouts on all deal pages, GraphQL endpoints not accessible"
     },
     "staples": {
-      "enabled": true,
+      "enabled": false,
       "name": "Staples Canada",
       "domain": "staples.ca",
       "currency": "CAD",
-      "category": "non-clothing"
+      "category": "non-clothing",
+      "note": "Shopify API blocked (returns HTML); Playwright bot-detection"
     },
     "newegg": {
       "enabled": true,
@@ -528,46 +530,52 @@
       "category": "non-clothing"
     },
     "memoryexpress": {
-      "enabled": true,
+      "enabled": false,
       "name": "Memory Express",
       "domain": "memoryexpress.com",
       "currency": "CAD",
-      "category": "non-clothing"
+      "category": "non-clothing",
+      "note": "Clearance is in-store only — no online clearance prices available"
     },
     "lenovo": {
-      "enabled": true,
+      "enabled": false,
       "name": "Lenovo CA",
       "domain": "lenovo.com/ca",
       "currency": "CAD",
-      "category": "non-clothing"
+      "category": "non-clothing",
+      "note": "Deals page URL returns 404"
     },
     "dell": {
-      "enabled": true,
+      "enabled": false,
       "name": "Dell CA",
       "domain": "dell.com/ca",
       "currency": "CAD",
-      "category": "non-clothing"
+      "category": "non-clothing",
+      "note": "403 Forbidden on deals page — bot detection"
     },
     "hp": {
-      "enabled": true,
+      "enabled": false,
       "name": "HP Canada",
       "domain": "hp.com/ca",
       "currency": "CAD",
-      "category": "non-clothing"
+      "category": "non-clothing",
+      "note": "Page loads but scraper times out — heavy JS rendering"
     },
     "indigo": {
-      "enabled": true,
+      "enabled": false,
       "name": "Indigo / Chapters",
       "domain": "chapters.indigo.ca",
       "currency": "CAD",
-      "category": "non-clothing"
+      "category": "non-clothing",
+      "note": "Sale page shows sale prices only — no compare_at prices to calculate discount"
     },
     "lego": {
-      "enabled": true,
+      "enabled": false,
       "name": "LEGO CA",
       "domain": "lego.com/en-ca",
       "currency": "CAD",
-      "category": "non-clothing"
+      "category": "non-clothing",
+      "note": "Canadian sale/deals pages return 404 — no active CA sale section"
     },
     "samsung": {
       "enabled": false,
@@ -594,54 +602,60 @@
       "note": "Sale page loads (200 OK) but products rendered via React SPA - not scrapable via DOM"
     },
     "ikea": {
-      "enabled": true,
+      "enabled": false,
       "name": "IKEA Canada",
       "domain": "ikea.com/ca",
       "currency": "CAD",
-      "category": "non-clothing"
+      "category": "non-clothing",
+      "note": "IKEA sale pages return navigation links, not individual sale products with compare prices"
     },
     "costco": {
-      "enabled": true,
+      "enabled": false,
       "name": "Costco Canada",
       "domain": "costco.ca",
       "currency": "CAD",
-      "category": "non-clothing"
+      "category": "non-clothing",
+      "note": "Bot-blocked — Access Denied on all deal/sale pages"
     },
     "homedepot": {
-      "enabled": true,
+      "enabled": false,
       "name": "Home Depot CA",
       "domain": "homedepot.ca",
       "currency": "CAD",
-      "category": "non-clothing"
+      "category": "non-clothing",
+      "note": "Scraper returns 0 deals — product data loaded via heavy JS not captured by DOM scrape"
     },
     "rona": {
-      "enabled": true,
+      "enabled": false,
       "name": "RONA",
       "domain": "rona.ca",
       "currency": "CAD",
-      "category": "non-clothing"
+      "category": "non-clothing",
+      "note": "403 Forbidden on clearance pages — bot detection"
     },
     "gamestop": {
-      "enabled": true,
+      "enabled": false,
       "name": "GameStop CA",
       "domain": "gamestop.ca",
       "currency": "CAD",
-      "category": "non-clothing"
+      "category": "non-clothing",
+      "note": "Shopify API returns 403 — bot-blocked"
     },
     "toysrus": {
-      "enabled": true,
+      "enabled": false,
       "name": "Toys R Us CA",
       "domain": "toysrus.ca",
       "currency": "CAD",
-      "category": "non-clothing"
+      "category": "non-clothing",
+      "note": "Shopify API blocked — returns HTML instead of JSON"
     },
     "bestbuyoutlet": {
-      "enabled": true,
+      "enabled": false,
       "name": "Best Buy Outlet",
       "domain": "bestbuy.ca",
       "currency": "CAD",
       "category": "non-clothing",
-      "note": "Open-box and refurbished deals from Best Buy Canada"
+      "note": "Bot-blocked — same Akamai protection as Best Buy CA"
     },
     "leons": {
       "enabled": true,
@@ -658,47 +672,52 @@
       "category": "non-clothing"
     },
     "visions": {
-      "enabled": true,
+      "enabled": false,
       "name": "Visions Electronics",
       "domain": "visions.ca",
       "currency": "CAD",
-      "category": "non-clothing"
+      "category": "non-clothing",
+      "note": "Promo page URL returns 404 — URL structure changed"
     },
     "cb2": {
-      "enabled": true,
+      "enabled": false,
       "name": "CB2 Canada",
       "domain": "cb2.ca",
       "currency": "CAD",
-      "category": "non-clothing"
+      "category": "non-clothing",
+      "note": "Sale page times out after 30s — heavy JS or bot detection"
     },
     "structube": {
-      "enabled": true,
+      "enabled": false,
       "name": "Structube",
       "domain": "structube.com",
       "currency": "CAD",
-      "category": "non-clothing"
+      "category": "non-clothing",
+      "note": "Shopify API returns invalid JSON — likely HTML bot wall"
     },
     "factorydirect": {
-      "enabled": true,
+      "enabled": false,
       "name": "Factory Direct",
       "domain": "factorydirect.ca",
       "currency": "CAD",
-      "category": "non-clothing"
+      "category": "non-clothing",
+      "note": "Shopify API returns HTML — bot-blocked"
     },
     "dyson": {
-      "enabled": true,
+      "enabled": false,
       "name": "Dyson CA",
       "domain": "dyson.ca",
       "currency": "CAD",
-      "category": "non-clothing"
+      "category": "non-clothing",
+      "note": "Domain dyson.ca does not resolve — ERR_NAME_NOT_RESOLVED"
     },
     "samsungoutlet": {
-      "enabled": true,
+      "enabled": false,
       "name": "Samsung Outlet",
       "domain": "samsung.com/ca",
       "currency": "CAD",
       "category": "non-clothing",
-      "note": "Certified Re-Newed (refurbished) products"
+      "note": "Outlet page returns HTML, no JSON API available"
     }
   },
   "settings": {

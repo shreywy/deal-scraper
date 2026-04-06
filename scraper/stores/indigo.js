@@ -1,17 +1,8 @@
 'use strict';
 
-const fetch = require('node-fetch');
-
 const STORE_NAME = 'Indigo';
 const STORE_KEY = 'indigo';
 const CURRENCY = 'CAD';
-
-// Indigo/Chapters is on Shopify
-const SALE_COLLECTIONS = [
-  'sale',
-  'clearance',
-  'books-on-sale',
-];
 
 /**
  * Non-clothing category helper
@@ -35,101 +26,119 @@ function ncTag(name, cat = '') {
  * @param {function(string):void} [onProgress]
  * @returns {Promise<import('../index').Deal[]>}
  */
-async function scrape(_browser, onProgress = () => {}) {
+async function scrape(browser, onProgress = () => {}) {
   const allDeals = [];
   const seenUrls = new Set();
+  let context = null;
+  let page = null;
 
-  for (const collection of SALE_COLLECTIONS) {
-    onProgress(`Indigo: loading ${collection} collection…`);
+  try {
+    // Shopify API is blocked - use Playwright DOM scraping
+    onProgress('Indigo: using DOM scraping (Shopify API blocked)');
 
-    let page = 1;
-    const MAX_PAGES = 10;
+    context = await browser.newContext({
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      locale: 'en-CA',
+    });
 
-    while (page <= MAX_PAGES) {
-      const url = `https://www.chapters.indigo.ca/collections/${collection}/products.json?limit=250&page=${page}`;
+    page = await context.newPage();
 
+    await page.goto('https://www.indigo.ca/en-ca/sale/', {
+      waitUntil: 'domcontentloaded',
+      timeout: 60000,
+    });
+
+    await page.waitForTimeout(5000);
+
+    // Scroll to load more products
+    for (let i = 0; i < 5; i++) {
+      await page.evaluate(() => window.scrollBy(0, window.innerHeight));
+      await page.waitForTimeout(1500);
+    }
+
+    onProgress('Indigo: extracting products from page...');
+
+    const products = await page.evaluate(() => {
+      const items = [];
+      const tiles = Array.from(document.querySelectorAll('.product-tile'));
+
+      tiles.forEach(tile => {
+        try {
+          const name = tile.getAttribute('data-cnstrc-item-name') || '';
+          if (!name) return;
+
+          const salePrice = parseFloat(tile.getAttribute('data-cnstrc-item-price') || '0');
+          if (!salePrice) return;
+
+          // Try to find original price in DOM
+          const regularPriceEl = tile.querySelector('.strikethrough') || tile.querySelector('[class*="was-price"]');
+          if (!regularPriceEl) return; // Skip if no original price
+
+          const regularPriceText = regularPriceEl.textContent.trim().replace(/[^0-9.]/g, '');
+          const regularPrice = parseFloat(regularPriceText);
+
+          if (!regularPrice || salePrice >= regularPrice) return;
+
+          const url = tile.querySelector('a')?.href || '';
+          const image = tile.querySelector('img')?.src || '';
+
+          items.push({ name, salePrice, regularPrice, url, image });
+        } catch (err) {
+          // Skip malformed tiles
+        }
+      });
+
+      return items;
+    });
+
+    onProgress(`Indigo: found ${products.length} products with prices`);
+
+    // Convert to deal objects
+    for (const product of products) {
       try {
-        const response = await fetch(url);
-        if (!response.ok) {
-          if (page === 1) onProgress(`Indigo: ${collection} returned ${response.status}`);
-          break;
-        }
+        const discount = Math.round((1 - product.salePrice / product.regularPrice) * 100);
+        if (discount <= 0) continue;
 
-        const json = await response.json();
-        const products = json?.products || [];
+        const url = product.url || '';
+        if (seenUrls.has(url)) continue;
+        seenUrls.add(url);
 
-        if (products.length === 0) break;
+        const deal = {
+          id: slugify(`${STORE_KEY}-${product.name}`),
+          store: STORE_NAME,
+          storeKey: STORE_KEY,
+          name: product.name,
+          url,
+          image: product.image,
+          price: parseFloat(product.salePrice.toFixed(2)),
+          originalPrice: parseFloat(product.regularPrice.toFixed(2)),
+          discount,
+          currency: CURRENCY,
+          priceCAD: parseFloat(product.salePrice.toFixed(2)),
+          originalPriceCAD: parseFloat(product.regularPrice.toFixed(2)),
+          tags: ['Non-Clothing', ncTag(product.name, '')],
+          scrapedAt: new Date().toISOString(),
+        };
 
-        for (const p of products) {
-          const deal = mapShopifyProduct(p, seenUrls);
-          if (deal) allDeals.push(deal);
-        }
-
-        onProgress(`Indigo: ${collection} page ${page} (${products.length} products)`);
-        page++;
+        allDeals.push(deal);
       } catch (err) {
-        onProgress(`Indigo: error on ${collection} page ${page} — ${err.message}`);
-        break;
+        continue;
       }
     }
+
+    await page.close();
+    await context.close();
+
+  } catch (err) {
+    onProgress(`Indigo: error — ${err.message}`);
+    if (page) await page.close().catch(() => {});
+    if (context) await context.close().catch(() => {});
   }
 
   onProgress(`Indigo: found ${allDeals.length} deals`);
   return allDeals;
 }
 
-function mapShopifyProduct(p, seen) {
-  try {
-    const name = p.title || '';
-    if (!name) return null;
-
-    // Get first variant with both price and compare_at_price
-    let selectedVariant = null;
-    for (const v of (p.variants || [])) {
-      const price = parseFloat(v.price);
-      const compareAt = parseFloat(v.compare_at_price);
-      if (price && compareAt && compareAt > price) {
-        selectedVariant = v;
-        break;
-      }
-    }
-
-    if (!selectedVariant) return null;
-
-    const price = parseFloat(selectedVariant.price);
-    const originalPrice = parseFloat(selectedVariant.compare_at_price);
-
-    if (!price || !originalPrice || price >= originalPrice) return null;
-
-    const discount = Math.round((1 - price / originalPrice) * 100);
-    if (discount <= 0) return null;
-
-    const handle = p.handle || '';
-    const url = `https://www.chapters.indigo.ca/en-ca/home/${handle}/`;
-    if (seen.has(url)) return null;
-    seen.add(url);
-
-    const image = p.images?.[0]?.src || '';
-    const category = p.product_type || '';
-
-    return {
-      id: slugify(`${STORE_KEY}-${handle}`),
-      store: STORE_NAME,
-      storeKey: STORE_KEY,
-      name,
-      url,
-      image,
-      price,
-      originalPrice,
-      discount,
-      currency: CURRENCY,
-      priceCAD: price,
-      originalPriceCAD: originalPrice,
-      tags: ['Non-Clothing', ncTag(name, category)],
-      scrapedAt: new Date().toISOString(),
-    };
-  } catch (_) { return null; }
-}
 
 function slugify(str) {
   return str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 80);

@@ -1,209 +1,95 @@
 'use strict';
 
+const fetch = require('node-fetch');
+
 const STORE_NAME = 'The Brick';
 const STORE_KEY = 'thebrick';
 const CURRENCY = 'CAD';
 
-// Non-clothing category helper
-function ncTag(name, cat = '') {
-  const t = `${name} ${cat}`.toLowerCase();
-  if (/laptop|notebook|ultrabook|chromebook|macbook/.test(t)) return 'Computers';
-  if (/desktop|workstation|mini pc|all.in.one|all in one/.test(t)) return 'Computers';
-  if (/\bmonitor\b|television|\btv\b|oled|qled|4k display/.test(t)) return 'TVs & Displays';
-  if (/iphone|smartphone|cell phone|mobile phone|\btablet\b|\bipad\b/.test(t)) return 'Phones & Tablets';
-  if (/headphone|earphone|earbud|airpod|\bspeaker\b|soundbar|subwoofer/.test(t)) return 'Audio';
-  if (/\bcamera\b|mirrorless|dslr|\bdrone\b/.test(t)) return 'Cameras';
-  if (/\bgaming\b|console|\bxbox\b|playstation|\bps5\b|\bps4\b|nintendo|\bswitch\b|controller|gpu|graphics card/.test(t)) return 'Gaming';
-  if (/washer|dryer|fridge|refrigerator|dishwasher|microwave|\boven\b|\bstove\b|vacuum|air purifier|coffee maker|espresso|blender|toaster/.test(t)) return 'Appliances';
-  if (/\bsofa\b|\bcouch\b|\bchair\b|\bdesk\b|\btable\b|\bshelf\b|bookcase|\bbed\b|mattress|\blamp\b|\brug\b|wardrobe|dresser|nightstand|bookshelf/.test(t)) return 'Furniture';
-  if (/\bprinter\b|\bscanner\b|\bkeyboard\b|\bmouse\b|webcam|\brouter\b|hard drive|\bssd\b|\bram\b|\bcpu\b|motherboard/.test(t)) return 'Computer Parts';
-  if (/lego|\btoy\b|\btoys\b|action figure|doll|playset|puzzle|board game|card game|nerf|hot wheels/.test(t)) return 'Toys & Games';
-  if (/book|novel|cookbook|memoir|biography|manga|textbook/.test(t)) return 'Books & Media';
-  if (/skincare|shampoo|conditioner|moisturizer|serum|perfume|cologne|makeup|beauty|haircare/.test(t)) return 'Beauty & Health';
-  if (/fitness|treadmill|dumbbell|kettlebell|yoga mat|exercise bike|elliptical/.test(t)) return 'Fitness';
-  if (/drill|saw|wrench|hammer|screwdriver|power tool|toolbox|ladder|paint/.test(t)) return 'Tools & Home Improvement';
-  if (/cookware|\bpot\b|\bpan\b|knife|cutting board|bakeware|dinnerware|utensil/.test(t)) return 'Kitchen';
-  return 'Electronics';
+function ncTag(name) {
+  const t = name.toLowerCase();
+  if (/laptop|notebook|chromebook/.test(t)) return 'Computers';
+  if (/desktop|workstation|mini pc/.test(t)) return 'Computers';
+  if (/\bmonitor\b|\btv\b|television|oled|qled/.test(t)) return 'TVs & Displays';
+  if (/\btablet\b|\bipad\b/.test(t)) return 'Phones & Tablets';
+  if (/headphone|earphone|earbud|\bspeaker\b|soundbar/.test(t)) return 'Audio';
+  if (/\bcamera\b|mirrorless|dslr/.test(t)) return 'Cameras';
+  if (/gaming|console|\bxbox\b|playstation|\bps5\b|nintendo|controller/.test(t)) return 'Gaming';
+  if (/washer|dryer|fridge|refrigerator|dishwasher|microwave|\boven\b|\bstove\b|vacuum|air purifier|coffee maker|blender|toaster|freezer/.test(t)) return 'Appliances';
+  if (/\bsofa\b|\bcouch\b|\bchair\b|\bdesk\b|\btable\b|\bshelf\b|\bbed\b|mattress|\blamp\b|\brug\b|wardrobe|dresser|nightstand|sectional|recliner|loveseat/.test(t)) return 'Furniture';
+  if (/drill|saw|wrench|hammer|screwdriver|power tool|toolbox/.test(t)) return 'Tools & Home Improvement';
+  if (/cookware|\bpot\b|\bpan\b|\bknife\b|bakeware|dinnerware/.test(t)) return 'Kitchen';
+  return 'Appliances';
 }
 
 function slugify(str) {
   return str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 80);
 }
 
-/**
- * Scrapes deals from The Brick
- * @param {Object} browser - Playwright browser instance
- * @param {Function} onProgress - Progress callback
- * @returns {Promise<Array>} Array of deal objects
- */
 async function scrape(browser, onProgress = () => {}) {
-  let context = null;
-  let page = null;
   const deals = [];
+  const seen = new Set();
+  let page = 1;
 
-  try {
-    onProgress('The Brick: navigating to sale page…');
+  onProgress('The Brick: fetching sale items via Shopify API…');
 
-    context = await browser.newContext({
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-      locale: 'en-CA',
-    });
+  while (page <= 10) {
+    try {
+      const res = await fetch(
+        `https://www.thebrick.com/collections/on-sale/products.json?limit=250&page=${page}`,
+        { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36', 'Accept': 'application/json' }, timeout: 15000 }
+      );
+      const data = await res.json();
+      const products = data.products || [];
 
-    page = await context.newPage();
+      if (!products.length) break;
 
-    await page.goto('https://www.thebrick.com/pages/sale', {
-      waitUntil: 'domcontentloaded',
-      timeout: 30000,
-    });
+      for (const product of products) {
+        for (const variant of product.variants) {
+          if (!variant.compare_at_price) continue;
+          const price = parseFloat(variant.price);
+          const originalPrice = parseFloat(variant.compare_at_price);
+          if (!price || !originalPrice || price >= originalPrice) continue;
 
-    await page.waitForTimeout(3000);
+          const name = product.title.replace(/\|.+$/, '').trim(); // strip French part
+          if (seen.has(product.id)) continue;
+          seen.add(product.id);
 
-    // Scroll to load more products
-    for (let i = 0; i < 5; i++) {
-      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-      await page.waitForTimeout(2000);
-    }
+          const discount = Math.round(((originalPrice - price) / originalPrice) * 100);
+          const image = product.images[0]?.src || '';
+          const url = `https://www.thebrick.com/products/${product.handle}`;
 
-    onProgress('The Brick: extracting products…');
-
-    // Extract products from DOM
-    const products = await page.evaluate(() => {
-      const selectors = [
-        '[class*="product-card"]',
-        '.product',
-        '.product-item',
-        '[data-product]',
-        '[class*="ProductCard"]',
-        '.product-tile',
-      ];
-
-      let cards = [];
-      for (const selector of selectors) {
-        cards = Array.from(document.querySelectorAll(selector)).slice(0, 300);
-        if (cards.length > 0) break;
-      }
-
-      return cards.map(card => {
-        try {
-          // Find product name
-          const nameSelectors = [
-            '.product-name',
-            '[class*="productName"]',
-            '[class*="ProductName"]',
-            'h3',
-            'h4',
-            '[class*="title"]',
-          ];
-          let name = '';
-          for (const sel of nameSelectors) {
-            const el = card.querySelector(sel);
-            if (el && el.textContent.trim()) {
-              name = el.textContent.trim();
-              break;
-            }
-          }
-
-          // Find sale price
-          const salePriceSelectors = [
-            '[class*="salePrice"]',
-            '[class*="sale-price"]',
-            '[class*="currentPrice"]',
-            '[class*="special-price"]',
-            '.price',
-          ];
-          let salePrice = null;
-          for (const sel of salePriceSelectors) {
-            const el = card.querySelector(sel);
-            if (el) {
-              const text = el.textContent.trim().replace(/[^0-9.]/g, '');
-              salePrice = parseFloat(text);
-              if (salePrice) break;
-            }
-          }
-
-          // Find regular price
-          const regPriceSelectors = [
-            '[class*="regularPrice"]',
-            '[class*="regular-price"]',
-            '[class*="wasPrice"]',
-            '[class*="was-price"]',
-            'del',
-            's',
-            '[class*="old-price"]',
-          ];
-          let regularPrice = null;
-          for (const sel of regPriceSelectors) {
-            const el = card.querySelector(sel);
-            if (el) {
-              const text = el.textContent.trim().replace(/[^0-9.]/g, '');
-              regularPrice = parseFloat(text);
-              if (regularPrice) break;
-            }
-          }
-
-          // Find image
-          const imgEl = card.querySelector('img');
-          const image = imgEl?.src || imgEl?.dataset?.src || '';
-
-          // Find URL
-          const linkEl = card.querySelector('a[href*="/products/"], a[href*="/collections/"], a');
-          const url = linkEl?.href || '';
-
-          // Category
-          const categoryEl = card.querySelector('[class*="category"], [class*="type"]');
-          const category = categoryEl?.textContent?.trim() || '';
-
-          return { name, salePrice, regularPrice, image, url, category };
-        } catch (error) {
-          return null;
+          deals.push({
+            id: slugify(`thebrick-${name}`),
+            store: STORE_NAME,
+            storeKey: STORE_KEY,
+            name,
+            url,
+            image,
+            price,
+            originalPrice,
+            discount,
+            currency: CURRENCY,
+            priceCAD: price,
+            originalPriceCAD: originalPrice,
+            tags: ['Non-Clothing', ncTag(name)],
+            scrapedAt: new Date().toISOString(),
+          });
+          break; // one variant per product
         }
-      }).filter(p => p && p.name && p.salePrice && p.regularPrice && p.url);
-    });
-
-    onProgress(`The Brick: found ${products.length} products with prices`);
-
-    // Process products into deals
-    for (const product of products) {
-      try {
-        if (product.salePrice >= product.regularPrice) continue;
-
-        const discount = Math.round(((product.regularPrice - product.salePrice) / product.regularPrice) * 100);
-        if (discount <= 0) continue;
-
-        const deal = {
-          id: slugify(`thebrick-${product.name}`),
-          store: STORE_NAME,
-          storeKey: STORE_KEY,
-          name: product.name,
-          url: product.url,
-          image: product.image || '',
-          price: parseFloat(product.salePrice.toFixed(2)),
-          originalPrice: parseFloat(product.regularPrice.toFixed(2)),
-          discount,
-          currency: CURRENCY,
-          priceCAD: parseFloat(product.salePrice.toFixed(2)),
-          originalPriceCAD: parseFloat(product.regularPrice.toFixed(2)),
-          tags: ['Non-Clothing', ncTag(product.name, product.category)],
-          scrapedAt: new Date().toISOString(),
-        };
-
-        deals.push(deal);
-      } catch (error) {
-        continue;
       }
+
+      onProgress(`The Brick: page ${page} — ${deals.length} deals so far`);
+      if (products.length < 250) break;
+      page++;
+    } catch (err) {
+      onProgress(`The Brick: error on page ${page} — ${err.message}`);
+      break;
     }
-
-    onProgress(`The Brick: found ${deals.length} deals`);
-    return deals;
-
-  } catch (error) {
-    onProgress(`The Brick: error — ${error.message}`);
-    console.error(`[${STORE_NAME}] Scraping failed:`, error);
-    return [];
-  } finally {
-    if (page) await page.close().catch(() => {});
-    if (context) await context.close().catch(() => {});
   }
+
+  onProgress(`The Brick: found ${deals.length} deals`);
+  return deals;
 }
 
 module.exports = { scrape, STORE_KEY };
