@@ -32,20 +32,23 @@ const NON_CLOTHING_KEYWORDS = [
   'safety glasses', 'safety goggle', 'hard hat', 'bump cap', 'face shield',
   'ear plug', 'ear muff', 'respirator', 'dust mask',
   // Camping & outdoor gear
-  'tent ', ' tent', 'sleeping bag', 'camp stove', 'camping stove', 'camp chair', 'camping chair',
-  'tarp ', ' tarp', 'ground sheet', 'hammock', 'camp table',
-  'lantern', 'headlamp', 'flashlight', 'torch ',
+  'sleeping bag', 'camp stove', 'camping stove', 'camp chair', 'camping chair',
+  'camping tent', 'dome tent', 'ground sheet', 'hammock', 'camp table',
+  'lantern', 'headlamp', 'flashlight',
   // Water sports equipment
   'kayak', 'canoe', 'paddleboard', 'stand-up paddle', 'sup board',
-  'life jacket', 'pfd ', ' pfd', 'paddle ', ' paddle',
-  // Winter sports equipment
-  'ski ', ' ski', 'skis', 'snowboard', 'ski boot', 'ski binding', 'ski pole',
+  'life jacket', 'pfd ', ' pfd',
+  // Winter sports equipment (equipment only — not ski/snowboard jackets, pants, base layers)
+  'skis', 'ski boot', 'ski binding', 'ski pole', 'ski helmet', 'ski goggle',
+  'snowboard boot', 'snowboard binding', 'snowboard helmet',
   // Bike & cycle equipment
   'bicycle', 'bike frame', 'bike wheel', 'handlebar', 'derailleur', 'bike pedal', 'bike chain',
   // Team & ball sports equipment
   'hockey stick', 'hockey puck', 'skate blade', 'lacrosse stick',
   'tennis racket', 'racquet', 'golf club', 'golf ball', 'golf tee',
-  'baseball bat', 'baseball glove', 'softball', 'volleyball', 'basketball', 'soccer ball', 'football',
+  'baseball bat', 'baseball glove', 'soccer ball',
+  // Note: 'football', 'basketball', 'volleyball', 'softball' removed — too broad,
+  // matches clothing (jerseys, shorts). Helmets/pads cover sports-equipment detection.
   // Fitness equipment
   'dumbbell', 'barbell', 'kettlebell', 'weight plate', 'weight bench', 'pull-up bar', 'chin-up bar',
   'foam roller', 'yoga mat', 'resistance band', 'jump rope', 'battle rope',

@@ -462,7 +462,7 @@
     "huf": {
       "name": "HUF",
       "domain": "hufworldwide.com",
-      "enabled": false,
+      "enabled": true,
       "currency": "USD",
       "category": "clothing",
       "note": "Shopify API — ~281 deals (streetwear/skate)"
@@ -497,7 +497,7 @@
       "domain": "thesource.ca",
       "currency": "CAD",
       "category": "non-clothing",
-      "note": "SSL certificate invalid — ERR_CERT_DATE_INVALID on thesource.ca"
+      "note": "Dead — Rogers rebranded The Source as Best Buy Express; thesource.ca now redirects to bestbuy.ca"
     },
     "walmart": {
       "enabled": false,
@@ -538,20 +538,20 @@
       "note": "Clearance is in-store only — no online clearance prices available"
     },
     "lenovo": {
-      "enabled": false,
+      "enabled": true,
       "name": "Lenovo CA",
       "domain": "lenovo.com/ca",
       "currency": "CAD",
       "category": "non-clothing",
-      "note": "Deals page URL returns 404"
+      "note": "Doorbusters page — XHR intercept openapi.lenovo.com product/query/get API; ~59 deals"
     },
     "dell": {
-      "enabled": false,
+      "enabled": true,
       "name": "Dell CA",
       "domain": "dell.com/ca",
       "currency": "CAD",
       "category": "non-clothing",
-      "note": "403 Forbidden on deals page — bot detection"
+      "note": "data-product-detail HTML attribute parsing; no Playwright; ~36 deals from global deals widget"
     },
     "hp": {
       "enabled": false,
@@ -672,12 +672,20 @@
       "category": "non-clothing"
     },
     "visions": {
-      "enabled": false,
+      "enabled": true,
       "name": "Visions Electronics",
       "domain": "visions.ca",
       "currency": "CAD",
       "category": "non-clothing",
-      "note": "Promo page URL returns 404 — URL structure changed"
+      "note": "Algolia API (appId: ROBTRSQZ7A, key fetched dynamically from page); clearance + open box; ~1174 deals"
+    },
+    "apple": {
+      "enabled": true,
+      "name": "Apple CA",
+      "domain": "apple.com/ca",
+      "currency": "CAD",
+      "category": "non-clothing",
+      "note": "Refurbished store — JSON-LD + HTML savings extraction; no Playwright; mac/iphone/ipad/accessories/appletv; ~121 deals"
     },
     "cb2": {
       "enabled": false,
@@ -718,6 +726,70 @@
       "currency": "CAD",
       "category": "non-clothing",
       "note": "Outlet page returns HTML, no JSON API available"
+    },
+    "tentree": {
+      "enabled": true,
+      "name": "Tentree",
+      "domain": "tentree.com",
+      "currency": "USD",
+      "category": "clothing",
+      "note": "Shopify API — sustainable clothing, USD→CAD"
+    },
+    "reebok": {
+      "enabled": true,
+      "name": "Reebok CA",
+      "domain": "reebok.ca",
+      "currency": "CAD",
+      "category": "clothing",
+      "note": "Shopify API — reebok.ca (Canadian Shopify store), CAD pricing"
+    },
+    "dynamite": {
+      "enabled": false,
+      "name": "Dynamite",
+      "domain": "dynamiteclothing.com",
+      "currency": "CAD",
+      "category": "clothing",
+      "note": "SFCC — 403 on direct fetch; products don't load in headless browser"
+    },
+    "garage": {
+      "enabled": false,
+      "name": "Garage",
+      "domain": "garage.com",
+      "currency": "CAD",
+      "category": "clothing",
+      "note": "SFCC — 403 on Shopify API; same platform as Dynamite, bot-blocked"
+    },
+    "reitmans": {
+      "enabled": true,
+      "name": "Reitmans",
+      "domain": "reitmans.com",
+      "currency": "CAD",
+      "category": "clothing",
+      "note": "Shopify API — Canadian women's fashion, collections/sale"
+    },
+    "hellyhansen": {
+      "enabled": false,
+      "name": "Helly Hansen CA",
+      "domain": "hellyhansen.com",
+      "currency": "CAD",
+      "category": "clothing",
+      "note": "DataDome bot protection — all headless requests blocked"
+    },
+    "timberland": {
+      "enabled": false,
+      "name": "Timberland CA",
+      "domain": "timberland.com",
+      "currency": "CAD",
+      "category": "clothing",
+      "note": "VF Corp Akamai bot protection — same as North Face (blocked)"
+    },
+    "salomon": {
+      "enabled": false,
+      "name": "Salomon CA",
+      "domain": "salomon.com",
+      "currency": "CAD",
+      "category": "clothing",
+      "note": "Perimeter-X bot protection — products don't load in headless browser"
     }
   },
   "settings": {

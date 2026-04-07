@@ -77,6 +77,15 @@ const SCRAPERS = {
   quiksilver:     require('./stores/quiksilver'),
   dickies:        require('./stores/dickies'),
   converse:       require('./stores/converse'),
+  // New clothing stores
+  tentree:        require('./stores/tentree'),
+  reebok:         require('./stores/reebok'),
+  dynamite:       require('./stores/dynamite'),
+  garage:         require('./stores/garage'),
+  reitmans:       require('./stores/reitmans'),
+  hellyhansen:    require('./stores/hellyhansen'),
+  timberland:     require('./stores/timberland'),
+  salomon:        require('./stores/salomon'),
   // Non-clothing retailers
   bestbuy:        require('./stores/bestbuy'),
   thesource:      require('./stores/thesource'),
@@ -102,6 +111,7 @@ const SCRAPERS = {
   leons:          require('./stores/leons'),
   thebrick:       require('./stores/thebrick'),
   visions:        require('./stores/visions'),
+  apple:          require('./stores/apple'),
   structube:      require('./stores/structube'),
   cb2:            require('./stores/cb2'),
   factorydirect:  require('./stores/factorydirect'),
@@ -171,8 +181,19 @@ async function runAll(config, onProgress = () => {}, onPartial = () => {}) {
 
         // Tag each deal with its storeKey for partial streaming
         const tagged = deals.map(d => ({ ...d, storeKey: key }));
+        // Deduplicate within this store's batch by id then url
+        const storeSeenIds = new Set();
+        const storeSeenUrls = new Set();
+        const deduped = tagged.filter(d => {
+          const k = d.id || d.url;
+          if (k && storeSeenIds.has(k)) return false;
+          if (k) storeSeenIds.add(k);
+          if (d.url && storeSeenUrls.has(d.url)) return false;
+          if (d.url) storeSeenUrls.add(d.url);
+          return true;
+        });
         // Apply global min-discount filter
-        const filtered = minDiscount > 0 ? tagged.filter(d => d.discount >= minDiscount) : tagged;
+        const filtered = minDiscount > 0 ? deduped.filter(d => d.discount >= minDiscount) : deduped;
 
         storeResults[key] = { count: filtered.length, error: null };
         allDeals.push(...filtered);
@@ -188,6 +209,21 @@ async function runAll(config, onProgress = () => {}, onPartial = () => {}) {
 
     // Sort by discount descending
     allDeals.sort((a, b) => b.discount - a.discount);
+
+    // Deduplicate globally by id (same product from same store via different code paths)
+    const seenIds = new Set();
+    const seenUrls = new Set();
+    const deduped = allDeals.filter(d => {
+      const key = d.id || d.url;
+      if (!key) return true;
+      if (seenIds.has(key)) return false;
+      seenIds.add(key);
+      if (d.url && seenUrls.has(d.url)) return false;
+      if (d.url) seenUrls.add(d.url);
+      return true;
+    });
+    allDeals.length = 0;
+    allDeals.push(...deduped);
 
     // Persist to cache
     fs.mkdirSync(path.dirname(CACHE_PATH), { recursive: true });

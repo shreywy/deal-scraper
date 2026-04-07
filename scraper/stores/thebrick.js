@@ -39,6 +39,8 @@ async function scrape(browser, onProgress = () => {}) {
         `https://www.thebrick.com/collections/on-sale/products.json?limit=250&page=${page}`,
         { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36', 'Accept': 'application/json' }, timeout: 15000 }
       );
+      const ct = res.headers.get('content-type') || '';
+      if (!res.ok || !ct.includes('json')) break;
       const data = await res.json();
       const products = data.products || [];
 
