@@ -8,7 +8,8 @@
   },
   "scripts": {
     "start": "node index.js",
-    "scrape": "node -e \"const {runAll}=require('./scraper/index');const cfg=require('./config.json');runAll(cfg,m=>console.log(m)).then(d=>console.log(d.length,'deals')).catch(console.error)\""
+    "scrape": "node scrape.js",
+    "test": "node scraper/tagger.test.js"
   },
   "repository": {
     "type": "git",

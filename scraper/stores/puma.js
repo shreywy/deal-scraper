@@ -131,7 +131,8 @@ async function scrape(browser, onProgress = () => {}) {
 
         // Extract from aria-label: "2 Colors, Carter 2.0 Men's Sneakers, Discounted Price, $57.99, Regular price, $68"
         const ariaLabel = link.getAttribute('aria-label') || '';
-        const priceMatch = ariaLabel.match(/Discounted Price[,\s]+\$?([\d.]+).*?Regular price[,\s]+\$?([\d.]+)/i);
+        // e.g. "Caven 2.0 Lux Men's Sneakers, Promotion price, CAD $94.99, Regular price, CAD $110"
+        const priceMatch = ariaLabel.replace(/,(?=\d{3})/g, '').match(/(?:Discounted|Promotion|Sale) price[,\s]+(?:CAD\s*)?\$?([\d.]+).*?Regular price[,\s]+(?:CAD\s*)?\$?([\d.]+)/i);
 
         let price = null, originalPrice = null;
         if (priceMatch) {

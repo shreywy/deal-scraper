@@ -84,6 +84,8 @@ async function scrape(browser, onProgress = () => {}) {
       await page.waitForTimeout(1000);
 
       if (rawProducts.length > 0) { foundProducts = true; break; }
+      // Stay on the first page that renders marked-down prices, so the DOM fallback reads it
+      if (await page.$('[data-qa-qualifier="price-amount-old"]')) break;
     }
 
     if (rawProducts.length > 0) {
@@ -129,8 +131,9 @@ async function scrape(browser, onProgress = () => {}) {
           'h2', 'h3',
           '[class*="name"]',
         ].join(', '));
-        const salePriceEl = card.querySelector('[class*="price__sale"], [class*="sale"], [aria-label*="sale"], [class*="current"]');
-        const origPriceEl = card.querySelector('[class*="price__old"], [class*="old"], s, del, [class*="original"]');
+        // data-qa hooks first: the generic class matches include the "-49%" label and mis-parse
+        const salePriceEl = card.querySelector('[data-qa-qualifier="price-amount-current"]') || card.querySelector('[class*="price__sale"], [class*="sale"], [aria-label*="sale"], [class*="current"]');
+        const origPriceEl = card.querySelector('[data-qa-qualifier="price-amount-old"]') || card.querySelector('[class*="price__old"], [class*="old"], s, del, [class*="original"]');
         const imgEl = card.querySelector('img[src]');
 
         const name = nameEl?.textContent?.trim() || '';

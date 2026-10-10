@@ -153,7 +153,11 @@ async function browserScrape(browser, onProgress) {
   for (const { url: pageUrl, gender } of SALE_PAGES) {
     const page = await context.newPage();
     try {
-      await page.goto(pageUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      // Akamai sometimes drops a rapid second navigation (ERR_EMPTY_RESPONSE) — back off and retry
+      for (let attempt = 1; ; attempt++) {
+        try { await page.goto(pageUrl, { waitUntil: 'domcontentloaded', timeout: 30000 }); break; }
+        catch (err) { if (attempt >= 3) throw err; await page.waitForTimeout(5000 * attempt); }
+      }
       try { await page.click('#onetrust-accept-btn-handler', { timeout: 4000 }); } catch (_) {}
       await page.waitForTimeout(3000);
       for (let i = 0; i < 3; i++) {

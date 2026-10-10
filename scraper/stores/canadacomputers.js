@@ -72,7 +72,8 @@ async function scrape(browser, onProgress = () => {}) {
         // Extract products from page
         const products = await page.evaluate(() => {
           const items = [];
-          const cards = document.querySelectorAll('article.js-product-miniature');
+          // Markup changed in 2026: each tile wraps a .product-description block
+          const cards = [...document.querySelectorAll('.product-description')].map(d => d.closest('article') || d.parentElement);
 
           cards.forEach(card => {
             try {
@@ -88,7 +89,7 @@ async function scrape(browser, onProgress = () => {}) {
               if (!url) return;
 
               // Extract image
-              const imgEl = card.querySelector('img');
+              const imgEl = card.querySelector('img:not([src*="-Tag"])');
               const image = imgEl ? (imgEl.src || imgEl.dataset.src || '') : '';
 
               // Extract sale price (current price, may have class "price" or "no-sale-price")

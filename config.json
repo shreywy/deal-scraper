@@ -1,19 +1,20 @@
 {
   "stores": {
     "underarmour": {
-      "enabled": true,
+      "enabled": false,
       "name": "Under Armour CA",
       "domain": "underarmour.ca",
       "currency": "CAD",
-      "category": "clothing"
+      "category": "clothing",
+      "note": "CAPTCHA \"Client Challenge\" on sale/outlet pages — UA deals come via Sport Chek & Altitude Sports (2026-10-10)"
     },
     "uniqlo": {
-      "enabled": true,
+      "enabled": false,
       "name": "Uniqlo Canada",
       "domain": "uniqlo.com",
       "currency": "CAD",
       "category": "clothing",
-      "note": "Direct API with fixed x-fr-clientid=uq.ca.web-spa — 0 deals currently (no active sales on site)"
+      "note": "Akamai Access Denied (2026-10-10)"
     },
     "zara": {
       "enabled": true,
@@ -21,7 +22,7 @@
       "domain": "zara.com/ca",
       "currency": "CAD",
       "category": "clothing",
-      "note": "Updated to use special prices URLs"
+      "note": "DOM (data-qa price hooks) (2026-10-10)"
     },
     "gymshark": {
       "enabled": true,
@@ -50,7 +51,8 @@
       "name": "YoungLA",
       "domain": "youngla.com",
       "currency": "USD",
-      "category": "clothing"
+      "category": "clothing",
+      "note": "Shopify products.json via in-browser fetch (scraper/shopify.js); currency auto-detected (2026-10-10)"
     },
     "lululemon": {
       "enabled": false,
@@ -61,12 +63,12 @@
       "note": "Sale pages don't expose original prices - can't calculate discount percentage"
     },
     "aritzia": {
-      "enabled": true,
+      "enabled": false,
       "name": "Aritzia",
       "domain": "aritzia.com",
       "currency": "CAD",
       "category": "clothing",
-      "note": "Fixed 2026-04-05 — URL updated to /en/sale (was /en/category/sale); XHR intercept + DOM"
+      "note": "Cloudflare block (403) (2026-10-10)"
     },
     "roots": {
       "enabled": false,
@@ -77,12 +79,12 @@
       "note": "SFCC ISML errors on sale pages - site infrastructure issue"
     },
     "frankandoak": {
-      "enabled": false,
+      "enabled": true,
       "name": "Frank And Oak",
       "domain": "frankandoak.com",
       "currency": "CAD",
       "category": "clothing",
-      "note": "No compare_at_price in Shopify — cannot detect discounts"
+      "note": "Shopify products.json via in-browser fetch (scraper/shopify.js); currency auto-detected (2026-10-10)"
     },
     "northface": {
       "enabled": false,
@@ -150,14 +152,16 @@
       "name": "Club Monaco CA",
       "domain": "clubmonaco.ca",
       "currency": "CAD",
-      "category": "clothing"
+      "category": "clothing",
+      "note": "Shopify products.json via in-browser fetch (scraper/shopify.js); currency auto-detected (2026-10-10)"
     },
     "bananarepublic": {
       "enabled": true,
       "name": "Banana Republic CA",
       "domain": "bananarepublic.gap.com",
       "currency": "CAD",
-      "category": "clothing"
+      "category": "clothing",
+      "note": "Gap Inc. product-search API on gapcanada.ca (2026-10-10)"
     },
     "musinsa": {
       "enabled": false,
@@ -176,11 +180,12 @@
       "note": "ECONNRESET on direct fetch; XHR intercept unreliable"
     },
     "patagonia": {
-      "enabled": true,
+      "enabled": false,
       "name": "Patagonia CA",
       "domain": "patagonia.com",
       "currency": "CAD",
-      "category": "clothing"
+      "category": "clothing",
+      "note": "Queue-it waiting room on sale page — Patagonia deals via Altitude Sports (2026-10-10)"
     },
     "gap": {
       "enabled": true,
@@ -188,7 +193,7 @@
       "domain": "gap.com",
       "currency": "CAD",
       "category": "clothing",
-      "note": "GAP Inc XHR intercept — same platform as Banana Republic CA"
+      "note": "Gap Inc. product-search API on gapcanada.ca (2026-10-10)"
     },
     "levis": {
       "enabled": false,
@@ -211,7 +216,8 @@
       "name": "Sport Chek",
       "domain": "sportchek.ca",
       "currency": "CAD",
-      "category": "clothing"
+      "category": "clothing",
+      "note": "FGL search API paged in-page; carries Under Armour/Nike/adidas (2026-10-10)"
     },
     "marks": {
       "enabled": true,
@@ -241,14 +247,16 @@
       "name": "Alphalete",
       "domain": "alphaleteathletics.com",
       "currency": "USD",
-      "category": "clothing"
+      "category": "clothing",
+      "note": "Shopify products.json via in-browser fetch (scraper/shopify.js); currency auto-detected (2026-10-10)"
     },
     "nobull": {
       "enabled": true,
       "name": "Nobull",
       "domain": "nobullproject.com",
       "currency": "USD",
-      "category": "clothing"
+      "category": "clothing",
+      "note": "Shopify products.json via in-browser fetch (scraper/shopify.js); currency auto-detected (2026-10-10)"
     },
     "carhartt": {
       "enabled": true,
@@ -270,7 +278,8 @@
       "name": "Puma",
       "domain": "ca.puma.com",
       "currency": "CAD",
-      "category": "clothing"
+      "category": "clothing",
+      "note": "DOM aria-label prices (Promotion price format) (2026-10-10)"
     },
     "newbalance": {
       "enabled": false,
@@ -312,18 +321,20 @@
       "note": "Site redirects to Canadian Tire/Hudson's Bay - domain no longer serves Joe Fresh products (as of April 2026)"
     },
     "rwco": {
-      "enabled": false,
+      "enabled": true,
       "name": "RW&CO",
       "domain": "rw-co.com",
       "currency": "CAD",
-      "category": "clothing"
+      "category": "clothing",
+      "note": "Shopify products.json via in-browser fetch (scraper/shopify.js); currency auto-detected (2026-10-10)"
     },
     "mec": {
-      "enabled": true,
+      "enabled": false,
       "name": "MEC",
       "domain": "mec.ca",
       "currency": "CAD",
-      "category": "clothing"
+      "category": "clothing",
+      "note": "Cloudflare challenge (2026-10-10)"
     },
     "altitudesports": {
       "enabled": true,
@@ -331,7 +342,7 @@
       "domain": "altitude-sports.com",
       "currency": "CAD",
       "category": "clothing",
-      "note": "DOM scraping (Chakra UI product cards) — ~48 deals (CAD)"
+      "note": "Algolia search API — also covers Under Armour/Patagonia/Columbia etc. (2026-10-10)"
     },
     "urbanoutfitters": {
       "enabled": false,
@@ -342,12 +353,12 @@
       "note": "Bot protection - 403 Forbidden on all sale URLs (tested multiple URL patterns with stealth mode)"
     },
     "vans": {
-      "enabled": true,
+      "enabled": false,
       "name": "Vans CA",
       "domain": "vans.ca",
       "currency": "CAD",
       "category": "clothing",
-      "note": "Navigates to all-products pages (footwear+clothing) and filters for items with sale prices (no dedicated sale section)"
+      "note": "Sale URL 404 (2026-10-10)"
     },
     "pacsun": {
       "enabled": false,
@@ -361,9 +372,9 @@
       "enabled": true,
       "name": "Champion",
       "domain": "champion.com",
-      "currency": "CAD",
+      "currency": "USD",
       "category": "clothing",
-      "note": "0 deals currently (Shopify API accessible but sale collection is empty)"
+      "note": "Shopify products.json via in-browser fetch (scraper/shopify.js); currency auto-detected (2026-10-10)"
     },
     "lacoste": {
       "enabled": false,
@@ -374,12 +385,12 @@
       "note": "Non-operational — lacoste.com/ca/en/ redirects to Converse/Ralph Lauren as of April 2026; 0 deals"
     },
     "jackjones": {
-      "enabled": true,
+      "enabled": false,
       "name": "Jack & Jones",
       "domain": "jackjones.com",
       "currency": "CAD",
       "category": "clothing",
-      "note": "Fixed 2026-04-05 — Proper Jack & Jones CA scraper via jackjones.com/en-ca/sale"
+      "note": "Sale URL redirects to homepage (2026-10-10)"
     },
     "quiksilver": {
       "enabled": true,
@@ -387,14 +398,15 @@
       "domain": "quiksilver.com",
       "currency": "CAD",
       "category": "clothing",
-      "note": "Shopify API + DOM scraping. CAD prices. ~250 deals"
+      "note": "Shopify products.json via in-browser fetch (scraper/shopify.js); currency auto-detected (2026-10-10)"
     },
     "dickies": {
       "enabled": true,
       "name": "Dickies",
       "domain": "dickies.com",
       "currency": "USD",
-      "category": "clothing"
+      "category": "clothing",
+      "note": "Shopify products.json via in-browser fetch (scraper/shopify.js); currency auto-detected (2026-10-10)"
     },
     "converse": {
       "enabled": true,
@@ -402,22 +414,23 @@
       "domain": "converse.ca",
       "currency": "CAD",
       "category": "clothing",
-      "note": "Fixed 2026-04-05 — Shopify API via converse.ca/collections/sale"
+      "note": "Shopify helper; 0 deals = no active sale (2026-10-10)"
     },
     "ssense": {
-      "enabled": true,
+      "enabled": false,
       "name": "SSENSE",
       "domain": "ssense.com",
       "currency": "CAD",
-      "category": "clothing"
+      "category": "clothing",
+      "note": "Cloudflare challenge (2026-10-10)"
     },
     "zumiez": {
-      "enabled": true,
+      "enabled": false,
       "name": "Zumiez",
       "domain": "zumiez.com",
       "currency": "USD",
       "category": "clothing",
-      "note": "Fixed 2026-04-05 — US SFCC site with USD→CAD conversion; may 0 if redirects occur"
+      "note": "Sale grid client-rendered, no parseable prices (2026-10-10)"
     },
     "footlocker": {
       "enabled": true,
@@ -425,7 +438,7 @@
       "domain": "footlocker.ca",
       "currency": "CAD",
       "category": "clothing",
-      "note": "Fixed 2026-04-05 — DOM scraping from footlocker.ca/en/category/sale.html (48+ deals)"
+      "note": "DOM, first page only when pagination API is rate-limited (2026-10-10)"
     },
     "tommyhilfiger": {
       "enabled": true,
@@ -444,12 +457,12 @@
       "note": "Page loads but no products found - possible bot detection or no active sale"
     },
     "calvinklein": {
-      "enabled": true,
+      "enabled": false,
       "name": "Calvin Klein",
       "domain": "calvinklein.ca",
       "currency": "CAD",
       "category": "clothing",
-      "note": "Fixed 2026-04-05 — Updated to calvinklein.ca/en/sale/men (41+ deals)"
+      "note": "PVH SFCC — no product cards rendered for headless (2026-10-10)"
     },
     "volcom": {
       "name": "Volcom",
@@ -457,15 +470,15 @@
       "enabled": true,
       "currency": "USD",
       "category": "clothing",
-      "note": "Shopify API — ~416 deals (skate/surf streetwear)"
+      "note": "Shopify products.json via in-browser fetch (scraper/shopify.js); currency auto-detected (2026-10-10)"
     },
     "huf": {
       "name": "HUF",
       "domain": "hufworldwide.com",
-      "enabled": false,
+      "enabled": true,
       "currency": "USD",
       "category": "clothing",
-      "note": "Shopify API — ~281 deals (streetwear/skate)"
+      "note": "Shopify products.json via in-browser fetch (scraper/shopify.js); currency auto-detected (2026-10-10)"
     },
     "rvca": {
       "name": "RVCA",
@@ -473,7 +486,7 @@
       "enabled": true,
       "currency": "USD",
       "category": "clothing",
-      "note": "Shopify API — ~405 deals (surf/skate lifestyle)"
+      "note": "Shopify products.json via in-browser fetch (scraper/shopify.js); currency auto-detected (2026-10-10)"
     },
     "obey": {
       "name": "Obey Clothing",
@@ -481,7 +494,7 @@
       "enabled": true,
       "currency": "USD",
       "category": "clothing",
-      "note": "Shopify API — 0 deals currently (no active sale)"
+      "note": "Shopify products.json via in-browser fetch (scraper/shopify.js); currency auto-detected (2026-10-10)"
     },
     "bestbuy": {
       "enabled": false,
@@ -527,7 +540,8 @@
       "name": "Canada Computers",
       "domain": "canadacomputers.com",
       "currency": "CAD",
-      "category": "non-clothing"
+      "category": "non-clothing",
+      "note": "DOM .product-description data (2026-10-10)"
     },
     "memoryexpress": {
       "enabled": false,
@@ -669,7 +683,8 @@
       "name": "The Brick",
       "domain": "thebrick.com",
       "currency": "CAD",
-      "category": "non-clothing"
+      "category": "non-clothing",
+      "note": "Shopify products.json via in-browser fetch (scraper/shopify.js); currency auto-detected (2026-10-10)"
     },
     "visions": {
       "enabled": false,
@@ -718,6 +733,14 @@
       "currency": "CAD",
       "category": "non-clothing",
       "note": "Outlet page returns HTML, no JSON API available"
+    },
+    "oldnavy": {
+      "enabled": true,
+      "name": "Old Navy CA",
+      "domain": "oldnavy.gapcanada.ca",
+      "currency": "CAD",
+      "category": "clothing",
+      "note": "Gap Inc. product-search API (shared scraper/gapinc.js) (2026-10-10)"
     }
   },
   "settings": {

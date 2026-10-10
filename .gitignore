@@ -24,3 +24,8 @@ Thumbs.db
 
 # AI planning workflow artifacts
 docs/superpowers/
+
+# Local scratch / build output
+scratch_*
+_site/
+.claude/launch.json

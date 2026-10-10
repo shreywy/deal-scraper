@@ -363,6 +363,7 @@ async function tryXhrInterception(browser, onProgress) {
 
     // Intercept network requests to capture API key and headers
     let capturedHeaders = {};
+    let pageHeaders = {};
     let originalUrl = null;
     page.on('request', (request) => {
       try {
@@ -381,6 +382,8 @@ async function tryXhrInterception(browser, onProgress) {
               'referer': headers['referer'] || 'https://www.sportchek.ca/',
               'user-agent': headers['user-agent'],
             };
+            // Everything the site sent except headers the browser sets itself (replayed in-page)
+            pageHeaders = Object.fromEntries(Object.entries(headers).filter(([k]) => !/^(host|cookie|user-agent|referer|origin|content-length|accept-encoding|connection)$|^sec-/i.test(k)));
             onProgress(`Sport Chek: captured API key and headers from ${url.substring(0, 100)}...`);
           }
         }
@@ -444,7 +447,7 @@ async function tryXhrInterception(browser, onProgress) {
 
       let start = allProducts.length; // Start after the products we already have
       const count = 96;
-      const maxDeals = 1000; // Limit to avoid excessive requests
+      const maxDeals = 2000; // Limit to avoid excessive requests
 
       while (start < Math.min(total, maxDeals)) {
         try {
@@ -454,16 +457,17 @@ async function tryXhrInterception(browser, onProgress) {
           params.set('start', start.toString());
 
           const url = `${capturedApiUrl}?${params.toString()}`;
-          const response = await fetch(url, {
-            headers: capturedHeaders,
-          });
+          // Fetch from inside the page: the bot manager 403s the same request made from Node
+          const { status, data } = await page.evaluate(async ({ url, headers }) => {
+            const r = await fetch(url, { headers, credentials: 'include' });
+            return { status: r.status, data: r.ok ? await r.json() : null };
+          }, { url, headers: pageHeaders });
 
-          if (!response.ok) {
-            onProgress(`Sport Chek: API request failed at start=${start} (${response.status})`);
+          if (!data) {
+            onProgress(`Sport Chek: API request failed at start=${start} (${status})`);
             break;
           }
 
-          const data = await response.json();
           if (!data.products || data.products.length === 0) {
             onProgress(`Sport Chek: no more products at start=${start}`);
             break;

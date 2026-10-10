@@ -929,3 +929,6 @@ html.dark .grid-spinner-overlay { background: rgba(39,46,51,0.72); }
 .pc-tags { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 9px; }
 .pc-price-row { display: flex; align-items: baseline; gap: 5px; flex-wrap: wrap; }
 .pc-hint { font-size: 10px; color: var(--text-muted); margin-top: 8px; text-align: right; }
+
+/* Static host (GitHub Pages): no server to scrape or save settings */
+.static .strip-refresh-btn, .static .ds-server-only { display: none; }

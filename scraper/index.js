@@ -1,5 +1,17 @@
 'use strict';
 
+// Suppress unhandled promise rejections from playwright-extra's stealth CDP
+// session after browser close (harmless noise from internal response handlers).
+process.on('unhandledRejection', (reason) => {
+  const msg = reason?.message || String(reason);
+  if (msg.includes('Target page, context or browser has been closed') ||
+      msg.includes('cdpSession') ||
+      msg.includes('Target closed')) {
+    return; // expected playwright noise after browser.close()
+  }
+  console.error('Unhandled rejection:', reason);
+});
+
 const { chromium } = require('playwright-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 chromium.use(StealthPlugin());
@@ -31,6 +43,7 @@ const SCRAPERS = {
   musinsa:        require('./stores/musinsa'),
   clubmonaco:     require('./stores/clubmonaco'),
   bananarepublic: require('./stores/bananarepublic'),
+  oldnavy:        require('./stores/oldnavy'),
   asos:           require('./stores/asos'),
   // New stores
   patagonia:      require('./stores/patagonia'),
@@ -111,6 +124,7 @@ const SCRAPERS = {
 
 const CACHE_PATH = path.join(__dirname, '../data/deals.json');
 const STORE_TIMEOUT_MS = 3 * 60 * 1000; // 3 min per store before giving up
+const CONCURRENCY = 6; // all-at-once trips bot defences (Akamai/Cloudflare) and starves a small runner
 
 /**
  * Run all enabled store scrapers in parallel.
@@ -149,8 +163,9 @@ async function runAll(config, onProgress = () => {}, onPartial = () => {}) {
   const minDiscount = config.settings?.minDiscountPercent || 0;
 
   try {
-    // Run all stores in parallel, call onPartial as each finishes
-    await Promise.all(enabledStores.map(async (key) => {
+    // Run stores through a small worker pool, call onPartial as each finishes
+    const queue = [...enabledStores];
+    const runStore = async (key) => {
       const scraper = SCRAPERS[key];
       if (!scraper) {
         onProgress(`No scraper found for "${key}" — skipping`);
@@ -159,9 +174,10 @@ async function runAll(config, onProgress = () => {}, onPartial = () => {}) {
         return;
       }
 
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('timed out after 3 minutes')), STORE_TIMEOUT_MS)
-      );
+      let timer;
+      const timeoutPromise = new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error('timed out after 3 minutes')), STORE_TIMEOUT_MS);
+      });
 
       try {
         const deals = await Promise.race([
@@ -183,7 +199,12 @@ async function runAll(config, onProgress = () => {}, onPartial = () => {}) {
         storeResults[key] = { count: 0, error: msg };
         onProgress(`${key}: failed — ${msg}`);
         onPartial(key, [], msg);
+      } finally {
+        clearTimeout(timer);
       }
+    };
+    await Promise.all(Array.from({ length: CONCURRENCY }, async () => {
+      while (queue.length) await runStore(queue.shift());
     }));
 
     // Sort by discount descending
@@ -195,8 +216,8 @@ async function runAll(config, onProgress = () => {}, onPartial = () => {}) {
       scrapedAt: new Date().toISOString(),
       usdToCAD,
       storeResults,
-      deals: allDeals,
-    }, null, 2));
+      deals: allDeals.map(slimDeal),
+    })); // compact: this file is served as-is to the static site
 
     const summary = Object.entries(storeResults)
       .map(([k, v]) => `${k}: ${v.error ? '❌ ' + v.error : v.count + ' deals'}`)
@@ -207,6 +228,12 @@ async function runAll(config, onProgress = () => {}, onPartial = () => {}) {
   } finally {
     await browser.close();
   }
+}
+
+// Drop fields the frontend never reads (~30% of the file at ~20k deals); CAD copies only matter for USD stores
+function slimDeal({ id, scrapedAt, gender, exchangeRate, ...d }) {
+  if (d.currency !== 'USD') { delete d.priceCAD; delete d.originalPriceCAD; }
+  return d;
 }
 
 /**

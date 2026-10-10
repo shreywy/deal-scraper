@@ -1,236 +1,66 @@
 'use strict';
 
+// Altitude Sports' catalogue is served from Algolia (public search-only key, same as their site).
+// Carries many brands whose own sites block scraping (Under Armour, Patagonia, Arc'teryx, TNF…).
+
 const { tag } = require('../tagger');
 
 const STORE_NAME = 'Altitude Sports';
 const STORE_KEY = 'altitudesports';
-const CURRENCY = 'CAD';
+const API = 'https://i2q2bwze3k-dsn.algolia.net/1/indexes/PRODUCTS_ALS_en-CA/query';
+const HEADERS = { 'X-Algolia-Application-Id': 'I2Q2BWZE3K', 'X-Algolia-API-Key': '8b62285e596a476fadc22970ed58e04a' };
+const ATTRS = ['slug', 'name', 'price', 'original_price', 'image_url', 'discounted_percent', 'attributes.brand_name', 'attributes.gender'];
 
-// Altitude Sports - Canadian outdoor/activewear retailer
-const SALE_URL = 'https://www.altitude-sports.com/collections/sale';
-
-/**
- * @param {import('playwright').Browser} browser
- * @param {function(string):void} [onProgress]
- * @returns {Promise<import('../index').Deal[]>}
- */
-async function scrape(browser, onProgress = () => {}) {
-  const context = await browser.newContext({
-    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-    locale: 'en-CA',
-    extraHTTPHeaders: { 'Accept-Language': 'en-CA,en;q=0.9' },
+async function query(lo, hi) {
+  const params = new URLSearchParams({
+    hitsPerPage: 1000,
+    numericFilters: JSON.stringify([`discounted_percent>=${lo}`, `discounted_percent<=${hi}`]),
+    attributesToRetrieve: JSON.stringify(ATTRS),
+    attributesToHighlight: '[]',
   });
-  const page = await context.newPage();
+  const res = await fetch(API, { method: 'POST', headers: HEADERS, body: JSON.stringify({ params: params.toString() }) });
+  if (!res.ok) throw new Error(`Algolia HTTP ${res.status}`);
+  return res.json();
+}
 
-  const interceptedProducts = [];
-  const seenIds = new Set();
+// Algolia returns at most 1000 hits per query, so split the discount range until each slice fits
+async function collect(lo, hi, out) {
+  const j = await query(lo, hi);
+  if (j.nbHits > 1000 && hi > lo) {
+    const mid = Math.floor((lo + hi) / 2);
+    await collect(lo, mid, out);
+    await collect(mid + 1, hi, out);
+  } else {
+    out.push(...j.hits);
+  }
+}
 
-  // Intercept API responses that might contain product data
-  page.on('response', async response => {
-    const url = response.url();
-    const ct = response.headers()['content-type'] || '';
-    if (!ct.includes('application/json')) return;
-
-    try {
-      const json = await response.json();
-      extractAltitudeProducts(json, interceptedProducts, seenIds);
-    } catch (_) {}
-  });
-
-  try {
-    onProgress('Altitude Sports: navigating to sale page…');
-    await page.goto(SALE_URL, { waitUntil: 'domcontentloaded', timeout: 35000 });
-
-    // Accept cookies if present
-    try {
-      await page.click('button[id*="accept"], button[class*="accept"]', { timeout: 3000 });
-    } catch (_) {}
-
-    await page.waitForTimeout(3000);
-
-    // Scroll to load more products
-    await loadAllProductsScroll(page, interceptedProducts, onProgress);
-
-    if (interceptedProducts.length > 0) {
-      const deals = interceptedProducts.map(p => mapAltitudeProduct(p)).filter(Boolean);
-      onProgress(`Altitude Sports: found ${deals.length} deals (API)`);
-      return deals;
-    }
-
-    // DOM fallback
-    onProgress('Altitude Sports: trying DOM scrape…');
-    const rawDeals = await page.evaluate(({ storeName, storeKey }) => {
-      // Altitude Sports uses Chakra UI with data-testid="plp-product-card"
-      const cards = document.querySelectorAll('article[data-testid="plp-product-card"], article.css-nvlzz, article');
-
-      const parsePrice = text => {
-        if (!text) return null;
-        const n = parseFloat(text.replace(/[^0-9.]/g, ''));
-        return isNaN(n) ? null : n;
-      };
-
-      const seen = new Set();
-      return [...cards].map(card => {
-        // Find link
-        const link = card.querySelector('a[href*="/p/"]');
-        const url = link?.href || '';
-        if (!url || seen.has(url)) return null;
-        seen.add(url);
-
-        // Get all text content - it contains brand, name, and prices
-        const fullText = card.textContent || '';
-
-        // Find image
-        const imgEl = card.querySelector('img[data-testid="product-card-main-image"], img');
-        const image = imgEl?.src || imgEl?.srcset?.split(' ')[0] || '';
-        const imgAlt = imgEl?.alt || '';
-
-        // Extract product name from alt text or structure
-        // Alt format: "Product image for [Name] - [Gender]'s"
-        let name = '';
-        if (imgAlt.includes('Product image for ')) {
-          name = imgAlt.replace('Product image for ', '').trim();
-        } else {
-          // Fallback: use the text content (brand + product name)
-          const textParts = fullText.split('C$');
-          if (textParts.length > 0) {
-            name = textParts[0].replace(/^-?\d+%/, '').trim();
-          }
-        }
-
-        if (!name) return null;
-
-        // Extract prices from text
-        // Format: "...C$ 127.99C$ 159.99..." (sale price, then original)
-        const priceMatches = fullText.match(/C\$\s*([\d,.]+)/g);
-        if (!priceMatches || priceMatches.length < 2) return null;
-
-        const prices = priceMatches.map(p => parsePrice(p));
-        const price = prices[0]; // First price is sale
-        const originalPrice = prices[1]; // Second price is original
-
-        if (!price || !originalPrice || price >= originalPrice) return null;
-
-        const discount = Math.round((1 - price / originalPrice) * 100);
-        if (discount <= 0) return null;
-
-        return {
-          store: storeName,
-          storeKey,
-          name,
-          url,
-          image,
-          price,
-          originalPrice,
-          discount,
-          currency: 'CAD',
-          tags: []
-        };
-      }).filter(Boolean);
-    }, { storeName: STORE_NAME, storeKey: STORE_KEY });
-
-    const tagged = rawDeals.map(d => ({
-      ...d,
-      id: slugify(`altitudesports-${d.name}`),
-      priceCAD: d.price,
-      originalPriceCAD: d.originalPrice,
-      tags: tag({ name: d.name }),
+async function scrape(_browser, onProgress = () => {}) {
+  const hits = [];
+  await collect(1, 100, hits);
+  const deals = [];
+  const seen = new Set();
+  for (const h of hits) {
+    const price = [].concat(h.price?.CAD?.centAmount)[0] / 100;
+    const originalPrice = [].concat(h.original_price?.CAD?.centAmount)[0] / 100;
+    if (seen.has(h.objectID) || !h.name || !(originalPrice > price) || !(price > 0)) continue;
+    seen.add(h.objectID);
+    const brand = h.attributes?.brand_name || '';
+    const name = brand && !h.name.startsWith(brand) ? `${brand} ${h.name}` : h.name;
+    deals.push({
+      id: `${STORE_KEY}-${h.objectID}`,
+      store: STORE_NAME, storeKey: STORE_KEY, name,
+      url: `https://www.altitude-sports.com/p/${h.slug}`,
+      image: h.image_url || '',
+      price, originalPrice,
+      discount: Math.round((1 - price / originalPrice) * 100),
+      currency: 'CAD', priceCAD: price, originalPriceCAD: originalPrice,
+      tags: tag({ name, gender: [].concat(h.attributes?.gender || []).length === 1 ? h.attributes.gender[0] : '' }),
       scrapedAt: new Date().toISOString(),
-    }));
-    onProgress(`Altitude Sports: found ${tagged.length} deals (DOM)`);
-    return tagged;
-
-  } catch (error) {
-    onProgress(`Altitude Sports: error - ${error.message}`);
-    return [];
-  } finally {
-    await context.close();
+    });
   }
-}
-
-function extractAltitudeProducts(json, out, seenIds) {
-  // Try common product data structures
-  const products = json?.products || json?.items || json?.data?.products || json?.data?.items ||
-                  json?.results || json?.hits || [];
-
-  const arr = Array.isArray(products) ? products : Object.values(products);
-  for (const p of arr) {
-    const id = p?.id || p?.productId || p?.sku || p?.handle || p?.objectID;
-    if (!id || seenIds.has(id)) continue;
-    seenIds.add(id);
-    out.push(p);
-  }
-}
-
-function mapAltitudeProduct(p) {
-  try {
-    const name = p.name || p.title || p.productName || p.display_name || '';
-    if (!name) return null;
-
-    // Try various price field structures
-    const price = parseFloat(
-      p.price?.current || p.price?.sale || p.salePrice || p.currentPrice ||
-      p.price || p.prices?.sale || p.special_price || p.final_price || 0
-    );
-    const originalPrice = parseFloat(
-      p.price?.original || p.price?.list || p.comparePrice || p.originalPrice ||
-      p.compareAtPrice || p.prices?.list || p.regular_price || p.list_price || 0
-    );
-
-    if (!price || !originalPrice || price >= originalPrice) return null;
-
-    const discount = Math.round((1 - price / originalPrice) * 100);
-    if (discount <= 0) return null;
-
-    const handle = p.handle || p.slug || p.url_key || slugify(name);
-    const url = p.url || (handle ? `https://www.altitude-sports.com/products/${handle}` : SALE_URL);
-    const image = p.image?.url || p.imageUrl || p.images?.[0]?.url || p.image_url ||
-                 p.featuredImage?.url || p.thumbnail || '';
-
-    return {
-      id: slugify(`altitudesports-${name}-${p.id || ''}`),
-      store: STORE_NAME,
-      storeKey: STORE_KEY,
-      name,
-      url,
-      image,
-      price,
-      originalPrice,
-      discount,
-      currency: CURRENCY,
-      priceCAD: price,
-      originalPriceCAD: originalPrice,
-      tags: tag({ name }),
-      scrapedAt: new Date().toISOString(),
-    };
-  } catch (_) { return null; }
-}
-
-async function loadAllProductsScroll(page, interceptedProducts, onProgress) {
-  let lastHeight = 0;
-  let lastCount = 0;
-  let stable = 0;
-
-  for (let i = 0; i < 20; i++) {
-    const h = await page.evaluate(() => document.body.scrollHeight);
-    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-    await page.waitForTimeout(1500);
-
-    if (h === lastHeight && interceptedProducts.length === lastCount) {
-      if (++stable >= 3) break;
-    } else {
-      stable = 0;
-      lastHeight = h;
-      lastCount = interceptedProducts.length;
-      if (interceptedProducts.length) {
-        onProgress(`Altitude Sports: loading… (${interceptedProducts.length} products)`);
-      }
-    }
-  }
-}
-
-function slugify(str) {
-  return str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 80);
+  onProgress(`${STORE_NAME}: ${deals.length} deals`);
+  return deals;
 }
 
 module.exports = { scrape, STORE_KEY };

@@ -167,6 +167,11 @@ function fuzzyScore(deal, queryWords) {
 
 
 // ── Init ─────────────────────────────────────────────────────────────────────
+// Static mode (GitHub Pages): no server, so read the JSON files the scrape workflow publishes.
+// Store toggles become per-browser preferences in localStorage.
+let STATIC = false;
+const api = path => STATIC ? { '/api/config': 'config.json', '/api/deals': 'deals.json', '/api/status': 'deals.json' }[path] : path;
+
 async function init() {
   if (localStorage.getItem('darkMode') === 'true') {
     document.documentElement.classList.add('dark');
@@ -177,8 +182,17 @@ async function init() {
   applyGridSize();
 
   try {
-    const res = await fetch('/api/config');
+    let res = await fetch('/api/config');
+    if (!res.ok) {
+      STATIC = true;
+      document.documentElement.classList.add('static');
+      res = await fetch(api('/api/config'));
+    }
     config = await res.json();
+    if (STATIC) {
+      const overrides = JSON.parse(localStorage.getItem('storeOverrides') || '{}');
+      for (const [k, enabled] of Object.entries(overrides)) if (config.stores[k]) config.stores[k].enabled = enabled;
+    }
     renderSettingsDrawer(config);
   } catch (_) {}
 
@@ -190,7 +204,7 @@ async function init() {
 
   let hasCache = false;
   try {
-    const res = await fetch('/api/deals');
+    const res = await fetch(api('/api/deals'));
     if (res.status === 204) {
       clearGrid();
       setStrip('cached', 'No cache yet…');
@@ -212,6 +226,7 @@ async function init() {
   // Check if a background scrape is already running (server launched it due to stale cache)
   // If so, connect to SSE to stream live progress. Do NOT auto-trigger a new scrape.
   try {
+    if (STATIC) return; // nothing to scrape from a static host
     const statusRes = await fetch('/api/status');
     const status = await statusRes.json();
     if (status.scrapeInProgress) {
@@ -245,8 +260,8 @@ function updateStripText() {
     : ageSecs < 86400 ? `${Math.floor(ageSecs / 3600)}h ago`
     : `${Math.floor(ageSecs / 86400)}d ago`;
 
-  const isOutdated = ageMs > 12 * 3600 * 1000; // >12h = outdated
-  const prefix = refreshInProgress ? 'Cached' : (stripLive ? 'Up to date' : 'Cached');
+  const isOutdated = ageMs > (STATIC ? 36 : 12) * 3600 * 1000; // static site rebuilds daily
+  const prefix = STATIC ? 'Updated' : refreshInProgress ? 'Cached' : (stripLive ? 'Up to date' : 'Cached');
 
   const strip = document.getElementById('refreshStrip');
   strip.classList.remove('live', 'outdated');
@@ -825,8 +840,8 @@ function applyFiltersAndRender() {
       // Normal sort order when no search query
       deals.sort((a, b) => {
         if (currentSort === 'discount') return b.discount - a.discount;
-        if (currentSort === 'price-asc') return a.price - b.price;
-        if (currentSort === 'price-desc') return b.price - a.price;
+        if (currentSort === 'price-asc') return cadPrice(a) - cadPrice(b);
+        if (currentSort === 'price-desc') return cadPrice(b) - cadPrice(a);
         if (currentSort === 'newest') return new Date(b.scrapedAt) - new Date(a.scrapedAt);
         return 0;
       });
@@ -952,8 +967,8 @@ function applyFiltersAndRender() {
     // Normal sort order when no search query
     deals.sort((a, b) => {
       if (currentSort === 'discount') return b.discount - a.discount;
-      if (currentSort === 'price-asc') return a.price - b.price;
-      if (currentSort === 'price-desc') return b.price - a.price;
+      if (currentSort === 'price-asc') return cadPrice(a) - cadPrice(b);
+      if (currentSort === 'price-desc') return cadPrice(b) - cadPrice(a);
       if (currentSort === 'newest') return new Date(b.scrapedAt) - new Date(a.scrapedAt);
       return 0;
     });
@@ -969,7 +984,7 @@ function applyFiltersAndRender() {
 
 // Returns deals matching all active filters EXCEPT the given key (for availability check)
 function dealsExcluding(excludeKey) {
-  const cadPrice = d => (d.currency === 'USD' && d.priceCAD) ? d.priceCAD : d.price;
+
   let d = currentTab === 'non-clothing'
     ? allDeals.filter(x => x.tags.includes('Non-Clothing'))
     : allDeals.filter(x => !x.tags.includes('Non-Clothing'));
@@ -1023,7 +1038,7 @@ function dealsExcluding(excludeKey) {
 
 function updatePillAvailability() {
   // For each filter group, disable pills that would produce 0 results
-  const cadPrice = d => (d.currency === 'USD' && d.priceCAD) ? d.priceCAD : d.price;
+
 
   const checks = {
     store:    (d, v) => (d.storeKey || d.store) === v,
@@ -1256,7 +1271,7 @@ async function renderSettingsDrawer(cfg) {
   // Fetch last scrape status for per-store counts
   let status = {};
   try {
-    const r = await fetch('/api/status');
+    const r = await fetch(api('/api/status'));
     status = await r.json();
   } catch (_) {}
 
@@ -1268,7 +1283,8 @@ async function renderSettingsDrawer(cfg) {
     return BROKEN_KW.some(kw => note.includes(kw));
   }
 
-  const storeRows = Object.entries(stores).map(([key, s]) => {
+  // Static: only stores that were actually scraped can be shown/hidden
+  const storeRows = Object.entries(stores).filter(([key]) => !STATIC || status.storeResults?.[key]).map(([key, s]) => {
     const sr = status.storeResults?.[key];
     const statusText = sr
       ? (sr.error ? `⚠ ${sr.error.slice(0, 40)}` : `${sr.count} deals`)
@@ -1298,7 +1314,7 @@ async function renderSettingsDrawer(cfg) {
       </div>
       ${storeRows}
     </div>
-    <div class="ds-section">
+    <div class="ds-section ds-server-only">
       <div class="ds-label">Behaviour</div>
       <div class="ds-row">
         <div class="ds-row-text">
@@ -1322,7 +1338,7 @@ async function renderSettingsDrawer(cfg) {
         <div class="toggle ${settings.autoCurrencyConvert !== false ? 'on' : ''}" onclick="toggleSetting('autoCurrencyConvert', this)"></div>
       </div>
     </div>
-    <div class="ds-section">
+    <div class="ds-section ds-server-only">
       <div class="ds-label">Global Filters</div>
       <div class="ds-row">
         <div class="ds-row-text">
@@ -1336,7 +1352,7 @@ async function renderSettingsDrawer(cfg) {
         </div>
       </div>
     </div>
-    <div class="ds-section">
+    <div class="ds-section ds-server-only">
       <div class="ds-label">Scheduling</div>
       <div class="ds-row">
         <div class="ds-row-text">
@@ -1350,7 +1366,7 @@ async function renderSettingsDrawer(cfg) {
         </div>
       </div>
     </div>
-    <div class="ds-section">
+    <div class="ds-section ds-server-only">
       <div class="ds-label">Data</div>
       <div class="ds-row">
         <div class="ds-row-text">
@@ -1430,6 +1446,12 @@ async function stepSetting(key, delta) {
 }
 
 async function patchConfig(patch) {
+  if (STATIC) {
+    const overrides = JSON.parse(localStorage.getItem('storeOverrides') || '{}');
+    for (const [k, v] of Object.entries(patch.stores || {})) overrides[k] = v.enabled;
+    localStorage.setItem('storeOverrides', JSON.stringify(overrides));
+    return;
+  }
   try {
     await fetch('/api/config', {
       method: 'PATCH',
@@ -1717,3 +1739,8 @@ function escHtml(str) {
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 init();
+
+// USD stores carry a CAD estimate; compare everything in CAD
+function cadPrice(d) {
+  return d.currency === 'USD' && d.priceCAD ? d.priceCAD : d.price;
+}

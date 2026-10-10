@@ -2,15 +2,15 @@
 
 // Keyword maps for auto-tagging product names → normalized category tags
 const CATEGORY_MAP = [
-  { tag: 'T-Shirts',    keywords: ['t-shirt', 'tshirt', 'tee', ' tee ', 'graphic tee', 'crew neck', 'crewneck'] },
+  { tag: 'T-Shirts',    keywords: ['t-shirt', 'tshirt', 'tee', 'graphic tee', 'crew neck', 'crewneck'] },
   { tag: 'Shorts',      keywords: ['short', 'shorts'] },
   { tag: 'Jackets',     keywords: ['jacket', 'parka', 'anorak', 'windbreaker', 'wind breaker', 'vest', 'gilet'] },
-  { tag: 'Hoodies',     keywords: ['hoodie', 'hoody', 'sweatshirt', 'fleece', 'pullover'] },
+  { tag: 'Hoodies',     keywords: ['hoodie', 'hoody', 'sweatshirt', 'fleece', 'pullover', 'sweater', 'cardigan', 'quarter zip', '1/4 zip', 'half zip', 'crew'] },
   { tag: 'Outerwear',   keywords: ['coat', 'overcoat', 'trench', 'puffer', 'down jacket', 'rain jacket'] },
   { tag: 'Dresses',     keywords: ['dress', 'gown', 'midi', 'maxi dress', 'mini dress'] },
   { tag: 'Skirts',      keywords: ['skirt'] },
   { tag: 'Pants',       keywords: ['pant', 'pants', 'jean', 'jeans', 'trouser', 'trousers', 'chino', 'legging', 'jogger', 'sweatpant'] },
-  { tag: 'Tops',        keywords: ['blouse', 'top ', 'tops', 'tunic', 'tank', 'cami', 'crop', 'polo', 'henley', 'shirt'] },
+  { tag: 'Tops',        keywords: ['blouse', 'top', 'tops', 'tunic', 'tank', 'cami', 'crop', 'polo', 'henley', 'shirt'] },
   { tag: 'Footwear',    keywords: ['shoe', 'shoes', 'sneaker', 'runner', 'trainer', 'boot', 'sandal', 'slide', 'loafer', 'oxford', 'mule', 'clog'] },
   { tag: 'Activewear',  keywords: ['sport', 'active', 'athletic', 'performance', 'training', 'running', 'gym', 'yoga', 'cycling', 'compression', 'hovr', 'rush', 'tech'] },
   { tag: 'Swimwear',    keywords: ['swim', 'bikini', 'board short', 'swimsuit', 'bathing'] },
@@ -60,19 +60,24 @@ const NON_CLOTHING_KEYWORDS = [
   'cooking pot', 'camp cookware', 'cutlery set', 'eating utensil',
 ];
 
-// Women must come before Men — 'mens' is a substring of 'womens', and 'male' of 'female'.
-// Checking Women first ensures "womens shorts" → Women, not Men.
-// Kids includes all age groups: toddlers, grade school, little kids, big kids, etc.
+// Matched on word boundaries (see has()), so 'men' never matches 'women' and order doesn't matter.
 const GENDER_MAP = [
-  { tag: 'Women', keywords: ['women\'s', 'womens', ' women ', 'female', 'ladies', 'w\'s ', ' w\'s'] },
-  { tag: 'Men',   keywords: ['men\'s', 'mens', ' men ', 'male', 'm\'s ', ' m\'s'] },
+  { tag: 'Women', keywords: ['women', 'woman', 'womens', 'ladies', 'female', "w's"] },
+  { tag: 'Men',   keywords: ['men', 'man', 'mens', 'male', "m's"] },
   { tag: 'Kids',  keywords: [
-    'kids', 'children', 'toddler', 'infant', 'baby', 'youth',
-    'grade school', 'little kids', 'big kids', 'preschool',
-    ' gs ', ' ps ', ' td ', ' bg ', ' lg ', ' gg ',
-    'junior ', ' boys ', ' girls ', ' boy ', ' girl ',
+    'kid', 'children', 'toddler', 'infant', 'baby', 'youth', 'junior', 'preschool',
+    'grade school', 'boy', 'girl', 'gs', 'ps', 'td', 'bg', 'lg', 'gg',
   ]},
 ];
+
+const escRe = s => s.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const reCache = new Map();
+// Whole-word match allowing a plural/possessive suffix: 'short' matches "Shorts"/"Short's", 'bra' doesn't match "Brawler".
+function has(hay, kw) {
+  let re = reCache.get(kw);
+  if (!re) reCache.set(kw, re = new RegExp(`(^|[^a-z])${escRe(kw)}(s|es)?('s?)?(?![a-z])`));
+  return re.test(hay);
+}
 
 /**
  * Given a product name, description, and optional store-provided category string,
@@ -86,50 +91,25 @@ const GENDER_MAP = [
  * @returns {string[]}
  */
 function tag({ name = '', description = '', category = '', gender = '' } = {}) {
-  const haystack = [name, description, category].join(' ').toLowerCase();
+  const norm = s => s.toLowerCase().replace(/[‘’]/g, "'");
+  const haystack = norm([name, description, category].join(' '));
+  // "Short Sleeve Tee" is a top, not shorts
+  const catHaystack = norm([name, category].join(' ')).replace(/short[- ]sleeve/g, 'shirt');
   const tags = new Set();
 
-  // Non-clothing check — if matched, return early with just Non-Clothing tag
-  if (NON_CLOTHING_KEYWORDS.some(k => haystack.includes(k.toLowerCase()))) {
+  const cats = CATEGORY_MAP.filter(({ keywords }) => keywords.some(k => has(catHaystack, k))).map(c => c.tag);
+
+  // Equipment keywords only win when nothing clothing-like matched ("Ski Jacket" stays a jacket)
+  if (!cats.length && NON_CLOTHING_KEYWORDS.some(k => has(haystack, k.toLowerCase()))) {
     return ['Non-Clothing'];
   }
 
-  // Gender
-  if (gender) {
-    const g = gender.toLowerCase();
-    if (g.includes('men') && !g.includes('women')) tags.add('Men');
-    else if (g.includes('women') || g.includes('woman')) tags.add('Women');
-    else if (g.includes('unisex')) tags.add('Unisex');
-    else if (
-      g.includes('kid') || g.includes('child') || g.includes('boy') || g.includes('girl') ||
-      g.includes('youth') || g.includes('infant') || g.includes('toddler') ||
-      g.includes('grade school') || g.includes('little kid') || g.includes('big kid') ||
-      g.includes('preschool') || g.includes('junior')
-    ) {
-      tags.add('Kids');
-    }
-  }
+  const genderOf = hay => GENDER_MAP.find(({ keywords }) => keywords.some(k => has(hay, k)))?.tag;
+  const g = (gender && genderOf(norm(gender))) || (gender && has(norm(gender), 'unisex') && 'Unisex') || genderOf(haystack);
+  if (g) tags.add(g);
+  // Untagged gender is fine — the frontend treats "Unisex" as "truly unisex + unknown gender".
 
-  if (tags.size === 0) {
-    for (const { tag: t, keywords } of GENDER_MAP) {
-      if (keywords.some(k => haystack.includes(k))) {
-        tags.add(t);
-        break;
-      }
-    }
-  }
-
-  // Don't default to Unisex — leave items with no gender hint untagged.
-  // The frontend treats "Unisex" filter as "truly unisex + unknown gender".
-
-  // Category — can match multiple
-  const catHaystack = [name, category].join(' ').toLowerCase();
-  for (const { tag: t, keywords } of CATEGORY_MAP) {
-    if (keywords.some(k => catHaystack.includes(k))) {
-      tags.add(t);
-    }
-  }
-
+  cats.forEach(c => tags.add(c));
   return [...tags];
 }
 
