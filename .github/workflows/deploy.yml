@@ -4,9 +4,15 @@ on:
   schedule:
     - cron: '0 10 * * *' # daily, ~6am Toronto
   workflow_dispatch:
+    inputs:
+      source:
+        description: 'scrape here, or publish the deals.json uploaded by the desktop updater'
+        type: choice
+        options: [scrape, local]
+        default: scrape
   push:
     branches: [master]
-    paths: ['frontend/**', 'scraper/**', 'config.json', '.github/workflows/deploy.yml']
+    paths: ['frontend/**', 'scraper/**', 'config.json', 'merge-local.js', '.github/workflows/deploy.yml']
 
 permissions:
   contents: read
@@ -28,9 +34,21 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+        if: inputs.source != 'local'
       - run: npm test
+        if: inputs.source != 'local'
       - run: npx playwright install --with-deps chromium
+        if: inputs.source != 'local'
       - run: npm run scrape
+        if: inputs.source != 'local'
+      # Desktop updater uploads its run to the 'site-data' release; publish it, or backfill from it
+      - name: Merge local data
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p data
+          gh release download site-data -p deals.json -O local-deals.json || true
+          node merge-local.js local-deals.json data/deals.json ${{ inputs.source == 'local' && '--replace' || '' }}
       - name: Assemble site
         run: |
           mkdir _site

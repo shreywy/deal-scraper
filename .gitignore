@@ -29,3 +29,6 @@ docs/superpowers/
 scratch_*
 _site/
 .claude/launch.json
+
+# Desktop updater build output (source: tools/updater)
+Update Site.exe
