@@ -16,21 +16,7 @@ const COLLECTIONS = [
   { page: 'https://www.visions.ca/deals/openbox',   filter: 'categories_without_path:"Open Box"'  },
 ];
 
-function ncTag(name) {
-  const t = name.toLowerCase();
-  if (/laptop|notebook|chromebook|macbook/.test(t)) return 'Computers';
-  if (/desktop|workstation|mini pc|all.in.one/.test(t)) return 'Computers';
-  if (/\bmonitor\b|television|\btv\b|oled|qled|4k display/.test(t)) return 'TVs & Displays';
-  if (/iphone|smartphone|\btablet\b|\bipad\b/.test(t)) return 'Phones & Tablets';
-  if (/headphone|earphone|earbud|airpod|\bspeaker\b|soundbar|subwoofer/.test(t)) return 'Audio';
-  if (/\bcamera\b|mirrorless|dslr|\bdrone\b/.test(t)) return 'Cameras';
-  if (/gaming|console|\bxbox\b|playstation|\bps5\b|\bps4\b|nintendo|\bswitch\b|controller/.test(t)) return 'Gaming';
-  if (/washer|dryer|fridge|refrigerator|dishwasher|microwave|\boven\b|\bstove\b|vacuum|air purifier|coffee maker|blender|toaster/.test(t)) return 'Appliances';
-  if (/\bprinter\b|\bscanner\b|\bkeyboard\b|\bmouse\b|\bssd\b|hard drive|\brouter\b|webcam/.test(t)) return 'Computer Parts';
-  if (/smart home|security cam|thermostat|smart lock/.test(t)) return 'Smart Home';
-  if (/dash cam|radar detector|gps/.test(t)) return 'Auto Electronics';
-  return 'Electronics';
-}
+const { ncTag } = require('../tagger');
 
 function slugify(str) {
   return str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 80);

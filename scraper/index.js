@@ -195,7 +195,7 @@ async function runAll(config, onProgress = () => {}, onPartial = () => {}) {
         // Non-clothing stores: the frontend's tab split keys off the 'Non-Clothing' tag
         const nonClothing = config.stores[key]?.category === 'non-clothing';
         const tagged = deals.map(d => nonClothing && !d.tags?.includes('Non-Clothing')
-          ? { ...d, storeKey: key, tags: ['Non-Clothing', ncTag(d.name)] }
+          ? { ...d, storeKey: key, tags: ['Non-Clothing', ncTag(d.name, '', 'Furniture')] }
           : fillGenderFromUrl({ ...d, storeKey: key }));
         // Deduplicate within this store's batch by id then url
         const storeSeenIds = new Set();

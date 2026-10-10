@@ -35,7 +35,7 @@ deal-scraper/
 npm install
 npx playwright install chromium
 npm start
-# → opens http://localhost:3000
+# → opens http://localhost:3030
 
 npm run scrape   # one-off scrape → data/deals.json
 npm test         # tagger checks

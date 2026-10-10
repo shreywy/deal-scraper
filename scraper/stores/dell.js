@@ -14,17 +14,7 @@ const CURRENCY = 'CAD';
 // a single page fetch is enough. Use the top-level deals page.
 const DEALS_URL = 'https://www.dell.com/en-ca/shop/deals/laptops';
 
-function ncTag(name) {
-  const t = name.toLowerCase();
-  if (/laptop|notebook|ultrabook|xps|inspiron|vostro|latitude|precision|chromebook/.test(t)) return 'Computers';
-  if (/desktop|workstation|mini|tower|optiplex|optiplex/.test(t)) return 'Computers';
-  if (/\bmonitor\b|display|screen/.test(t)) return 'TVs & Displays';
-  if (/\btablet\b/.test(t)) return 'Phones & Tablets';
-  if (/\bkeyboard\b|\bmouse\b|\bssd\b|hard drive|\bdock\b|docking|adapter|charger/.test(t)) return 'Computer Parts';
-  if (/printer|scanner/.test(t)) return 'Computer Parts';
-  if (/gaming|alienware|geforce|gpu/.test(t)) return 'Gaming';
-  return 'Electronics';
-}
+const { ncTag } = require('../tagger');
 
 function slugify(str) {
   return str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 80);

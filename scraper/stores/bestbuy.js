@@ -6,21 +6,7 @@ const STORE_NAME = 'Best Buy CA';
 const STORE_KEY = 'bestbuy';
 const CURRENCY = 'CAD';
 
-// Non-clothing category helper
-function ncTag(name, cat = '') {
-  const t = `${name} ${cat}`.toLowerCase();
-  if (/laptop|notebook|ultrabook|chromebook|macbook/.test(t)) return 'Computers';
-  if (/desktop|workstation|mini pc|all.in.one|all in one/.test(t)) return 'Computers';
-  if (/\bmonitor\b|television|\btv\b|oled|qled|4k display/.test(t)) return 'TVs & Displays';
-  if (/iphone|smartphone|cell phone|mobile phone|\btablet\b|\bipad\b/.test(t)) return 'Phones & Tablets';
-  if (/headphone|earphone|earbud|airpod|\bspeaker\b|soundbar|subwoofer/.test(t)) return 'Audio';
-  if (/\bcamera\b|mirrorless|dslr|\bdrone\b/.test(t)) return 'Cameras';
-  if (/\bgaming\b|console|\bxbox\b|playstation|\bps5\b|\bps4\b|nintendo|\bswitch\b|controller|gpu|graphics card/.test(t)) return 'Gaming';
-  if (/washer|dryer|fridge|refrigerator|dishwasher|microwave|\boven\b|\bstove\b|vacuum|air purifier|coffee maker/.test(t)) return 'Appliances';
-  if (/\bsofa\b|\bcouch\b|\bchair\b|\bdesk\b|\btable\b|\bshelf\b|bookcase|\bbed\b|mattress|\blamp\b|\brug\b/.test(t)) return 'Furniture';
-  if (/\bprinter\b|\bscanner\b|\bkeyboard\b|\bmouse\b|webcam|\brouter\b|hard drive|\bssd\b|\bram\b|\bcpu\b|motherboard/.test(t)) return 'Computer Parts';
-  return 'Electronics';
-}
+const { ncTag } = require('../tagger');
 
 /**
  * Scrapes deals from Best Buy Canada

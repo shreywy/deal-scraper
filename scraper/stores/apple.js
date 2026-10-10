@@ -13,17 +13,7 @@ const BASE_URL = 'https://www.apple.com/ca/shop/refurbished';
 
 const CATEGORIES = ['mac', 'iphone', 'ipad', 'accessories', 'appletv'];
 
-function ncTag(name) {
-  const t = name.toLowerCase();
-  if (/macbook|mac mini|mac pro|mac studio|imac/.test(t)) return 'Computers';
-  if (/iphone/.test(t)) return 'Phones & Tablets';
-  if (/ipad/.test(t)) return 'Phones & Tablets';
-  if (/apple tv/.test(t)) return 'Electronics';
-  if (/airpods|homepod|beats/.test(t)) return 'Audio';
-  if (/apple watch/.test(t)) return 'Electronics';
-  if (/apple pencil|magic keyboard|magic mouse|magic trackpad/.test(t)) return 'Computer Parts';
-  return 'Electronics';
-}
+const { ncTag } = require('../tagger');
 
 function slugify(str) {
   return str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 80);

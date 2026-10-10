@@ -4,25 +4,7 @@ const fetch = require('node-fetch');
 
 const STORE_NAME = 'Canadian Tire';
 
-function ncTag(name, cat = '') {
-  const t = `${name} ${cat}`.toLowerCase();
-  if (/laptop|notebook|ultrabook|chromebook|macbook/.test(t)) return 'Computers';
-  if (/desktop|workstation|mini pc|all.in.one|all in one/.test(t)) return 'Computers';
-  if (/\bmonitor\b|television|\btv\b|oled|qled/.test(t)) return 'TVs & Displays';
-  if (/iphone|smartphone|cell phone|\btablet\b|\bipad\b/.test(t)) return 'Phones & Tablets';
-  if (/headphone|earphone|earbud|\bspeaker\b|soundbar/.test(t)) return 'Audio';
-  if (/\bcamera\b|mirrorless|dslr|\bdrone\b/.test(t)) return 'Cameras';
-  if (/\bgaming\b|console|\bxbox\b|playstation|\bps5\b|nintendo|controller|gpu/.test(t)) return 'Gaming';
-  if (/washer|dryer|fridge|refrigerator|dishwasher|microwave|\boven\b|\bstove\b|vacuum|air purifier|coffee maker/.test(t)) return 'Appliances';
-  if (/\bsofa\b|\bcouch\b|\bchair\b|\bdesk\b|\btable\b|\bshelf\b|bookcase|\bbed\b|mattress|\blamp\b|\brug\b/.test(t)) return 'Furniture';
-  if (/\bprinter\b|\bkeyboard\b|\bmouse\b|\brouter\b|hard drive|\bssd\b|\bram\b|\bcpu\b|motherboard/.test(t)) return 'Computer Parts';
-  if (/lego|\btoy\b|\btoys\b|action figure|doll|playset|puzzle|board game|nerf/.test(t)) return 'Toys & Games';
-  if (/book|novel/.test(t)) return 'Books & Media';
-  if (/drill|saw|wrench|hammer|screwdriver|power tool|toolbox|ladder|paint/.test(t)) return 'Tools & Home Improvement';
-  if (/cookware|\bpot\b|\bpan\b|knife|cutting board|bakeware/.test(t)) return 'Kitchen';
-  if (/washer|dryer|fridge/.test(t)) return 'Appliances';
-  return 'Electronics';
-}
+const { ncTag } = require('../tagger');
 const STORE_KEY = 'canadiantire';
 const CURRENCY = 'CAD';
 

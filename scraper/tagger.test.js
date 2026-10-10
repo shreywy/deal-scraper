@@ -1,6 +1,6 @@
 // node scraper/tagger.test.js — exits non-zero on any mismatch
 const assert = require('assert');
-const { tag, genderOf } = require('./tagger');
+const { tag, genderOf, ncTag } = require('./tagger');
 const cases = [
   ["UA Tech™Women's V-Neck Short Sleeve", ['Women', 'Tops', 'Activewear']],
   ["Armour Fleece® Girls' Relaxed Joggers", ['Kids', 'Hoodies', 'Pants']],
@@ -12,6 +12,7 @@ const cases = [
   ['Womens Shorts', ['Women', 'Shorts']],
   ['Steel Water Bottle', ['Non-Clothing']],
   ['Classic Dresses', ['Dresses']],
+  ["Men's Slim Dress Shirt", ['Men', 'Tops']],
 ];
 for (const [name, want] of cases) assert.deepStrictEqual(tag({ name }), want, name);
 assert.deepStrictEqual(tag({ name: 'Crest Joggers', gender: 'Mens' }), ['Men', 'Pants']);
@@ -23,4 +24,18 @@ assert.strictEqual(genderOf('ca t zenvy womens tank top cy1'), 'Women');
 assert.strictEqual(genderOf('en sale mens sale'), 'Men');
 assert.strictEqual(genderOf('products classic hoodie'), undefined);
 assert.strictEqual(genderOf('Bluey Unisex Graphic Pajama Set for Toddler & Baby'), 'Kids');
+for (const [args, want] of [
+  [['MacBook Air 13-inch M3'], 'Computers'],
+  [['ThinkPad X1 Carbon Gen 12'], 'Computers'],
+  [['Galaxy S25 Ultra 256GB'], 'Phones & Tablets'],
+  [['RTX 4070 Super', 'Graphics Cards'], 'Gaming'],
+  [['HEMNES TV unit'], 'Furniture'],
+  [['10" Table Saw'], 'Tools & Home Improvement'],
+  [['Portable Air Conditioner'], 'Appliances'],
+  [['Beautyrest Firm Queen Mattress'], 'Furniture'],
+  [['Gloria End Table - Espresso'], 'Furniture'],
+  [['GE Profile All-in-One Washer/Dryer'], 'Appliances'],
+  [['Smartwatch Band'], 'Electronics'],
+  [['Ceramic Vase', '', 'Furniture'], 'Furniture'],
+]) assert.strictEqual(ncTag(...args), want, args[0]);
 console.log('tagger ok');

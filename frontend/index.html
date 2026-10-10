@@ -2,173 +2,77 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>dealsco</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dealsco — Canadian sale finder</title>
+<meta name="description" content="Sale items from Canadian retailers, refreshed daily.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231f3d2b'/%3E%3Cpath d='M10 9h6.5a7 7 0 0 1 0 14H10z' fill='none' stroke='%23fff' stroke-width='3'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<script>try { const t = localStorage.getItem('theme'); if (t) document.documentElement.dataset.theme = JSON.parse(t); } catch (_) {}</script>
 </head>
 <body>
-
-<!-- ── TOPBAR ── -->
-<div class="topbar">
-  <div class="logo">🌿 dealsco</div>
-  <div class="topbar-divider"></div>
-  <div class="refresh-strip" id="refreshStrip"
-       onmouseenter="showScrapePopdown()" onmouseleave="hideScrapePopdown()">
-    <span class="strip-dot" id="stripDot"></span>
-    <span id="stripText">Loading…</span>
-    <span class="strip-refresh-btn" id="stripRefreshBtn" onclick="manualRefresh()" title="Refresh now">↻</span>
-  </div>
-  <div class="scrape-popdown" id="scrapePopdown"
-       onmouseenter="showScrapePopdown()" onmouseleave="hideScrapePopdown()">
-    <div id="scrapePopdownContent"></div>
-  </div>
-  <div class="search-wrap" id="searchWrap">
-    <input class="search-input" id="searchInput" type="text" placeholder="Search deals…" oninput="onSearchInput()" autocomplete="off">
-    <span class="search-clear" id="searchClear" onclick="clearSearch()">×</span>
-  </div>
-  <div class="topbar-tabs" id="topbarTabs">
-    <button class="topbar-tab active" id="tabClothing" onclick="switchTab('clothing')">Clothing</button>
-    <button class="topbar-tab" id="tabNonClothing" onclick="switchTab('non-clothing')">Other <span class="topbar-tab-count" id="nonClothingCount"></span></button>
-  </div>
-  <div class="topbar-spacer"></div>
-  <div class="dark-btn" id="darkBtn" onclick="toggleDark()" title="Toggle dark mode">
-    <span class="dark-icon dark-icon-moon">🌙</span>
-    <span class="dark-icon dark-icon-sun">☀️</span>
-  </div>
-  <div class="menu-btn" id="menuBtn" onclick="toggleDrawer()">
-    <span class="menu-icon">⚙️</span>
-    <span>Settings</span>
-  </div>
-</div>
-
-<!-- ── DRAWER OVERLAY ── -->
-<div class="drawer-overlay" id="overlay" onclick="closeDrawer()"></div>
-
-<!-- ── SETTINGS DRAWER ── -->
-<div class="drawer" id="drawer">
-  <div class="drawer-header">
-    <h2>Settings</h2>
-    <div class="drawer-close" onclick="closeDrawer()">×</div>
-  </div>
-  <div class="drawer-body" id="drawerBody">
-    <div class="ds-section">
-      <div class="ds-label">Loading…</div>
+<header class="header">
+  <div class="bar">
+    <a class="wordmark" href="./">dealsco</a>
+    <div class="search">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="q" type="search" placeholder="Search brands, products…" autocomplete="off" aria-label="Search deals">
+      <kbd aria-hidden="true">/</kbd>
     </div>
+    <div class="meta-wrap">
+      <button class="meta" id="meta" aria-haspopup="dialog" aria-expanded="false"><i></i><span id="metaText">Loading…</span></button>
+      <div class="popover" id="storesPop" role="dialog" aria-label="Store status" hidden></div>
+    </div>
+    <button class="iconbtn live-only" id="refreshBtn" aria-label="Refresh deals now" title="Refresh deals now">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+    </button>
+    <button class="iconbtn" id="themeBtn" aria-label="Toggle dark mode" title="Toggle dark mode">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+    </button>
   </div>
-</div>
+  <nav class="depts" role="tablist" aria-label="Department">
+    <button class="dept" role="tab" data-dept="Men">Men</button>
+    <button class="dept" role="tab" data-dept="Women">Women</button>
+    <button class="dept" role="tab" data-dept="Kids">Kids</button>
+    <button class="dept" role="tab" data-dept="All">Everyone</button>
+    <span class="dept-sep" aria-hidden="true"></span>
+    <button class="dept" role="tab" data-dept="Home">Home &amp; Tech</button>
+  </nav>
+</header>
 
-<!-- ── LAYOUT ── -->
 <div class="layout">
-  <!-- ── SIDEBAR ── -->
-  <aside class="sidebar">
-    <div class="sb-section">
-      <div class="sb-label">Sort by</div>
-      <div class="sort-row active" data-sort="discount" onclick="setSort(this)"><span class="si">%</span>% Off (highest)</div>
-      <div class="sort-row" data-sort="price-asc" onclick="setSort(this)"><span class="si">↑</span>Price: low → high</div>
-      <div class="sort-row" data-sort="price-desc" onclick="setSort(this)"><span class="si">↓</span>Price: high → low</div>
-      <div class="sort-row" data-sort="newest" onclick="setSort(this)"><span class="si">✦</span>Newest</div>
-    </div>
-
-    <div class="sb-section">
-      <div class="sb-label">Tile size</div>
-      <div class="grid-size-ctrl">
-        <div class="gs-btn" onclick="changeGrid(-1)">−</div>
-        <div class="gs-val" id="gsVal">4</div>
-        <div class="gs-btn" onclick="changeGrid(1)">+</div>
-      </div>
-    </div>
-
-    <div class="sb-section" id="filterStore">
-      <div class="sb-label">Store</div>
-      <div class="store-select" id="storeSelect">
-        <div class="store-select-trigger" id="storeSelectTrigger" onclick="toggleStoreDropdown(event)">
-          <span id="storeSelectLabel">All Stores</span>
-          <span class="store-select-arrow">▾</span>
-        </div>
-        <div class="store-select-menu" id="storeSelectMenu" style="display:none">
-          <input class="store-select-search" type="text" placeholder="Search…" oninput="filterStoreDropdown(this.value)" autocomplete="off">
-          <div class="store-select-list" id="storeSelectList"></div>
-        </div>
-      </div>
-      <!-- Hidden pill-group: drives filter logic, synced by dropdown -->
-      <div id="storePills" style="display:none">
-        <div class="pill active" data-filter="store" data-value="all" onclick="togglePill(this, event)">All</div>
-      </div>
-    </div>
-
-    <div class="sb-section" id="filterGender">
-      <div class="sb-label">Gender</div>
-      <div class="pill-group" id="genderPills">
-        <div class="pill active" data-filter="gender" data-value="all" onclick="togglePill(this, event)">All</div>
-        <div class="pill" data-filter="gender" data-value="Men" onclick="togglePill(this, event)">Men</div>
-        <div class="pill" data-filter="gender" data-value="Women" onclick="togglePill(this, event)">Women</div>
-        <div class="pill" data-filter="gender" data-value="Unisex" onclick="togglePill(this, event)">Unisex</div>
-        <div class="pill" data-filter="gender" data-value="Kids" onclick="togglePill(this, event)">Kids</div>
-      </div>
-    </div>
-
-    <div class="sb-section">
-      <div class="sb-label">Category <span class="sb-label-note">(auto-tagged)</span></div>
-      <div class="pill-group" id="categoryPills">
-        <div class="pill active" data-filter="category" data-value="all" onclick="togglePill(this, event)">All</div>
-      </div>
-    </div>
-
-    <div class="slider-group">
-      <div class="slider-label">Price Range <span class="slider-vals" id="priceSliderVals">$0 – $500+</span></div>
-      <div class="slider-endlabels"><span>$0</span><span>$500+</span></div>
-      <div class="dual-slider" id="priceSlider">
-        <div class="dual-slider-track"></div>
-        <div class="dual-slider-fill" id="priceSliderFill"></div>
-        <div class="slider-thumb-tooltip" id="priceMinTip">$0</div>
-        <div class="slider-thumb-tooltip" id="priceMaxTip">$500+</div>
-        <input type="range" id="priceMin" min="0" max="500" value="0" step="10" class="range-input range-min">
-        <input type="range" id="priceMax" min="0" max="500" value="500" step="10" class="range-input range-max">
-      </div>
-    </div>
-
-    <div class="slider-group">
-      <div class="slider-label">Min Discount <span class="slider-vals" id="discountSliderVal">Any</span></div>
-      <div class="slider-endlabels"><span>0%</span><span>90%</span></div>
-      <div class="single-slider" id="discountSliderWrap">
-        <div class="dual-slider-track"></div>
-        <div class="dual-slider-fill" id="discountSliderFill" style="left:0%;width:0%"></div>
-        <div class="slider-thumb-tooltip" id="discountTip">0%</div>
-        <input type="range" id="discountSlider" min="0" max="90" value="0" step="5" class="range-input range-single">
-      </div>
-    </div>
-    <div class="sb-hint">Shift+click any filter to exclude it</div>
-  </aside>
-
-  <!-- ── MAIN ── -->
+  <aside class="side" id="side" aria-label="Filters"></aside>
   <main class="main">
-    <!-- Non-Clothing Category Navigation (hidden by default) -->
-    <div class="nc-category-nav" id="ncCategoryNav" style="display:none">
-      <div class="nc-category-scroll" id="ncCategoryScroll">
-        <!-- Category tiles dynamically generated by JS -->
-      </div>
+    <div class="toolbar">
+      <button class="mfilters" id="openSheet">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
+        Filters<span id="fcount"></span>
+      </button>
+      <div class="count" id="count" aria-live="polite"></div>
+      <div class="chips" id="chips"></div>
+      <label class="sort"><span>Sort</span>
+        <select id="sort">
+          <option value="discount">Biggest discount</option>
+          <option value="low">Price: low to high</option>
+          <option value="high">Price: high to low</option>
+          <option value="saved">Most saved ($)</option>
+        </select>
+      </label>
     </div>
-
-    <div class="results-bar">
-      <span class="results-count" id="resultsCount"></span>
-      <div id="activeFilters" class="active-filters"></div>
-    </div>
-    <div class="grid-wrap" id="gridWrap">
-      <div class="grid" id="grid"></div>
-      <div class="grid-spinner-overlay" id="gridOverlay" style="display:none">
-        <div class="gso-spinner"></div>
-        <div class="gso-label" id="gridOverlayLabel">Refreshing deals…</div>
-      </div>
-    </div>
-    <div class="empty-state" id="emptyState" style="display:none">
-      <div class="empty-icon">🌿</div>
-      <div class="empty-title">No deals match your filters</div>
-      <div class="empty-sub">Try adjusting your filters or wait for the scrape to complete</div>
-    </div>
-    <div class="pagination" id="pagination"></div>
+    <div class="grid" id="grid"></div>
   </main>
 </div>
 
+<div class="sheet-bg" id="sheetBg"></div>
+<div class="sheet" id="sheet" role="dialog" aria-label="Filters" aria-modal="true">
+  <header>Filters
+    <button class="iconbtn" id="closeSheet" aria-label="Close filters"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+  </header>
+  <div class="sbody" id="sheetBody"></div>
+  <footer><button id="applySheet">Show results</button></footer>
+</div>
 
 <script src="app.js"></script>
 </body>

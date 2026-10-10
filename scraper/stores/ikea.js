@@ -4,23 +4,7 @@ const STORE_NAME = 'IKEA CA';
 const STORE_KEY = 'ikea';
 const CURRENCY = 'CAD';
 
-// Non-clothing category helper
-function ncTag(name, cat = '') {
-  const t = `${name} ${cat}`.toLowerCase();
-  if (/laptop|notebook|chromebook|surface pro|surface laptop/.test(t)) return 'Computers';
-  if (/desktop|workstation|all.in.one|mini pc/.test(t)) return 'Computers';
-  if (/\bmonitor\b|television|\btv\b|oled/.test(t)) return 'TVs & Displays';
-  if (/\btablet\b|smartphone|iphone|\bipad\b/.test(t)) return 'Phones & Tablets';
-  if (/headphone|earphone|earbud|\bspeaker\b|soundbar/.test(t)) return 'Audio';
-  if (/\bcamera\b|mirrorless|dslr/.test(t)) return 'Cameras';
-  if (/gaming|xbox|playstation|nintendo|controller|gpu|graphics/.test(t)) return 'Gaming';
-  if (/washer|dryer|fridge|refrigerator|dishwasher|microwave|vacuum|air purifier|blender|coffee|kettle/.test(t)) return 'Appliances';
-  if (/\bsofa\b|\bcouch\b|\bchair\b|\bdesk\b|\btable\b|\bbed\b|mattress|shelf|bookcase|lamp|rug|curtain|pillow|duvet/.test(t)) return 'Furniture';
-  if (/\bprinter\b|\bkeyboard\b|\bmouse\b|\brouter\b|hard drive|\bssd\b|\bram\b/.test(t)) return 'Computer Parts';
-  if (/book|novel|toy|\bpuzzle\b|game board|lego/.test(t)) return 'Books & Toys';
-  if (/beauty|skincare|makeup|shampoo|vitamin|supplement|health/.test(t)) return 'Health & Beauty';
-  return 'Electronics';
-}
+const { ncTag } = require('../tagger');
 
 /**
  * @param {import('playwright').Browser} browser
@@ -161,7 +145,7 @@ async function scrape(browser, onProgress = () => {}) {
       id: slugify(`${STORE_KEY}-${d.name}`),
       priceCAD: d.price,
       originalPriceCAD: d.originalPrice,
-      tags: ['Non-Clothing', ncTag(d.name)],
+      tags: ['Non-Clothing', ncTag(d.name, '', 'Furniture')],
       scrapedAt: new Date().toISOString(),
     }));
     onProgress(`IKEA CA: found ${tagged.length} deals (DOM)`);
@@ -222,7 +206,7 @@ function mapProduct(p) {
       currency: CURRENCY,
       priceCAD: price,
       originalPriceCAD: originalPrice,
-      tags: ['Non-Clothing', ncTag(name, category)],
+      tags: ['Non-Clothing', ncTag(name, category, 'Furniture')],
       scrapedAt: new Date().toISOString(),
     };
   } catch (_) { return null; }

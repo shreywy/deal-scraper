@@ -8,18 +8,7 @@ const STORE_NAME = 'Lenovo CA';
 const STORE_KEY = 'lenovo';
 const DEALS_URL = 'https://www.lenovo.com/ca/en/d/deals/doorbusters/?sortBy=Recommended';
 
-function ncTag(name) {
-  const t = name.toLowerCase();
-  if (/laptop|notebook|ultrabook|thinkpad|ideapad|yoga|legion|chromebook/.test(t)) return 'Computers';
-  if (/desktop|workstation|mini pc|all.in.one|all in one|tiny|tower/.test(t)) return 'Computers';
-  if (/\bmonitor\b|television|\btv\b|display/.test(t)) return 'TVs & Displays';
-  if (/\btablet\b|\bipad\b/.test(t)) return 'Phones & Tablets';
-  if (/headphone|earphone|earbud|\bspeaker\b/.test(t)) return 'Audio';
-  if (/\bkeyboard\b|\bmouse\b|\bssd\b|\bram\b|hard drive|\bdock\b|docking|adapter|charger|cable/.test(t)) return 'Computer Parts';
-  if (/printer|scanner/.test(t)) return 'Computer Parts';
-  if (/gaming|geforce|radeon|gpu|graphics/.test(t)) return 'Gaming';
-  return 'Electronics';
-}
+const { ncTag } = require('../tagger');
 
 function slugify(str) {
   return str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 80);

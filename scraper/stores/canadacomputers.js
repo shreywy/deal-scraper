@@ -6,22 +6,7 @@ const CURRENCY = 'CAD';
 const BASE_URL = 'https://www.canadacomputers.com/en/clearance';
 const MAX_PAGES = 8; // 12 products per page = ~96 products max
 
-/**
- * Category helper for non-clothing items
- */
-function ncTag(name) {
-  const t = name.toLowerCase();
-  if (/laptop|notebook|ultrabook|chromebook|macbook/.test(t)) return 'Computers';
-  if (/desktop|workstation|mini pc|all.in.one/.test(t)) return 'Computers';
-  if (/\bmonitor\b|television|\btv\b|oled|qled/.test(t)) return 'TVs & Displays';
-  if (/iphone|smartphone|\btablet\b|\bipad\b/.test(t)) return 'Phones & Tablets';
-  if (/headphone|earphone|earbud|\bspeaker\b|soundbar/.test(t)) return 'Audio';
-  if (/\bcamera\b|mirrorless|dslr/.test(t)) return 'Cameras';
-  if (/\bgaming\b|console|\bxbox\b|playstation|\bps5\b|nintendo|controller|\bgpu\b|graphics card/.test(t)) return 'Gaming';
-  if (/washer|dryer|fridge|dishwasher|microwave|vacuum/.test(t)) return 'Appliances';
-  if (/\bprinter\b|\bkeyboard\b|\bmouse\b|\brouter\b|hard drive|\bssd\b|\bram\b|\bcpu\b|motherboard|psu|power supply|cooler/.test(t)) return 'Computer Parts';
-  return 'Electronics';
-}
+const { ncTag } = require('../tagger');
 
 /**
  * Parse price string to float

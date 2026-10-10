@@ -199,7 +199,7 @@ function maybeAutoScrapeOnLaunch(cfg) {
 // ── Start ────────────────────────────────────────────────────────────────────
 function start() {
   const cfg = loadConfig();
-  const port = cfg.settings?.port || 3000;
+  const port = cfg.settings?.port || 3030;
 
   app.listen(port, () => {
     console.log(`\n🌿 dealsco running at http://localhost:${port}\n`);

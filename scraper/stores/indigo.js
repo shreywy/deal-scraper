@@ -4,22 +4,7 @@ const STORE_NAME = 'Indigo';
 const STORE_KEY = 'indigo';
 const CURRENCY = 'CAD';
 
-/**
- * Non-clothing category helper
- */
-function ncTag(name, cat = '') {
-  const t = `${name} ${cat}`.toLowerCase();
-  if (/laptop|notebook|chromebook/.test(t)) return 'Computers';
-  if (/\bmonitor\b|television|\btv\b|oled|qled|frame tv/.test(t)) return 'TVs & Displays';
-  if (/smartphone|galaxy s|galaxy a|\btablet\b|galaxy tab/.test(t)) return 'Phones & Tablets';
-  if (/headphone|earphone|earbud|\bspeaker\b|soundbar|galaxy buds/.test(t)) return 'Audio';
-  if (/washer|dryer|fridge|refrigerator|dishwasher|microwave|vacuum|air purifier/.test(t)) return 'Appliances';
-  if (/\bcamera\b|mirrorless/.test(t)) return 'Cameras';
-  if (/gaming|console|controller/.test(t)) return 'Gaming';
-  if (/book|novel|toy|\bgame\b|\bpuzzle\b|lego|craft|stationery/.test(t)) return 'Books & Toys';
-  if (/\bwatch\b|smartwatch|galaxy watch/.test(t)) return 'Electronics';
-  return 'Electronics';
-}
+const { ncTag } = require('../tagger');
 
 /**
  * @param {import('playwright').Browser} browser

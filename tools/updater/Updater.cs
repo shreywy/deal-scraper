@@ -170,7 +170,7 @@ class Updater : Form
 
             // 3. Publish through the workflow (82-100%)
             Step("Publishing…", "Starting GitHub workflow", 0.82);
-            string listArgs = "run list --repo " + Repo + " --workflow deploy.yml --limit 1 --json databaseId -q .[0].databaseId";
+            string listArgs = "run list --repo " + Repo + " --workflow deploy.yml --event workflow_dispatch --limit 1 --json databaseId -q .[0].databaseId";
             string before = RunOutput("gh", listArgs);
             RunOutput("gh", "workflow run deploy.yml --repo " + Repo + " -f source=local");
             string runId = null;

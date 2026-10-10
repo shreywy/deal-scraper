@@ -10,18 +10,7 @@ const URLS = [
 const STORE_NAME = 'HP CA';
 const STORE_KEY = 'hp';
 
-function ncTag(name, cat = '') {
-  const t = `${name} ${cat}`.toLowerCase();
-  if (/laptop|notebook|ultrabook|thinkpad|ideapad|yoga|legion|chromebook|macbook/.test(t)) return 'Computers';
-  if (/desktop|workstation|mini pc|all.in.one|tower/.test(t)) return 'Computers';
-  if (/\bmonitor\b|television|\btv\b|display/.test(t)) return 'TVs & Displays';
-  if (/\btablet\b|\bipad\b|smartphone/.test(t)) return 'Phones & Tablets';
-  if (/headphone|earphone|earbud|\bspeaker\b/.test(t)) return 'Audio';
-  if (/\bkeyboard\b|\bmouse\b|\bssd\b|\bram\b|hard drive|\bdock\b|docking|adapter|charger|cable/.test(t)) return 'Computer Parts';
-  if (/printer|scanner/.test(t)) return 'Computer Parts';
-  if (/gaming|geforce|radeon|gpu|graphics/.test(t)) return 'Gaming';
-  return 'Electronics';
-}
+const { ncTag } = require('../tagger');
 
 /**
  * @param {import('playwright').Browser} browser

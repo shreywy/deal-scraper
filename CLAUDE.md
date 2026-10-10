@@ -6,7 +6,7 @@ This file gives Claude full context to pick up this project on any machine.
 
 A **local Node.js app** called **dealsco** — a deal scraper that:
 1. On launch, automatically runs Playwright scrapers against enabled Canadian clothing stores
-2. Serves a local web UI at `http://localhost:3000`
+2. Serves a local web UI at `http://localhost:3030`
 3. Shows cached results immediately, refreshes in background via SSE
 4. Displays sale items as a filterable/sortable product grid
 
@@ -33,7 +33,7 @@ cd deal-scraper
 npm install
 npx playwright install chromium
 npm start
-# → http://localhost:3000
+# → http://localhost:3030
 ```
 
 For dev (no auto-browser open): `NO_OPEN=1 node index.js`

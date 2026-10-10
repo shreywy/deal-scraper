@@ -107,7 +107,8 @@ function genderOf(text) {
 function tag({ name = '', description = '', category = '', gender = '' } = {}) {
   const haystack = norm([name, description, category].join(' '));
   // "Short Sleeve Tee" is a top, not shorts
-  const catHaystack = norm([name, category].join(' ')).replace(/short[- ]sleeve/g, 'shirt');
+  const catHaystack = norm([name, category].join(' ')).replace(/short[- ]sleeve/g, 'shirt')
+    .replace(/\bdress (shirt|pant|trouser|shoe|sock|boot)/g, '$1'); // "Dress Shirt" isn't a dress
   const tags = new Set();
 
   const cats = CATEGORY_MAP.filter(({ keywords }) => keywords.some(k => has(catHaystack, k))).map(c => c.tag);
@@ -126,19 +127,29 @@ function tag({ name = '', description = '', category = '', gender = '' } = {}) {
   return [...tags];
 }
 
-// Category for items from non-clothing stores (keys match the frontend's NC_CATEGORY_MAP)
-function ncTag(name = '') {
-  const t = name.toLowerCase();
-  if (/laptop|notebook|chromebook|desktop|workstation|mini pc/.test(t)) return 'Computers';
-  if (/\bmonitor\b|\btv\b|television|oled|qled/.test(t)) return 'TVs & Displays';
-  if (/\bphone\b|\btablet\b|\bipad\b|iphone/.test(t)) return 'Phones & Tablets';
-  if (/headphone|earphone|earbud|\bspeaker\b|soundbar/.test(t)) return 'Audio';
-  if (/\bcamera\b|mirrorless|dslr/.test(t)) return 'Cameras';
-  if (/gaming|console|\bxbox\b|playstation|\bps5\b|nintendo|controller/.test(t)) return 'Gaming';
-  if (/washer|dryer|fridge|refrigerator|dishwasher|microwave|\boven\b|\bstove\b|\brange\b|vacuum|air purifier|coffee maker|blender|toaster|freezer|cooktop/.test(t)) return 'Appliances';
-  if (/drill|\bsaw\b|wrench|hammer|screwdriver|power tool|toolbox/.test(t)) return 'Tools & Home Improvement';
-  if (/cookware|\bpot\b|\bpan\b|\bknife\b|bakeware|dinnerware/.test(t)) return 'Kitchen';
-  return 'Furniture'; // the remaining non-clothing stores are furniture/home retailers
+// Category for items from non-clothing stores (keys match the frontend's NC_CATEGORY_MAP).
+// `cat` is the store's own category text, if any. First match wins, so order matters.
+function ncTag(name = '', cat = '', fallback = 'Electronics') {
+  const t = `${name} ${cat}`.toLowerCase();
+  if (/\btv (?:stand|unit|bench|cabinet)|media console|console table|entertainment cent(?:re|er)|book ?case/.test(t)) return 'Furniture';
+  if (/laptop|notebook|ultrabook|chromebook|macbook|surface (?:pro|laptop)|galaxy book|thinkpad|ideapad|thinkbook|\blegion\b|\byoga (?:slim|pro|book|\d)|\bxps\b|inspiron|vostro|latitude/.test(t)) return 'Computers';
+  if (/desktop|workstation|mini pc|all.in.one(?!.*(?:wash|laundry|print))|\bimac\b|mac mini|mac pro|mac studio|optiplex|thinkcentre|thinkstation/.test(t)) return 'Computers';
+  if (/\bmonitor\b|\btv\b|television|oled|qled|4k display|studio display|thinkvision/.test(t)) return 'TVs & Displays';
+  if (/\bphone\b|smartphone|iphone|\btablet\b|\bipad\b|galaxy (?:[sa]\d|z (?:fold|flip)|tab)/.test(t)) return 'Phones & Tablets';
+  if (/headphone|earphone|earbud|airpod|homepod|\bbeats\b|galaxy buds|\bspeakers?\b|soundbar|subwoofer/.test(t)) return 'Audio';
+  if (/\bcamera\b|mirrorless|dslr|\bdrone\b/.test(t)) return 'Cameras';
+  if (/gaming|console|\bxbox\b|playstation|\bps[45]\b|nintendo|controller|alienware|\bgpu\b|graphics card|geforce|radeon/.test(t)) return 'Gaming';
+  if (/washer|dryer|fridge|refrigerator|freezer|dishwasher|microwave|\boven\b|\bstove\b|(?<!long[- ]|extreme )\brange\b|cooktop|vacuum|air purifier|air conditioner|humidifier|coffee (?:maker|machine)|espresso (?:machine|maker)|\bkettle\b|blender|toaster/.test(t)) return 'Appliances';
+  if (/lego|\btoys?\b|action figure|\bdolls?\b|playset|puzzle|board game|card game|nerf|hot wheels/.test(t)) return 'Toys & Games';
+  if (/\bprinter\b|\bscanner\b|\bkeyboard\b|(?<!minn?ie |plush )\bmouse\b|trackpad|apple pencil|webcam|\brouter\b|hard drive|\bssd\b|\bram\b|\bcpu\b|motherboard|\bpsu\b|power supply|cpu cooler/.test(t)) return 'Computer Parts';
+  if (/\bbooks?\b|\bnovel\b|cookbook|memoir|biography|manga|textbook/.test(t)) return 'Books & Media';
+  if (/skincare|shampoo|conditioner|moisturizer|serum|perfume|cologne|makeup|\bbeauty\b|haircare|vitamin|supplement/.test(t)) return 'Beauty & Health';
+  if (/fitness|treadmill|dumbbell|kettlebell|yoga mat|exercise bike|elliptical/.test(t)) return 'Fitness';
+  if (/\bsofa\b|\bcouch\b|\bchairs?\b|\bdesk\b|\btables?\b(?! saw)|shel(?:f|ves|ving)|bookcase|\bbed\b|mattress|\blamps?\b|\brugs?\b|wardrobe|dresser|nightstand|curtain|pillow|duvet/.test(t)) return 'Furniture';
+  if (/drill|\bsaws?\b|wrench|\bhammers?\b|screwdriver|power tool|toolbox|\bladder\b|\bpaint\b/.test(t)) return 'Tools & Home Improvement';
+  if (/cookware|\bpots?\b|\bpans?\b|\bknife\b|knives|cutting board|bakeware|dinnerware|utensil|spatula/.test(t)) return 'Kitchen';
+  if (/\bdock\b|docking station/.test(t)) return 'Computer Parts';
+  return fallback;
 }
 
 module.exports = { tag, genderOf, ncTag };

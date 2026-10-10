@@ -4,20 +4,7 @@ const STORE_NAME = 'Staples CA';
 const STORE_KEY = 'staples';
 const CURRENCY = 'CAD';
 
-function ncTag(name, cat = '') {
-  const t = `${name} ${cat}`.toLowerCase();
-  if (/laptop|notebook|ultrabook|chromebook|macbook/.test(t)) return 'Computers';
-  if (/desktop|workstation|mini pc|all.in.one/.test(t)) return 'Computers';
-  if (/\bmonitor\b|television|\btv\b|oled|qled/.test(t)) return 'TVs & Displays';
-  if (/iphone|smartphone|cell phone|\btablet\b|\bipad\b/.test(t)) return 'Phones & Tablets';
-  if (/headphone|earphone|earbud|\bspeaker\b|soundbar/.test(t)) return 'Audio';
-  if (/\bcamera\b|mirrorless|dslr/.test(t)) return 'Cameras';
-  if (/\bgaming\b|console|\bxbox\b|playstation|\bps5\b|nintendo|controller|gpu/.test(t)) return 'Gaming';
-  if (/washer|dryer|fridge|dishwasher|microwave|vacuum|air purifier|coffee maker/.test(t)) return 'Appliances';
-  if (/\bsofa\b|\bdesk\b|\btable\b|\bchair\b|mattress|bookcase/.test(t)) return 'Furniture';
-  if (/\bprinter\b|\bkeyboard\b|\bmouse\b|\brouter\b|hard drive|\bssd\b|\bram\b|\bcpu\b/.test(t)) return 'Computer Parts';
-  return 'Electronics';
-}
+const { ncTag } = require('../tagger');
 
 /**
  * Staples Canada — tries Shopify products API, falls back to XHR intercept.
