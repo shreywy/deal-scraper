@@ -882,14 +882,7 @@ function applyFiltersAndRender() {
     deals = deals.filter(d => filters.store.includes(d.storeKey || d.store));
   }
   if (filters.gender.length > 0) {
-    const GENDER_TAGS = ['Men', 'Women', 'Kids'];
-    deals = deals.filter(d => filters.gender.some(g => {
-      if (g === 'Unisex') {
-        // Strict: only show items explicitly tagged Unisex (not "no-gender" items which may include kids)
-        return d.tags.includes('Unisex');
-      }
-      return d.tags.includes(g) || d.tags.includes('Unisex') || !GENDER_TAGS.some(gt => d.tags.includes(gt));
-    }));
+    deals = deals.filter(d => filters.gender.some(g => matchesGender(d, g)));
   }
   if (filters.category.length > 0) {
     deals = deals.filter(d => filters.category.some(c => d.tags.includes(c)));
@@ -908,13 +901,10 @@ function applyFiltersAndRender() {
 
   // Apply exclusion filters (shift-clicked red pills)
   const cadP = d => (d.currency === 'USD' && d.priceCAD) ? d.priceCAD : d.price;
-  const GENDER_TAGS_EX = ['Men', 'Women', 'Kids'];
   for (const [key, excluded] of Object.entries(excludedFilters)) {
     for (const val of excluded) {
       if (key === 'store')    deals = deals.filter(d => (d.storeKey || d.store) !== val);
-      if (key === 'gender')   deals = deals.filter(d => val === 'Unisex'
-        ? !(d.tags.includes('Unisex') || !GENDER_TAGS_EX.some(g => d.tags.includes(g)))
-        : !d.tags.includes(val));
+      if (key === 'gender')   deals = deals.filter(d => !d.tags.includes(val));
       if (key === 'category') deals = deals.filter(d => !d.tags.includes(val));
       if (key === 'price') {
         const [lo, hi] = val.split('-').map(Number);
@@ -1001,11 +991,7 @@ function dealsExcluding(excludeKey) {
   }
   // Gender filter only applies on clothing tab
   if (currentTab !== 'non-clothing' && excludeKey !== 'gender' && filters.gender.length > 0) {
-    const GENDER_TAGS = ['Men', 'Women', 'Kids'];
-    d = d.filter(x => filters.gender.some(g => {
-      if (g === 'Unisex') return x.tags.includes('Unisex'); // strict: no "no-gender" fallback
-      return x.tags.includes(g) || x.tags.includes('Unisex') || !GENDER_TAGS.some(gt => x.tags.includes(gt));
-    }));
+    d = d.filter(x => filters.gender.some(g => matchesGender(x, g)));
   }
   if (excludeKey !== 'category' && filters.category.length > 0) {
     d = d.filter(x => filters.category.some(c => x.tags.includes(c)));
@@ -1023,13 +1009,10 @@ function dealsExcluding(excludeKey) {
   }
 
   // Apply all exclusion filters
-  const GENDER_TAGS_EX = ['Men', 'Women', 'Kids'];
   for (const [key, excluded] of Object.entries(excludedFilters)) {
     for (const val of excluded) {
       if (key === 'store')    d = d.filter(x => (x.storeKey || x.store) !== val);
-      if (key === 'gender')   d = d.filter(x => val === 'Unisex'
-        ? !(x.tags.includes('Unisex') || !GENDER_TAGS_EX.some(g => x.tags.includes(g)))
-        : !x.tags.includes(val));
+      if (key === 'gender')   d = d.filter(x => !x.tags.includes(val));
       if (key === 'category') d = d.filter(x => !x.tags.includes(val));
     }
   }
@@ -1042,11 +1025,7 @@ function updatePillAvailability() {
 
   const checks = {
     store:    (d, v) => (d.storeKey || d.store) === v,
-    gender: (d, v) => {
-      const GENDER_TAGS = ['Men', 'Women', 'Kids'];
-      if (v === 'Unisex') return d.tags.includes('Unisex') || !GENDER_TAGS.some(g => d.tags.includes(g));
-      return d.tags.includes(v) || d.tags.includes('Unisex') || !GENDER_TAGS.some(g => d.tags.includes(g));
-    },
+    gender: matchesGender,
     category: (d, v) => d.tags.includes(v),
   };
 
@@ -1743,4 +1722,9 @@ init();
 // USD stores carry a CAD estimate; compare everything in CAD
 function cadPrice(d) {
   return d.currency === 'USD' && d.priceCAD ? d.priceCAD : d.price;
+}
+
+// Men/Women include unisex items; untagged items only appear under "All" so a Men filter never shows women's stock
+function matchesGender(d, g) {
+  return d.tags.includes(g) || ((g === 'Men' || g === 'Women') && d.tags.includes('Unisex'));
 }

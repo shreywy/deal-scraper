@@ -10,15 +10,11 @@ A local deal-scraper app that automatically scrapes sale items from Canadian clo
 - Auto-tags items by category (T-Shirts, Shorts, Jackets, etc.) and gender using product name/description heuristics
 - Clicking any item opens the retailer's product page in a new tab
 
-## Stores (initial)
+**Live:** https://shreywy.github.io/deal-scraper/ — rebuilt daily by GitHub Actions.
 
-| Store | URL | Platform |
-|-------|-----|----------|
-| Under Armour CA | underarmour.ca | Salesforce Commerce Cloud |
-| Uniqlo Canada | uniqlo.com/ca | Fast Retailing custom |
-| Zara Canada | zara.com/ca | Inditex custom |
+## Stores
 
-Additional stores are added manually by editing scraper configs — each store may need a custom scraper. Stores sharing platforms (e.g. all Inditex brands: Zara, Pull&Bear, Bershka) can reuse the same scraper with a URL swap.
+~40 Canadian retailers (Gymshark, Gap/Banana Republic/Old Navy, Sport Chek, Altitude Sports, Champion, Volcom, Reebok, The Brick, Leon's…). Per-store status lives in the `note` fields of `config.json`.
 
 ## Architecture
 
@@ -31,7 +27,7 @@ deal-scraper/
 └── docs/             # Design specs and planning docs
 ```
 
-**This is a local app.** The scraper runs Node.js + Playwright and cannot be hosted on GitHub Pages or any static host. You run it locally with `npm start`.
+**Hosting.** The scraper needs Node + Playwright, so it can't run *on* a static host. Instead `.github/workflows/deploy.yml` runs `npm run scrape` on a daily schedule (and on pushes) and publishes `frontend/` + `deals.json` to GitHub Pages. The frontend notices there's no server and switches to static mode. Locally, `npm start` gives the full app with live refresh.
 
 ## Running locally
 
@@ -40,11 +36,10 @@ npm install
 npx playwright install chromium
 npm start
 # → opens http://localhost:3000
+
+npm run scrape   # one-off scrape → data/deals.json
+npm test         # tagger checks
 ```
-
-## Status
-
-> Currently in design/planning phase. See `docs/superpowers/specs/` for the full design spec.
 
 ## Design
 

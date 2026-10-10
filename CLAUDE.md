@@ -10,7 +10,7 @@ A **local Node.js app** called **dealsco** — a deal scraper that:
 3. Shows cached results immediately, refreshes in background via SSE
 4. Displays sale items as a filterable/sortable product grid
 
-**Cannot be hosted on GitHub Pages** — Playwright requires a real server. Architecture is Express + Playwright backend, static frontend.
+**Hosting:** GitHub Actions (`.github/workflows/deploy.yml`) scrapes daily and publishes the static frontend + `deals.json` to GitHub Pages: https://shreywy.github.io/deal-scraper/. The frontend detects there's no `/api` and runs in static mode (no refresh button; store toggles saved in localStorage). Locally it's still Express + Playwright with live SSE refresh.
 
 ## Design decisions (finalized)
 
@@ -93,80 +93,25 @@ deal-scraper/
 └── launch.bat            # Windows double-click launcher
 ```
 
-## Stores & scraper status (as of 2026-04-05)
+## Stores & scraper status (as of 2026-10-10)
 
-26 stores enabled. Total expected deals: ~3000+ on fresh scrape.
+~42 stores enabled, ~27k deals per run (~2 min). `config.json` `note` fields hold per-store status — check there first.
 
-### Confirmed working ✅
-| Store | ~Deals | Platform | Notes |
-|-------|--------|----------|-------|
-| Gymshark CA | ~677 | Algolia CA | AppId: `2DEAES0CUO`, Key: `932fd4562e8443c09e3d14fd4ab94295`, index: `production_ca_products_v2`; inStock:true filter |
-| Banana Republic CA | ~620 | GAP Inc XHR intercept | `api.gap.com/commerce/search` — XHR captures product API |
-| RW&CO | ~534 | Shopify API | `/collections/men-promo-upto40` and `/collections/women-promo-upto40` |
-| Alphalete | ~400 | Shopify API | `collections/sale/products.json`; USD→CAD |
-| Dickies | ~256 | Shopify API | `dickies.com/collections/sale/products.json`; USD→CAD |
-| SSENSE | ~240 | DOM (Cloudflare stealth) | `ssense.com/en-ca/men/sale` + women; `.plp-products__product-tile` selectors |
-| Hollister CA | ~180 | HCo DOM clearance page | `hollisterco.com/shop/sale/` — clearance page DOM scrape |
-| Abercrombie CA | ~180 | HCo DOM clearance page | `abercrombie.com/shop/ca/mens-sale` — DOM scrape |
-| Puma | ~192 | DOM (Shopify) | `us.puma.com/us/en/sale`; USD→CAD |
-| Nobull | ~66 | Shopify API | `nobull.com/collections/sale/products.json`; USD→CAD |
-| Marks | ~82 | FGL API | `marks.com/api/v1/search/v2/search`, key: `c01ef3612328420c9f5cd9277e815a0e` |
-| Club Monaco CA | ~48 | XHR intercept + DOM | `clubmonaco.ca/en/sale/` |
-| Carhartt | ~48 | DOM (SFCC) | `carhartt.com` promo pages; USD→CAD |
-| MEC | ~52 | DOM (Next.js) | `mec.ca/en/products/sale`; Chakra UI product cards |
-| Altitude Sports | ~48 | DOM (Chakra UI) | `altitude-sports.com/collections/sale`; `article[data-testid="plp-product-card"]` |
-| Rhone | ~30 | DOM (Vue.js) | `rhone.com` sale collection; `.product-card` selectors; CAD |
-| Alo Yoga | ~31 | Builder.io DOM | `aloyoga.com/collections/sale`; scroll to lazy-load; CAD (shows CAD prices to Canadian visitors) |
-| Patagonia CA | ~36 | SFCC DOM | `patagonia.com/ca/shop/`; "M's"/"W's" names tagged via tagger |
-| Sporting Life | ~36 | SFCC DOM | `sportinglife.ca/en-CA/sale/`; `.product-tile`, `.price-sales`, `.price-standard` |
-| Sport Chek | ~410 | FGL XHR intercept + API pagination | Captures `ocp-apim-subscription-key` from browser request, paginates through 1000 products; same FGL platform as Marks |
-| Under Armour CA | ~24 | SFCC DOM | `/en-ca/c/sale/?sz=120` + outlet |
-| Nike CA | ~24 | DOM (SSR) | `/ca/w/sale-3yaep`; `is--current-price`, `is--striked-out` |
-| YoungLA | ~35 | DOM (Shopify custom elements) | USD→CAD; `product-card`, `sale-price`, `compare-at-price` |
-| Uniqlo CA | 0 now | Direct API fetch | `x-fr-clientid: uq.ca.web-spa` (static); 0 deals = no active Uniqlo CA sale |
-| Vans CA | ? | DOM (browse-all) | Navigates `/en-ca/men/footwear.html` etc., filters items with both prices |
-| Champion | 0 now | Shopify API | `champion.com/collections/sale`; currently no active sale items |
+Shared helpers (prefer these for new stores):
+- `scraper/shopify.js` — Shopify `products.json`, fetched **inside a browser page** (plain HTTP now gets 429 from Cloudflare). Auto-detects whether the storefront shows CAD (converts with Shopify's own rate) or USD (live-rate estimate). New Shopify store = ~10-line file listing `origin` + collection handles. Find handles via `/collections.json` in a browser.
+- `scraper/gapinc.js` — Gap / Banana Republic / Old Navy via the public `api.gapcanada.ca` product-search API (plain fetch, `brand` = gap|br|on).
+- Altitude Sports — Algolia index `PRODUCTS_ALS_en-CA` (public key in the scraper). Also the route to brands whose own sites block us (Under Armour, Patagonia, Columbia…). Sport Chek likewise carries Under Armour/Nike/adidas.
 
-### Confirmed broken / disabled ❌
-| Store | Reason |
-|-------|--------|
-| Lululemon CA | Sale pages don't expose original prices — can't calculate discount |
-| Zara CA | Akamai bot block |
-| Aritzia | Sale page 404 / Cloudflare |
-| Arc'teryx CA | Outlet site times out |
-| H&M Canada | Akamai 403 — ALL requests blocked (even browser+stealth) |
-| Frank and Oak | No `compare_at_price` in Shopify |
-| Adidas CA | PerimeterX bot protection |
-| North Face CA | Akamai bot protection |
-| Musinsa Global | Location chooser blocks access |
-| American Eagle CA | Aggressive bot detection — sale pages redirect regardless of browser mode |
-| Roots Canada | SFCC ISML server errors |
-| Levi's CA | Access Denied on sale URL |
-| Vuori | Disabled per user preference |
-| ASOS | ECONNRESET on direct fetch; XHR interception unreliable |
-| Gap CA | Sale pages redirect to OutOfStockNoResults |
-| Simons CA | All sale URLs redirect to homepage (bot-blocking) |
-| Urban Outfitters CA | 403 Forbidden on all sale URLs with stealth |
-| PacSun | PerimeterX bot protection |
-| Lacoste CA | 0 deals — DOM selectors not matching |
-| Jack & Jones CA | 0 deals — DOM selectors not matching |
-| Quiksilver CA | 0 deals — Boardriders platform |
-| Converse CA | 0 deals — Nike SFCC bot detection |
-| Zumiez CA | Sale pages 404 — URL structure changed |
-| Foot Locker CA | 0 products found — possible bot detection |
-| Tommy Hilfiger CA | 0 products found — possible bot detection |
-| Polo Ralph Lauren CA | 0 products found — possible bot detection |
-| Calvin Klein CA | Sale pages 404 |
-| Joe Fresh | Domain redirects — no longer serves Joe Fresh |
-| Canadian Tire | Non-clothing store; FGL API returns 400 |
+Blocked / disabled (don't retry without a new idea): Under Armour (CAPTCHA), Aritzia/SSENSE/MEC (Cloudflare), Patagonia (queue page), Uniqlo (Akamai), Dell (bot manager), Jack & Jones, Zumiez, Vans, Calvin Klein, plus the older list in config notes. Abercrombie/Hollister work only when the IP isn't flagged by Akamai (heavy repeated testing trips a "Client Challenge"). Converse/Reigning Champ: scrapers fine, no active sale.
+
+Bot-defence lessons: run stores through the 6-wide pool (not all at once); replay APIs from inside the page (`page.evaluate(fetch)`) rather than Node; never try to solve CAPTCHAs.
 
 ## Known issues / TODO
 
-- **Vans CA**: browse-all approach (no dedicated sale section); deal count unknown until live test
-- **Champion**: Shopify API accessible but store has no active sale currently
-- **Uniqlo CA**: Fixed API scraper in place; 0 deals because Uniqlo CA has no active sales now
-- **Lacoste / Jack & Jones / Quiksilver**: DOM selectors don't match — site structure investigation needed
-- **Tommy Hilfiger / Calvin Klein / Ralph Lauren**: PVH Corp SFCC — URL patterns unresolved
+- **Foot Locker**: only page 1 (48) when its search API rate-limits; pagination clicks otherwise
+- **Newegg**: flaky (0–33 deals run to run)
+- **"Newest" sort**: meaningless — every deal in a run shares one timestamp (per-deal `scrapedAt` is no longer saved). Needs first-seen tracking across runs if wanted.
+- **Scheduled workflow**: GitHub disables cron workflows after 60 days without repo activity — re-enable from the Actions tab if the site stops updating
 - **Shift-click exclusion filter**: DONE — shift-click any sidebar pill to turn it red and EXCLUDE deals matching that filter; persists in localStorage
 
 ## Key behaviours
@@ -203,7 +148,7 @@ deal-scraper/
 }
 ```
 
-USD stores (YoungLA, Alo Yoga, ASOS) also have `exchangeRate` field. `price` and `originalPrice` are always CAD after conversion.
+Saved `deals.json` is slimmed (`scraper/index.js` `slimDeal`): no `id`/`scrapedAt`/`gender`/`exchangeRate`, and `priceCAD`/`originalPriceCAD` only for `currency: "USD"` deals (where `price` is USD). For CAD deals `price` is CAD.
 
 ## How to add a new store
 

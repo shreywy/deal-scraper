@@ -78,9 +78,17 @@ function mapProduct(p, { storeKey, storeName, origin, currency, rate, gender }) 
     priceCAD: cad(best.price),
     originalPriceCAD: cad(best.orig),
     ...(currency === 'USD' && { exchangeRate: rate }),
-    tags: tag({ name: p.title, category: p.product_type || '', gender }),
+    tags: tag({ name: p.title, category: p.product_type || '', ...genderHints(p, gender) }),
     scrapedAt: new Date().toISOString(),
   };
+}
+
+// Store tags often carry gender even when the title doesn't. An explicit 'gender-men' style tag
+// is trusted as the hint; otherwise all tags go in as loose context ('mens', 'womens'…).
+function genderHints(p, collectionGender) {
+  const tags = [].concat(p.tags || []).join(',').split(',').map(t => t.trim());
+  const explicit = tags.find(t => /^gender[-_: ]/i.test(t));
+  return { gender: collectionGender || (explicit ? explicit.replace(/^gender[-_: ]/i, '') : ''), description: tags.join(' ') };
 }
 
 module.exports = { scrapeShopify };

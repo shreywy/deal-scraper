@@ -65,8 +65,8 @@ const NON_CLOTHING_KEYWORDS = [
 
 // Matched on word boundaries (see has()), so 'men' never matches 'women' and order doesn't matter.
 const GENDER_MAP = [
-  { tag: 'Women', keywords: ['women', 'woman', 'womens', 'ladies', 'female', "w's"] },
-  { tag: 'Men',   keywords: ['men', 'man', 'mens', 'male', "m's"] },
+  { tag: 'Women', keywords: ['women', 'woman', 'womens', 'ladies', 'female', "w's", 'for her'] },
+  { tag: 'Men',   keywords: ['men', 'man', 'mens', 'male', "m's", 'for him'] },
   { tag: 'Kids',  keywords: [
     'kid', 'children', 'toddler', 'infant', 'baby', 'youth', 'junior', 'preschool',
     'grade school', 'boy', 'girl', 'gs', 'ps', 'td', 'bg', 'lg', 'gg',
@@ -82,6 +82,17 @@ function has(hay, kw) {
   return re.test(hay);
 }
 
+const norm = s => s.toLowerCase().replace(/[‘’]/g, "'");
+
+// Kids wins ("Girls' Hoodie"); both Men and Women (e.g. store tags "mens, womens") means Unisex
+function genderOf(text) {
+  const hay = norm(text);
+  const hits = GENDER_MAP.filter(({ keywords }) => keywords.some(k => has(hay, k))).map(m => m.tag);
+  if (hits.includes('Kids')) return 'Kids'; // "Unisex Beanie for Toddler" is a kids' item
+  if (has(hay, 'unisex') || has(hay, 'gender inclusive') || hits.length > 1) return 'Unisex';
+  return hits[0];
+}
+
 /**
  * Given a product name, description, and optional store-provided category string,
  * returns an array of normalized string tags.
@@ -94,7 +105,6 @@ function has(hay, kw) {
  * @returns {string[]}
  */
 function tag({ name = '', description = '', category = '', gender = '' } = {}) {
-  const norm = s => s.toLowerCase().replace(/[‘’]/g, "'");
   const haystack = norm([name, description, category].join(' '));
   // "Short Sleeve Tee" is a top, not shorts
   const catHaystack = norm([name, category].join(' ')).replace(/short[- ]sleeve/g, 'shirt');
@@ -107,8 +117,8 @@ function tag({ name = '', description = '', category = '', gender = '' } = {}) {
     return ['Non-Clothing'];
   }
 
-  const genderOf = hay => GENDER_MAP.find(({ keywords }) => keywords.some(k => has(hay, k)))?.tag;
-  const g = (gender && genderOf(norm(gender))) || (gender && has(norm(gender), 'unisex') && 'Unisex') || genderOf(haystack);
+  // Name beats store hints ("Women's Tee" in a men's collection), hints beat descriptions/tags
+  const g = genderOf(name) || (gender && genderOf(gender)) || genderOf(haystack);
   if (g) tags.add(g);
   // Untagged gender is fine — the frontend treats "Unisex" as "truly unisex + unknown gender".
 
@@ -116,4 +126,19 @@ function tag({ name = '', description = '', category = '', gender = '' } = {}) {
   return [...tags];
 }
 
-module.exports = { tag };
+// Category for items from non-clothing stores (keys match the frontend's NC_CATEGORY_MAP)
+function ncTag(name = '') {
+  const t = name.toLowerCase();
+  if (/laptop|notebook|chromebook|desktop|workstation|mini pc/.test(t)) return 'Computers';
+  if (/\bmonitor\b|\btv\b|television|oled|qled/.test(t)) return 'TVs & Displays';
+  if (/\bphone\b|\btablet\b|\bipad\b|iphone/.test(t)) return 'Phones & Tablets';
+  if (/headphone|earphone|earbud|\bspeaker\b|soundbar/.test(t)) return 'Audio';
+  if (/\bcamera\b|mirrorless|dslr/.test(t)) return 'Cameras';
+  if (/gaming|console|\bxbox\b|playstation|\bps5\b|nintendo|controller/.test(t)) return 'Gaming';
+  if (/washer|dryer|fridge|refrigerator|dishwasher|microwave|\boven\b|\bstove\b|\brange\b|vacuum|air purifier|coffee maker|blender|toaster|freezer|cooktop/.test(t)) return 'Appliances';
+  if (/drill|\bsaw\b|wrench|hammer|screwdriver|power tool|toolbox/.test(t)) return 'Tools & Home Improvement';
+  if (/cookware|\bpot\b|\bpan\b|\bknife\b|bakeware|dinnerware/.test(t)) return 'Kitchen';
+  return 'Furniture'; // the remaining non-clothing stores are furniture/home retailers
+}
+
+module.exports = { tag, genderOf, ncTag };

@@ -149,10 +149,12 @@ async function scrape(browser, onProgress = () => {}) {
       }).filter(Boolean);
     }, { storeName: STORE_NAME, storeKey: STORE_KEY });
 
+    // Sale pages are split by gender (man-special-prices / woman-special-prices)
+    const pageGender = /\/woman-/.test(page.url()) ? 'Women' : /\/man-/.test(page.url()) ? 'Men' : '';
     const tagged = deals.map(d => ({
       ...d,
       id: slugify(`${d.storeKey}-${d.name}`),
-      tags: tag({ name: d.name }),
+      tags: tag({ name: d.name, gender: pageGender }),
       scrapedAt: new Date().toISOString(),
     }));
 

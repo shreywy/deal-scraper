@@ -18,6 +18,7 @@ chromium.use(StealthPlugin());
 const fs = require('fs');
 const path = require('path');
 const { getUSDtoCAD } = require('./currency');
+const { genderOf, ncTag } = require('./tagger');
 
 const SCRAPERS = {
   underarmour:    require('./stores/underarmour'),
@@ -191,7 +192,11 @@ async function runAll(config, onProgress = () => {}, onPartial = () => {}) {
         ]);
 
         // Tag each deal with its storeKey for partial streaming
-        const tagged = deals.map(d => ({ ...d, storeKey: key }));
+        // Non-clothing stores: the frontend's tab split keys off the 'Non-Clothing' tag
+        const nonClothing = config.stores[key]?.category === 'non-clothing';
+        const tagged = deals.map(d => nonClothing && !d.tags?.includes('Non-Clothing')
+          ? { ...d, storeKey: key, tags: ['Non-Clothing', ncTag(d.name)] }
+          : fillGenderFromUrl({ ...d, storeKey: key }));
         // Deduplicate within this store's batch by id then url
         const storeSeenIds = new Set();
         const storeSeenUrls = new Set();
@@ -259,6 +264,17 @@ async function runAll(config, onProgress = () => {}, onPartial = () => {}) {
   } finally {
     await browser.close();
   }
+}
+
+// Scrapers often see only a short display name ("Nike Zenvy"), but the URL slug usually
+// says it ("zenvy-womens-tank-top", "/mens-sale/"). Only fills deals that have no gender yet.
+const GENDERS = ['Men', 'Women', 'Kids', 'Unisex'];
+function fillGenderFromUrl(d) {
+  if (!d.tags || d.tags.includes('Non-Clothing') || d.tags.some(t => GENDERS.includes(t))) return d;
+  let path = '';
+  try { path = decodeURIComponent(new URL(d.url).pathname).replace(/[-_/.]+/g, ' '); } catch (_) {}
+  const g = path && genderOf(path);
+  return g ? { ...d, tags: [g, ...d.tags] } : d;
 }
 
 // Drop fields the frontend never reads (~30% of the file at ~20k deals); CAD copies only matter for USD stores

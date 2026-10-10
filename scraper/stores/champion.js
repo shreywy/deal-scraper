@@ -6,7 +6,7 @@ const scrape = (browser, onProgress = () => {}) => scrapeShopify(browser, onProg
   storeKey: STORE_KEY,
   storeName: 'Champion',
   origin: 'https://www.champion.com',
-  collections: ['all-sale', 'clearance'],
+  collections: [{ handle: 'mens-sale', gender: 'Men' }, { handle: 'womens-sale', gender: 'Women' }, 'all-sale', 'clearance'],
 });
 
 module.exports = { scrape, STORE_KEY };

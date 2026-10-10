@@ -206,7 +206,8 @@ async function scrape(browser, onProgress = () => {}) {
     priceCAD: Math.round(d.price * rate * 100) / 100,
     originalPriceCAD: Math.round(d.originalPrice * rate * 100) / 100,
     exchangeRate: rate,
-    tags: tag({ name: d.name, gender: d.gender || '' }),
+    // Alo style codes lead the handle: w1234 = women's, m1234 = men's
+    tags: tag({ name: d.name, gender: d.gender || ({ w: 'Women', m: 'Men' })[(d.url.match(/\/products\/([wm])\d/) || [])[1]] || '' }),
     scrapedAt: new Date().toISOString(),
   }));
 

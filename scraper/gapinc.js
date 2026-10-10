@@ -10,7 +10,8 @@ const API = 'https://api.gapcanada.ca/v2/product_search_cc_aggregations/v2';
 async function scrapeGapInc(browser, onProgress, { storeKey, storeName, host, brand, cids }) {
   const deals = [];
   const seen = new Set();
-  for (const cid of cids) {
+  for (const c of cids) {
+    const { cid, gender = '' } = typeof c === 'string' ? { cid: c } : c;
     for (let pageNumber = 0, total = 1; pageNumber < total && pageNumber < 10; pageNumber++) {
       const qs = new URLSearchParams({
         pageSize: 200, pageNumber, ignoreInventory: false, cid, vendor: 'constructorio',
@@ -21,8 +22,8 @@ async function scrapeGapInc(browser, onProgress, { storeKey, storeName, host, br
       const json = await res.json();
       total = Number(json.pagination?.pageNumberTotal) || 1;
       for (const p of json.products || []) {
-        for (const c of p.styleColors || []) {
-          const d = mapColor(p, c, { storeKey, storeName, host });
+        for (const color of p.styleColors || []) {
+          const d = mapColor(p, color, { storeKey, storeName, host, gender });
           if (d && !seen.has(d.id)) { seen.add(d.id); deals.push(d); }
         }
       }
@@ -32,7 +33,7 @@ async function scrapeGapInc(browser, onProgress, { storeKey, storeName, host, br
   return deals;
 }
 
-function mapColor(p, c, { storeKey, storeName, host }) {
+function mapColor(p, c, { storeKey, storeName, host, gender }) {
   const price = parseFloat(c.effectivePrice);
   const originalPrice = parseFloat(c.regularPrice);
   if (!(price > 0) || !(originalPrice > price) || c.inventoryStatus === 'Out of Stock') return null;
@@ -50,7 +51,7 @@ function mapColor(p, c, { storeKey, storeName, host }) {
     currency: 'CAD',
     priceCAD: price,
     originalPriceCAD: originalPrice,
-    tags: tag({ name: p.styleName, category: p.webProductType || '' }),
+    tags: tag({ name: p.styleName, category: p.webProductType || '', gender }),
     scrapedAt: new Date().toISOString(),
   };
 }
